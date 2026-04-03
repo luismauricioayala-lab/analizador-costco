@@ -8,16 +8,15 @@ from scipy.stats import norm
 # --- 1. CONFIGURACIÓN E INTERFAZ ---
 st.set_page_config(page_title="COST Institutional Terminal", layout="wide")
 
-# CSS para un look profesional y limpio
 st.markdown("""
     <style>
-    .stMetric { border: 1px solid rgba(128, 128, 128, 0.2); padding: 15px; border-radius: 10px; }
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
-    .stTabs [data-baseweb="tab"] { padding: 10px 20px; font-weight: bold; }
+    .stMetric { background-color: rgba(128, 128, 128, 0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(128, 128, 128, 0.1); }
+    [data-testid="stMetricValue"] { font-size: 26px !important; }
+    .educational-box { background-color: rgba(35, 134, 54, 0.1); padding: 20px; border-radius: 10px; border-left: 5px solid #238636; margin-bottom: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. MOTOR DE CÁLCULO (ENGINE) ---
+# --- 2. MOTORES MATEMÁTICOS ---
 def calculate_dcf(fcf, g1, g2, wacc, gt, shares=0.44365, cash=22.0):
     flows = []
     curr = fcf
@@ -30,186 +29,163 @@ def calculate_dcf(fcf, g1, g2, wacc, gt, shares=0.44365, cash=22.0):
     fair_v = ((pv_f + pv_t) / shares) + cash
     return fair_v, flows
 
-# --- 3. DATOS DE MERCADO Y PEERS ---
+def calculate_full_greeks(S, K, T, r, sigma, type='call'):
+    T = max(T, 0.0001) 
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    
+    if type == 'call':
+        price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+        delta = norm.cdf(d1)
+        rho = K * T * np.exp(-r * T) * norm.cdf(d2)
+    else:
+        price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+        delta = norm.cdf(d1) - 1
+        rho = -K * T * np.exp(-r * T) * norm.cdf(-d2)
+        
+    gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))
+    vega = (S * np.sqrt(T) * norm.pdf(d1)) / 100
+    theta = (-(S * norm.pdf(d1) * sigma / (2 * np.sqrt(T))) - r * K * np.exp(-r * T) * norm.cdf(d2 if type=='call' else -d2)) / 365
+    
+    return {"price": price, "delta": delta, "gamma": gamma, "vega": vega, "theta": theta, "rho": rho / 100}
+
+# --- 3. DATOS DE MERCADO ---
 PEERS_DATA = pd.DataFrame({
     'Ticker': ['COST', 'WMT', 'TGT', 'BJ', 'AMZN', 'S&P 500', 'NASDAQ'],
-    'Nombre': ['Costco', 'Walmart', 'Target', "BJ's", 'Amazon', 'Mercado', 'Tecnología'],
     'PE': [52.4, 31.2, 17.5, 21.1, 45.0, 22.5, 29.2],
     'Rev_Growth': [9.5, 6.2, 4.5, 8.2, 12.5, 7.0, 11.0],
-    'EV_EBITDA': [32.4, 15.2, 11.1, 12.8, 22.0, 13.0, 16.0],
     'Margin': [2.6, 2.4, 3.8, 1.9, 5.1, 11.0, 15.0]
 })
 
 # --- 4. INTERFAZ PRINCIPAL ---
 def main():
     st.title("🏛️ COST Institutional Intelligence Hub")
-    st.caption("Terminal v7.0 • Análisis de Escenarios, Simulación Estocástica y Benchmarking Relativo")
+    st.caption("Terminal v8.0 • Análisis 360°: Fundamental, Macro, Probabilístico y Derivados")
 
-    # --- SIDEBAR (INPUTS BASE) ---
+    # --- SIDEBAR ---
     st.sidebar.header("🎯 Supuestos del Analista")
     p_actual = st.sidebar.number_input("Precio Actual COST ($)", value=950.0)
     fcf_base = st.sidebar.slider("FCF Base ($B)", 5.0, 15.0, 9.5)
     wacc_base = st.sidebar.slider("WACC Base (%)", 5.0, 15.0, 8.5) / 100
-    g1_base = st.sidebar.slider("Crecimiento Años 1-5 (%)", 1, 20, 12) / 100
-    g2_base = st.sidebar.slider("Crecimiento Años 6-10 (%)", 1, 15, 8) / 100
+    g1_base = st.sidebar.slider("Crecimiento Años 1-5 (%)", 1, 25, 12) / 100
+    g2_base = st.sidebar.slider("Crecimiento Años 6-10 (%)", 1, 20, 8) / 100
 
     # --- HEADER METRICS ---
     h1, h2, h3, h4 = st.columns(4)
     h1.metric("P/E TTM", "52.4x", "Premium vs Sector")
     h2.metric("Market Cap", "$450.2B", "NASDAQ: COST")
-    h3.metric("Beta", "0.79", "Baja Volatilidad")
-    h4.metric("Membership Rate", "92.4%", "Alta Fidelidad")
+    h3.metric("Beta", "0.79", "Defensivo")
+    h4.metric("Membership Rate", "92.4%", "Retention Leader")
 
     st.markdown("---")
-
-    # --- TABS ---
-    t_dcf, t_bench, t_mc, t_stress, t_options = st.tabs([
-        "💎 Valoración DCF", "📊 Benchmark & Peers", "🎲 Monte Carlo", "🌪️ Stress Test Lab", "📉 Options Strategy"
-    ])
+    tabs = st.tabs(["💎 Valoración DCF", "📊 Benchmark & Peers", "🎲 Monte Carlo", "🌪️ Stress Test Lab", "📉 Opciones & Griegas", "📚 Metodología & Beta"])
 
     # --- TAB 1: VALORACIÓN ---
-    with t_dcf:
+    with tabs[0]:
         fv, flows = calculate_dcf(fcf_base, g1_base, g2_base, wacc_base, 0.025)
         c1, c2 = st.columns([2, 1])
         with c1:
-            st.subheader("Proyección FCF a 10 años")
-            fig_flows = go.Figure(data=[go.Bar(x=[f"A{i}" for i in range(1,11)], y=flows, marker_color='#2ecc71')])
-            fig_flows.update_layout(template="plotly_white", height=350)
-            st.plotly_chart(fig_flows, use_container_width=True)
+            st.subheader("Sensibilidad: WACC vs Crecimiento Terminal")
+            w_range = np.linspace(wacc_base-0.02, wacc_base+0.02, 5)
+            g_range = np.linspace(0.015, 0.035, 5)
+            matrix = [[calculate_dcf(fcf_base, g1_base, g2_base, w, g)[0] for g in g_range] for w in w_range]
+            df_sens = pd.DataFrame(matrix, index=[f"{x*100:.1f}%" for x in w_range], columns=[f"{x*100:.1f}%" for x in g_range])
+            st.plotly_chart(px.imshow(df_sens, text_auto='.0f', color_continuous_scale='RdYlGn', template="plotly_white"), use_container_width=True)
         with c2:
-            st.subheader("Veredicto de Valor")
             st.metric("Fair Value Estimado", f"${fv:.2f}", f"{(fv/p_actual-1)*100:.1f}% Upside")
-            st.info("💡 Este valor asume condiciones de mercado estables y crecimiento constante.")
+            st.write("**Proyección de Flujos (10 años):**")
+            st.bar_chart(flows)
+            
 
-    # --- TAB 2: BENCHMARK & PEERS (BARRAS Y SCATTER) ---
-    with t_bench:
-        st.subheader("Análisis Comparativo de Mercado")
+    # --- TAB 2: BENCHMARK & PEERS ---
+    with tabs[1]:
+        st.subheader("Análisis de Mercado y Competidores")
+        idx_bench = st.selectbox("Seleccionar Benchmark para comparar:", ["S&P 500", "NASDAQ", "Walmart", "Target"])
+        
         col_b1, col_b2 = st.columns(2)
         with col_b1:
-            st.write("**P/E Ratio: COST vs Pares e Índices**")
-            fig_bar = px.bar(PEERS_DATA, x='Ticker', y='PE', color='Ticker', template="plotly_white")
-            st.plotly_chart(fig_bar, use_container_width=True)
-            
-
+            st.plotly_chart(px.bar(PEERS_DATA, x='Ticker', y='PE', color='Ticker', title="P/E Ratio Comparativo", template="plotly_white"), use_container_width=True)
         with col_b2:
-            st.write("**Valuación vs Crecimiento (Scatter Plot)**")
-            fig_scatter = px.scatter(PEERS_DATA, x='Rev_Growth', y='PE', text='Ticker', size='Margin', color='Ticker', 
-                                     template="plotly_white", labels={'Rev_Growth': 'Crecimiento Ventas (%)', 'PE': 'P/E Ratio'})
-            st.plotly_chart(fig_scatter, use_container_width=True)
-            
-
-    # --- TAB 3: MONTE CARLO (INTUITIVO) ---
-    with t_mc:
-        st.subheader("Análisis Probabilístico de Monte Carlo")
-        vol_param = st.slider("Incertidumbre de Supuestos (Volatilidad %)", 1, 10, 3) / 100
+            st.plotly_chart(px.scatter(PEERS_DATA, x='Rev_Growth', y='PE', text='Ticker', size='Margin', color='Ticker', title="Crecimiento vs Valuación", template="plotly_white"), use_container_width=True)
         
-        # Simulación
-        np.random.seed(42)
-        sims = [calculate_dcf(fcf_base, np.random.normal(g1_base, vol_param), g2_base, 
-                              np.random.normal(wacc_base, 0.005), 0.025)[0] for _ in range(1000)]
+
+    # --- TAB 3: MONTE CARLO ---
+    with tabs[2]:
+        st.subheader("Simulación de Probabilidad Monte Carlo")
+        vol_mc = st.slider("Volatilidad de Supuestos", 0.01, 0.05, 0.02)
+        sims = [calculate_dcf(fcf_base, np.random.normal(g1_base, vol_mc), g2_base, np.random.normal(wacc_base, 0.005), 0.025)[0] for _ in range(1000)]
         prob_success = (np.array(sims) > p_actual).mean() * 100
         
-        c_mc1, c_mc2 = st.columns([2, 1])
-        with c_mc1:
-            fig_hist = px.histogram(sims, nbins=40, title="Distribución de Resultados Posibles", 
-                                    template="plotly_white", color_discrete_sequence=['#3498db'])
-            fig_hist.add_vline(x=p_actual, line_color="red", line_dash="dash", annotation_text="Precio de Mercado")
-            st.plotly_chart(fig_hist, use_container_width=True)
-            
-        with c_mc2:
-            st.write("### ¿Qué significa esto?")
-            st.write(f"Hemos simulado **1,000 futuros posibles** variando el crecimiento y el riesgo.")
-            st.metric("Probabilidad de Éxito", f"{prob_success:.1f}%", help="Porcentaje de escenarios donde COST vale más de lo que cuesta hoy.")
-            if prob_success > 50: st.success("La mayoría de los escenarios son favorables.")
-            else: st.error("El riesgo de sobrevaloración es alto en este modelo.")
+        fig_mc = px.histogram(sims, nbins=40, title=f"Probabilidad de Éxito: {prob_success:.1f}%", template="plotly_white", color_discrete_sequence=['#27ae60'])
+        fig_mc.add_vline(x=p_actual, line_color="red", line_dash="dash", annotation_text="Precio Actual")
+        st.plotly_chart(fig_mc, use_container_width=True)
+        
 
-    # --- TAB 4: STRESS TEST LAB (INTERACTIVO Y GRANULAR) ---
-    with t_stress:
+    # --- TAB 4: STRESS TEST ---
+    with tabs[3]:
         st.header("🌪️ Laboratorio de Estrés Macroeconómico")
-        st.write("Ajusta variables granulares para ver cómo impactan el Valor Intrínseco en tiempo real.")
-        
-        col_s1, col_s2, col_s3 = st.columns(3)
-        with col_s1:
-            st.subheader("Consumo")
-            disposable_income = st.slider("Ingreso Disponible (%)", -10, 5, 0)
-            unemployment = st.slider("Tasa Desempleo (%)", 3, 12, 4)
-        with col_s2:
-            st.subheader("Costos e Inflación")
-            cpi = st.slider("Inflación CPI (%)", 0, 10, 3)
-            wage_hike = st.slider("Alza Salarial (%)", 0, 8, 4)
-        with col_s3:
-            st.subheader("Eventos Swans")
-            supply_chain = st.checkbox("Crisis de Suministros")
-            cyber_event = st.checkbox("Ciberataque")
+        s1, s2, s3 = st.columns(3)
+        with s1:
+            inc = s1.slider("Ingreso Disponible %", -10, 5, 0)
+            unemp = s1.slider("Desempleo %", 3, 15, 4)
+        with s2:
+            cpi = s2.slider("Inflación (CPI) %", 0, 10, 3)
+            wage_press = s2.slider("Alza Salarial %", 0, 8, 4)
+        with s3:
+            swan_event = st.checkbox("Crisis Geopolítica / Logística")
 
-        # LÓGICA DE IMPACTO
-        # El ingreso disponible y el desempleo afectan g1
-        adj_g1 = g1_base + (disposable_income / 150) - (unemployment / 400)
-        # La inflación y alzas salariales afectan el WACC
-        adj_wacc = wacc_base + (cpi / 500) + (wage_hike / 1000)
-        # Cisnes Negros
-        if supply_chain: adj_g1 -= 0.04; adj_wacc += 0.01
-        if cyber_event: adj_g1 -= 0.02; adj_wacc += 0.005
+        adj_g = g1_base + (inc/200) - (unemp/500) - (0.04 if swan_event else 0)
+        adj_wacc = wacc_base + (cpi/500) + (wage_press/1000)
+        v_stress, _ = calculate_dcf(fcf_base, adj_g, g2_base, adj_wacc, 0.025)
         
-        v_stress, _ = calculate_dcf(fcf_base, adj_g1, g2_base, adj_wacc, 0.025)
-        
-        st.markdown("---")
-        st.subheader("Resultado del Escenario de Estrés")
-        s_m1, s_m2, s_m3 = st.columns(3)
-        s_m1.metric("Valor Post-Estrés", f"${v_stress:.2f}", f"{((v_stress/fv)-1)*100:.1f}% vs Base")
-        s_m2.metric("WACC Ajustado", f"{adj_wacc*100:.2f}%")
-        s_m3.metric("Crecimiento Ajustado", f"{adj_g1*100:.1f}%")
-        
+        st.metric("Valor Post-Estrés", f"${v_stress:.2f}", f"{((v_stress/fv)-1)*100:.1f}% vs Caso Base")
         
 
-# --- TAB 5: OPCIONES PROFUNDO ---
+    # --- TAB 5: OPCIONES & GRIEGAS ---
     with tabs[4]:
-        st.header("🔬 Options Analysis & Risk Greeks")
-        st.info("💡 Este laboratorio calcula la sensibilidad de tu contrato ante cambios en precio, tiempo y volatilidad.")
+        st.header("🔬 Deep Options Analysis")
+        o_c1, o_c2 = st.columns([1, 2])
+        with o_c1:
+            o_type = st.radio("Tipo", ["Call", "Put"])
+            strike = st.number_input("Strike Price ($)", value=float(round(p_actual * 1.05, 0)))
+            days = st.slider("Días al Vencimiento", 1, 365, 30)
+            sigma = st.slider("Volatilidad Implícita (IV %)", 5, 100, 25) / 100
+            
+            res = calculate_full_greeks(p_actual, strike, days/365, 0.045, sigma, o_type.lower())
+            
+            st.metric("Prima del Contrato", f"${res['price']:.2f}")
+            st.write(f"**Delta:** {res['delta']:.3f} | **Gamma:** {res['gamma']:.4f}")
+            st.write(f"**Vega:** {res['vega']:.3f} | **Theta (Día):** ${res['theta']:.2f}")
+            st.write(f"**Rho:** {res['rho']:.3f}")
+        with o_c2:
+            st.subheader("Curva de Sensibilidad Delta")
+            x_range = np.linspace(p_actual*0.8, p_actual*1.2, 50)
+            deltas = [calculate_full_greeks(x, strike, days/365, 0.045, sigma, o_type.lower())['delta'] for x in x_range]
+            st.plotly_chart(px.line(x=x_range, y=deltas, labels={'x': 'Precio COST', 'y': 'Delta'}, template="plotly_white"), use_container_width=True)
+            
+
+    # --- TAB 6: METODOLOGÍA & BETA ---
+    with tabs[5]:
+        st.header("📚 Metodología: La Beta y su Resiliencia")
+        st.markdown("""
+        <div class='educational-box'>
+        Costco presenta una <b>Beta (β) de 0.79</b>. Esto la clasifica como una acción <b>defensiva</b> por excelencia.
+        </div>
+        """, unsafe_allow_html=True)
         
-        c_op1, c_op2 = st.columns([1, 2])
-        
-        with c_op1:
-            st.subheader("Configuración")
-            op_type = st.selectbox("Tipo de Contrato", ["Call", "Put"])
-            k_strike = st.number_input("Precio Strike ($)", value=float(round(p_mercado * 1.05, 0)))
-            t_days = st.slider("Días al Vencimiento", 1, 365, 30)
-            iv = st.slider("Volatilidad Implícita (IV %)", 5, 100, 25) / 100
-            r_rate = 0.045 # Treasury 10Y aprox.
-
-            res = calculate_options_master(p_mercado, k_strike, t_days/365, r_rate, iv, op_type.lower())
+        e1, e2 = st.columns(2)
+        with e1:
+            st.subheader("¿Por qué es defensiva?")
+            st.write("""
+            - **Baja Volatilidad:** Al ser un 21% menos volátil que el S&P 500, protege el capital en mercados bajistas.
+            - **Consumer Staples:** La gente no deja de comprar comida o suministros básicos en Costco, incluso si hay crisis.
+            - **Membresías:** Sus ingresos no dependen solo de las ventas, sino de las cuotas de socios, lo que da estabilidad extrema.
+            """)
+        with e2:
+            st.subheader("Impacto en la Valoración (CAPM)")
+            st.latex(r"K_e = R_f + \beta (R_m - R_f)")
+            st.info("Una Beta baja reduce el coste del capital (WACC), lo que eleva matemáticamente el Valor Intrínseco de la empresa.")
             
-            st.markdown("---")
-            st.metric("Precio Teórico", f"${res['price']:.2f}")
-            
-            st.subheader("Griegas (Greeks)")
-            g_col1, g_col2 = st.columns(2)
-            g_col1.write(f"**Delta:** {res['delta']:.3f}")
-            g_col1.write(f"**Gamma:** {res['gamma']:.4f}")
-            g_col1.write(f"**Vega:** {res['vega']:.3f}")
-            g_col2.write(f"**Theta (Día):** ${res['theta']:.2f}")
-            g_col2.write(f"**Rho:** {res['rho']:.3f}")
-
-        with c_op2:
-            st.subheader("Simulación de Sensibilidad")
-            # Gráfico de Delta vs Precio de la Acción
-            prices_range = np.linspace(p_mercado * 0.8, p_mercado * 1.2, 50)
-            deltas = [calculate_options_master(p, k_strike, t_days/365, r_rate, iv, op_type.lower())['delta'] for p in prices_range]
-            
-            fig_delta = go.Figure()
-            fig_delta.add_trace(go.Scatter(x=prices_range, y=deltas, name='Delta Sensitivity', line=dict(color='#3498db', width=3)))
-            fig_delta.update_layout(title="Sensibilidad de la Delta vs Precio Spot", template="plotly_white", xaxis_title="Precio COST", yaxis_title="Delta")
-            st.plotly_chart(fig_delta, use_container_width=True)
-
-            # Análisis de Profundidad
-            st.subheader("Análisis del Analista")
-            if abs(res['delta']) > 0.7:
-                st.warning("⚠️ **Deep in the Money:** La opción se comporta casi como la acción. Riesgo direccional máximo.")
-            elif abs(res['delta']) < 0.3:
-                st.info("ℹ️ **Out of the Money:** Alto apalancamiento, pero alta probabilidad de que expire sin valor.")
-            
-            st.write(f"**Impacto de Volatilidad:** Por cada 1% que suba la IV, tu contrato ganará/perderá aproximadamente **${abs(res['vega']):.2f}**.")
-            st.write(f"**Decaimiento Temporal:** Estás perdiendo **${abs(res['theta']):.2f}** diarios solo por el paso del tiempo.")
 
 if __name__ == "__main__":
     main()
