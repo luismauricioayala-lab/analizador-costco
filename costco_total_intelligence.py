@@ -162,28 +162,54 @@ def main():
         
         
 
-    # --- TAB 5: OPTIONS ---
-    with t_options:
-        st.header("📉 Options Strategy Lab")
-        col_o1, col_o2 = st.columns([1, 2])
-        with col_o1:
-            strike = st.number_input("Precio Strike ($)", value=float(round(p_actual*1.05, 0)))
-            iv = st.slider("Volatilidad Implícita (IV %)", 10, 80, 25) / 100
+# --- TAB 5: OPCIONES PROFUNDO ---
+    with tabs[4]:
+        st.header("🔬 Options Analysis & Risk Greeks")
+        st.info("💡 Este laboratorio calcula la sensibilidad de tu contrato ante cambios en precio, tiempo y volatilidad.")
+        
+        c_op1, c_op2 = st.columns([1, 2])
+        
+        with c_op1:
+            st.subheader("Configuración")
+            op_type = st.selectbox("Tipo de Contrato", ["Call", "Put"])
+            k_strike = st.number_input("Precio Strike ($)", value=float(round(p_mercado * 1.05, 0)))
+            t_days = st.slider("Días al Vencimiento", 1, 365, 30)
+            iv = st.slider("Volatilidad Implícita (IV %)", 5, 100, 25) / 100
+            r_rate = 0.045 # Treasury 10Y aprox.
+
+            res = calculate_options_master(p_mercado, k_strike, t_days/365, r_rate, iv, op_type.lower())
             
-            # Black-Scholes simplificado
-            d1 = (np.log(p_actual / strike) + (0.045 + 0.5 * iv**2) * (30/365)) / (iv * np.sqrt(30/365))
-            call_p = p_actual * norm.cdf(d1) - strike * np.exp(-0.045 * (30/365)) * norm.cdf(d1 - iv * np.sqrt(30/365))
+            st.markdown("---")
+            st.metric("Precio Teórico", f"${res['price']:.2f}")
             
-            st.metric("Prima del Call (30 días)", f"${call_p:.2f}")
-            st.write(f"**Delta:** {norm.cdf(d1):.3f}")
-        with col_o2:
-            st.subheader("Perfil de Payoff")
-            x_range = np.linspace(p_actual*0.8, p_actual*1.2, 100)
-            y_payoff = np.maximum(x_range - strike, 0) - call_p
-            fig_opt = go.Figure(go.Scatter(x=x_range, y=y_payoff, fill='tozeroy', name='Call Payoff'))
-            fig_opt.update_layout(template="plotly_white", xaxis_title="Precio COST", yaxis_title="P&L ($)")
-            st.plotly_chart(fig_opt, use_container_width=True)
+            st.subheader("Griegas (Greeks)")
+            g_col1, g_col2 = st.columns(2)
+            g_col1.write(f"**Delta:** {res['delta']:.3f}")
+            g_col1.write(f"**Gamma:** {res['gamma']:.4f}")
+            g_col1.write(f"**Vega:** {res['vega']:.3f}")
+            g_col2.write(f"**Theta (Día):** ${res['theta']:.2f}")
+            g_col2.write(f"**Rho:** {res['rho']:.3f}")
+
+        with c_op2:
+            st.subheader("Simulación de Sensibilidad")
+            # Gráfico de Delta vs Precio de la Acción
+            prices_range = np.linspace(p_mercado * 0.8, p_mercado * 1.2, 50)
+            deltas = [calculate_options_master(p, k_strike, t_days/365, r_rate, iv, op_type.lower())['delta'] for p in prices_range]
             
+            fig_delta = go.Figure()
+            fig_delta.add_trace(go.Scatter(x=prices_range, y=deltas, name='Delta Sensitivity', line=dict(color='#3498db', width=3)))
+            fig_delta.update_layout(title="Sensibilidad de la Delta vs Precio Spot", template="plotly_white", xaxis_title="Precio COST", yaxis_title="Delta")
+            st.plotly_chart(fig_delta, use_container_width=True)
+
+            # Análisis de Profundidad
+            st.subheader("Análisis del Analista")
+            if abs(res['delta']) > 0.7:
+                st.warning("⚠️ **Deep in the Money:** La opción se comporta casi como la acción. Riesgo direccional máximo.")
+            elif abs(res['delta']) < 0.3:
+                st.info("ℹ️ **Out of the Money:** Alto apalancamiento, pero alta probabilidad de que expire sin valor.")
+            
+            st.write(f"**Impacto de Volatilidad:** Por cada 1% que suba la IV, tu contrato ganará/perderá aproximadamente **${abs(res['vega']):.2f}**.")
+            st.write(f"**Decaimiento Temporal:** Estás perdiendo **${abs(res['theta']):.2f}** diarios solo por el paso del tiempo.")
 
 if __name__ == "__main__":
     main()
