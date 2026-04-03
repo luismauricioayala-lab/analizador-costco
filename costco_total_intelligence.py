@@ -11,13 +11,17 @@ st.set_page_config(page_title="COST Institutional Terminal", layout="wide")
 st.markdown("""
     <style>
     .stMetric { background-color: rgba(128, 128, 128, 0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(128, 128, 128, 0.1); }
-    [data-testid="stMetricValue"] { font-size: 26px !important; }
-    .educational-box { background-color: rgba(35, 134, 54, 0.1); padding: 20px; border-radius: 10px; border-left: 5px solid #238636; margin-bottom: 20px; }
+    .scenario-card { background-color: white; border-radius: 15px; padding: 20px; border: 1px solid #e0e0e0; text-align: center; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); color: #1c1c1c; }
+    .metric-costco { color: #1c1c1c; font-size: 32px; font-weight: bold; margin: 5px 0; }
+    .label-bajista { color: #d93025; background-color: #fce8e6; padding: 2px 10px; border-radius: 10px; font-weight: bold; }
+    .label-base { color: #f29900; background-color: #fff4e5; padding: 2px 10px; border-radius: 10px; font-weight: bold; }
+    .label-alcista { color: #188038; background-color: #e6f4ea; padding: 2px 10px; border-radius: 10px; font-weight: bold; }
+    .educational-box { background-color: rgba(35, 134, 54, 0.05); padding: 20px; border-radius: 10px; border-left: 5px solid #238636; margin-bottom: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. MOTORES MATEMÁTICOS ---
-def calculate_dcf(fcf, g1, g2, wacc, gt, shares=0.44365, cash=22.0):
+# --- 2. MOTORES FINANCIEROS ---
+def dcf_engine(fcf, g1, g2, wacc, gt, shares=0.44365, cash=22.0):
     flows = []
     curr = fcf
     for i in range(1, 11):
@@ -27,13 +31,12 @@ def calculate_dcf(fcf, g1, g2, wacc, gt, shares=0.44365, cash=22.0):
     tv = (flows[-1] * (1 + gt)) / (wacc - gt)
     pv_t = tv / (1 + wacc)**10
     fair_v = ((pv_f + pv_t) / shares) + cash
-    return fair_v, flows
+    return fair_v, flows, pv_f, pv_t
 
 def calculate_full_greeks(S, K, T, r, sigma, type='call'):
     T = max(T, 0.0001) 
     d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
-    
     if type == 'call':
         price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
         delta = norm.cdf(d1)
@@ -42,11 +45,9 @@ def calculate_full_greeks(S, K, T, r, sigma, type='call'):
         price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
         delta = norm.cdf(d1) - 1
         rho = -K * T * np.exp(-r * T) * norm.cdf(-d2)
-        
     gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))
     vega = (S * np.sqrt(T) * norm.pdf(d1)) / 100
     theta = (-(S * norm.pdf(d1) * sigma / (2 * np.sqrt(T))) - r * K * np.exp(-r * T) * norm.cdf(d2 if type=='call' else -d2)) / 365
-    
     return {"price": price, "delta": delta, "gamma": gamma, "vega": vega, "theta": theta, "rho": rho / 100}
 
 # --- 3. DATOS DE MERCADO ---
@@ -59,133 +60,126 @@ PEERS_DATA = pd.DataFrame({
 
 # --- 4. INTERFAZ PRINCIPAL ---
 def main():
-    st.title("🏛️ COST Institutional Intelligence Hub")
-    st.caption("Terminal v8.0 • Análisis 360°: Fundamental, Macro, Probabilístico y Derivados")
+    st.title("🏛️ Costco Wholesale (COST) — Institutional Master Terminal")
+    st.caption("v9.0 Build 2026 • High-Density Financial Analysis Hub")
 
-    # --- SIDEBAR ---
+    # --- SIDEBAR: TODOS LOS INPUTS ---
     st.sidebar.header("🎯 Supuestos del Analista")
-    p_actual = st.sidebar.number_input("Precio Actual COST ($)", value=950.0)
-    fcf_base = st.sidebar.slider("FCF Base ($B)", 5.0, 15.0, 9.5)
-    wacc_base = st.sidebar.slider("WACC Base (%)", 5.0, 15.0, 8.5) / 100
-    g1_base = st.sidebar.slider("Crecimiento Años 1-5 (%)", 1, 25, 12) / 100
-    g2_base = st.sidebar.slider("Crecimiento Años 6-10 (%)", 1, 20, 8) / 100
+    p_actual = st.sidebar.number_input("Precio Mercado ($)", value=950.0)
+    
+    with st.sidebar.expander("📈 Parámetros DCF", expanded=True):
+        fcf_in = st.slider("FCF Base ($B)", 5.0, 15.0, 9.5)
+        g1 = st.slider("Crecimiento Años 1-5 (%)", 1, 20, 12) / 100
+        g2 = st.slider("Crecimiento Años 6-10 (%)", 1, 15, 8) / 100
+        wacc_base = st.slider("WACC Base (%)", 5.0, 15.0, 8.5) / 100
+        gt = 0.025 # Crecimiento Terminal
 
-    # --- HEADER METRICS ---
+    with st.sidebar.expander("🌪️ Variables de Stress Test"):
+        disposable_inc = st.slider("Ingreso Disponible %", -10, 5, 0)
+        unemployment = st.slider("Desempleo %", 3, 15, 4)
+        cpi = st.slider("Inflación (CPI) %", 0, 10, 3)
+        wage_press = st.slider("Alza Salarial %", 0, 8, 4)
+
+    # HEADER METRICS
     h1, h2, h3, h4 = st.columns(4)
-    h1.metric("P/E TTM", "52.4x", "Premium vs Sector")
-    h2.metric("Market Cap", "$450.2B", "NASDAQ: COST")
+    h1.metric("P/E TTM", "52.4x", "Premium")
+    h2.metric("Market Cap", "$450.2B", "COST-NASDAQ")
     h3.metric("Beta", "0.79", "Defensivo")
-    h4.metric("Membership Rate", "92.4%", "Retention Leader")
+    h4.metric("Retention", "92.4%", "Gold Standard")
 
     st.markdown("---")
-    tabs = st.tabs(["💎 Valoración DCF", "📊 Benchmark & Peers", "🎲 Monte Carlo", "🌪️ Stress Test Lab", "📉 Opciones & Griegas", "📚 Metodología & Beta"])
+    tabs = st.tabs(["📋 Resumen Ejecutivo", "💎 Valoración Pro", "📊 Benchmarking", "🎲 Monte Carlo", "🌪️ Stress Test Lab", "📉 Opciones Lab", "📚 Metodología Masterclass"])
 
-    # --- TAB 1: VALORACIÓN ---
+    # --- TAB 0: RESUMEN EJECUTIVO (ESTILO IMAGEN) ---
     with tabs[0]:
-        fv, flows = calculate_dcf(fcf_base, g1_base, g2_base, wacc_base, 0.025)
+        c_esc1, c_esc2, c_esc3 = st.columns(3)
+        # Bajista
+        v_baj, _, _, _ = dcf_engine(fcf_in, g1*0.5, g2*0.4, wacc_base+0.02, 0.02)
+        # Base
+        v_bas, flows_bas, pv_f, pv_t = dcf_engine(fcf_in, g1, g2, wacc_base, gt)
+        # Alcista
+        v_alc, _, _, _ = dcf_engine(fcf_in, g1+0.03, g2+0.02, wacc_base-0.015, 0.03)
+
+        c_esc1.markdown(f'<div class="scenario-card"><span class="label-bajista">Bajista</span><div class="metric-costco">${v_baj:.0f}</div><div style="color:red">{(v_baj/p_actual-1)*100:.1f}% vs actual</div><small>WACC {(wacc_base+0.02)*100:.1f}%</small></div>', unsafe_allow_html=True)
+        c_esc2.markdown(f'<div class="scenario-card"><span class="label-base">Base</span><div class="metric-costco">${v_bas:.0f}</div><div style="color:orange">{(v_bas/p_actual-1)*100:.1f}% vs actual</div><small>WACC {wacc_base*100:.1f}%</small></div>', unsafe_allow_html=True)
+        c_esc3.markdown(f'<div class="scenario-card"><span class="label-alcista">Alcista</span><div class="metric-costco">${v_alc:.0f}</div><div style="color:green">{(v_alc/p_actual-1)*100:.1f}% vs actual</div><small>WACC {(wacc_base-0.015)*100:.1f}%</small></div>', unsafe_allow_html=True)
+
+        st.markdown("---")
+        # Donut Chart
+        fig_donut = go.Figure(data=[go.Pie(labels=['PV Flujos 10Y', 'Valor Terminal'], values=[pv_f, pv_t], hole=.6, marker_colors=['#3498db', '#f39c12'])])
+        fig_donut.update_layout(title="Composición del Valor Intrínseco", height=400, template="plotly_white")
+        st.plotly_chart(fig_donut, use_container_width=True)
+
+    # --- TAB 1: VALORACIÓN PRO ---
+    with tabs[1]:
         c1, c2 = st.columns([2, 1])
         with c1:
             st.subheader("Sensibilidad: WACC vs Crecimiento Terminal")
             w_range = np.linspace(wacc_base-0.02, wacc_base+0.02, 5)
             g_range = np.linspace(0.015, 0.035, 5)
-            matrix = [[calculate_dcf(fcf_base, g1_base, g2_base, w, g)[0] for g in g_range] for w in w_range]
-            df_sens = pd.DataFrame(matrix, index=[f"{x*100:.1f}%" for x in w_range], columns=[f"{x*100:.1f}%" for x in g_range])
+            matrix = [[dcf_engine(fcf_in, g1, g2, w, g)[0] for g in g_range] for w in w_range]
+            df_sens = pd.DataFrame(matrix, index=[f"W:{x*100:.1f}%" for x in w_range], columns=[f"g:{x*100:.1f}%" for x in g_range])
             st.plotly_chart(px.imshow(df_sens, text_auto='.0f', color_continuous_scale='RdYlGn', template="plotly_white"), use_container_width=True)
         with c2:
-            st.metric("Fair Value Estimado", f"${fv:.2f}", f"{(fv/p_actual-1)*100:.1f}% Upside")
-            st.write("**Proyección de Flujos (10 años):**")
-            st.bar_chart(flows)
-            
+            st.subheader("Flujos Proyectados")
+            st.bar_chart(flows_bas)
+            st.info("💡 El gráfico muestra el FCF anual descontado. Nota el salto en el año 6 debido a la transición de etapas.")
 
-    # --- TAB 2: BENCHMARK & PEERS ---
-    with tabs[1]:
-        st.subheader("Análisis de Mercado y Competidores")
-        idx_bench = st.selectbox("Seleccionar Benchmark para comparar:", ["S&P 500", "NASDAQ", "Walmart", "Target"])
+    # --- TAB 2: BENCHMARKING ---
+    with tabs[2]:
+        idx = st.selectbox("Benchmark de Mercado:", ["S&P 500", "NASDAQ 100", "Dow Jones"])
+        pe_b = {"S&P 500": 22.5, "NASDAQ 100": 29.2, "Dow Jones": 19.5}[idx]
+        df_p = pd.DataFrame({'Ticker': ['COST', 'WMT', 'TGT', 'BJ', idx], 'PE': [52.4, 31.2, 17.5, 21.1, pe_b], 'Growth': [9.5, 6.2, 4.5, 8.2, 7.5]})
         
         col_b1, col_b2 = st.columns(2)
-        with col_b1:
-            st.plotly_chart(px.bar(PEERS_DATA, x='Ticker', y='PE', color='Ticker', title="P/E Ratio Comparativo", template="plotly_white"), use_container_width=True)
-        with col_b2:
-            st.plotly_chart(px.scatter(PEERS_DATA, x='Rev_Growth', y='PE', text='Ticker', size='Margin', color='Ticker', title="Crecimiento vs Valuación", template="plotly_white"), use_container_width=True)
-        
+        col_b1.plotly_chart(px.bar(df_p, x='Ticker', y='PE', color='Ticker', title="P/E Comparativo", template="plotly_white"), use_container_width=True)
+        col_b2.plotly_chart(px.scatter(df_p, x='Growth', y='PE', text='Ticker', size='PE', color='Ticker', title="Crecimiento vs Valuación", template="plotly_white"), use_container_width=True)
 
     # --- TAB 3: MONTE CARLO ---
-    with tabs[2]:
-        st.subheader("Simulación de Probabilidad Monte Carlo")
+    with tabs[3]:
+        st.subheader("Simulación Monte Carlo (1,000 Escenarios)")
         vol_mc = st.slider("Volatilidad de Supuestos", 0.01, 0.05, 0.02)
-        sims = [calculate_dcf(fcf_base, np.random.normal(g1_base, vol_mc), g2_base, np.random.normal(wacc_base, 0.005), 0.025)[0] for _ in range(1000)]
+        sims = [dcf_engine(fcf_in, np.random.normal(g1, vol_mc), g2, np.random.normal(wacc_base, 0.005), 0.025)[0] for _ in range(1000)]
         prob_success = (np.array(sims) > p_actual).mean() * 100
-        
-        fig_mc = px.histogram(sims, nbins=40, title=f"Probabilidad de Éxito: {prob_success:.1f}%", template="plotly_white", color_discrete_sequence=['#27ae60'])
-        fig_mc.add_vline(x=p_actual, line_color="red", line_dash="dash", annotation_text="Precio Actual")
+        fig_mc = px.histogram(sims, nbins=40, title=f"Probabilidad de ser rentables: {prob_success:.1f}%", template="plotly_white", color_discrete_sequence=['#27ae60'])
+        fig_mc.add_vline(x=p_actual, line_color="red", line_dash="dash")
         st.plotly_chart(fig_mc, use_container_width=True)
-        
 
     # --- TAB 4: STRESS TEST ---
-    with tabs[3]:
-        st.header("🌪️ Laboratorio de Estrés Macroeconómico")
-        s1, s2, s3 = st.columns(3)
-        with s1:
-            inc = s1.slider("Ingreso Disponible %", -10, 5, 0)
-            unemp = s1.slider("Desempleo %", 3, 15, 4)
-        with s2:
-            cpi = s2.slider("Inflación (CPI) %", 0, 10, 3)
-            wage_press = s2.slider("Alza Salarial %", 0, 8, 4)
-        with s3:
-            swan_event = st.checkbox("Crisis Geopolítica / Logística")
-
-        adj_g = g1_base + (inc/200) - (unemp/500) - (0.04 if swan_event else 0)
-        adj_wacc = wacc_base + (cpi/500) + (wage_press/1000)
-        v_stress, _ = calculate_dcf(fcf_base, adj_g, g2_base, adj_wacc, 0.025)
-        
-        st.metric("Valor Post-Estrés", f"${v_stress:.2f}", f"{((v_stress/fv)-1)*100:.1f}% vs Caso Base")
-        
-
-    # --- TAB 5: OPCIONES & GRIEGAS ---
     with tabs[4]:
-        st.header("🔬 Deep Options Analysis")
-        o_c1, o_c2 = st.columns([1, 2])
-        with o_c1:
-            o_type = st.radio("Tipo", ["Call", "Put"])
-            strike = st.number_input("Strike Price ($)", value=float(round(p_actual * 1.05, 0)))
-            days = st.slider("Días al Vencimiento", 1, 365, 30)
-            sigma = st.slider("Volatilidad Implícita (IV %)", 5, 100, 25) / 100
-            
-            res = calculate_full_greeks(p_actual, strike, days/365, 0.045, sigma, o_type.lower())
-            
-            st.metric("Prima del Contrato", f"${res['price']:.2f}")
-            st.write(f"**Delta:** {res['delta']:.3f} | **Gamma:** {res['gamma']:.4f}")
-            st.write(f"**Vega:** {res['vega']:.3f} | **Theta (Día):** ${res['theta']:.2f}")
-            st.write(f"**Rho:** {res['rho']:.3f}")
-        with o_c2:
-            st.subheader("Curva de Sensibilidad Delta")
-            x_range = np.linspace(p_actual*0.8, p_actual*1.2, 50)
-            deltas = [calculate_full_greeks(x, strike, days/365, 0.045, sigma, o_type.lower())['delta'] for x in x_range]
-            st.plotly_chart(px.line(x=x_range, y=deltas, labels={'x': 'Precio COST', 'y': 'Delta'}, template="plotly_white"), use_container_width=True)
-            
+        adj_g = g1 + (disposable_inc/200) - (unemployment/500)
+        adj_w = wacc_base + (cpi/500) + (wage_press/1000)
+        v_str, _ , _, _ = dcf_engine(fcf_in, adj_g, g2, adj_w, 0.025)
+        st.metric("Valor Post-Estrés", f"${v_str:.2f}", f"{((v_str/v_bas)-1)*100:.1f}% vs Caso Base")
+        st.write(f"**Análisis:** Bajo este escenario, el WACC sube a **{adj_w*100:.2f}%** y el crecimiento baja a **{adj_g*100:.2f}%**.")
 
-    # --- TAB 6: METODOLOGÍA & BETA ---
+    # --- TAB 5: OPCIONES ---
     with tabs[5]:
-        st.header("📚 Metodología: La Beta y su Resiliencia")
-        st.markdown("""
-        <div class='educational-box'>
-        Costco presenta una <b>Beta (β) de 0.79</b>. Esto la clasifica como una acción <b>defensiva</b> por excelencia.
-        </div>
-        """, unsafe_allow_html=True)
+        o_t = st.radio("Contrato", ["Call", "Put"])
+        k = st.number_input("Strike", value=float(round(p_actual*1.05, 0)))
+        iv = st.slider("IV %", 5, 100, 25) / 100
+        res = calculate_full_greeks(p_actual, k, 30/365, 0.045, iv, o_t.lower())
         
-        e1, e2 = st.columns(2)
-        with e1:
-            st.subheader("¿Por qué es defensiva?")
-            st.write("""
-            - **Baja Volatilidad:** Al ser un 21% menos volátil que el S&P 500, protege el capital en mercados bajistas.
-            - **Consumer Staples:** La gente no deja de comprar comida o suministros básicos en Costco, incluso si hay crisis.
-            - **Membresías:** Sus ingresos no dependen solo de las ventas, sino de las cuotas de socios, lo que da estabilidad extrema.
-            """)
-        with e2:
-            st.subheader("Impacto en la Valoración (CAPM)")
+        c_o1, c_o2 = st.columns(2)
+        with c_o1:
+            st.metric("Precio Prima", f"${res['price']:.2f}")
+            st.write(f"**Delta:** {res['delta']:.3f} | **Gamma:** {res['gamma']:.4f}")
+            st.write(f"**Vega:** {res['vega']:.3f} | **Theta (Día):** ${res['theta']:.2f} | **Rho:** {res['rho']:.3f}")
+        with c_o2:
+            x_r = np.linspace(p_actual*0.8, p_actual*1.2, 50)
+            deltas = [calculate_full_greeks(x, k, 30/365, 0.045, iv, o_t.lower())['delta'] for x in x_r]
+            st.plotly_chart(px.line(x=x_r, y=deltas, title="Curva de Sensibilidad Delta", template="plotly_white"), use_container_width=True)
+
+    # --- TAB 6: MASTERCLASS ---
+    with tabs[6]:
+        st.header("📚 Guía Metodológica Institucional")
+        with st.expander("💰 1. El WACC y el Coste de Oportunidad", expanded=True):
+            st.write("El WACC es la rentabilidad mínima exigida. Usamos la Beta (0.79) para calcular el coste del capital propio (CAPM).")
             st.latex(r"K_e = R_f + \beta (R_m - R_f)")
-            st.info("Una Beta baja reduce el coste del capital (WACC), lo que eleva matemáticamente el Valor Intrínseco de la empresa.")
-            
+        with st.expander("🎲 2. Simulación de Monte Carlo"):
+            st.write("No predecimos el futuro; medimos la probabilidad. Al variar los supuestos 1,000 veces, obtenemos una campana de Gauss que nos indica el margen de seguridad real.")
+        with st.expander("🌪️ 3. Stress Test y Macro"):
+            st.write("Evaluamos la resiliencia. Costco es 'defensiva' porque su Beta es baja y sus flujos son estables incluso con desempleo alto o inflación.")
 
 if __name__ == "__main__":
     main()
