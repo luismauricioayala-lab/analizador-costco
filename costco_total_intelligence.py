@@ -10,7 +10,6 @@ import os
 # --- 1. CONFIGURACIÓN E INTERFAZ ---
 st.set_page_config(page_title="COST Institutional Terminal", layout="wide")
 
-# CSS para estilo Bloomberg/Terminal Profesional
 st.markdown("""
     <style>
     .stMetric { background-color: rgba(128, 128, 128, 0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(128, 128, 128, 0.1); }
@@ -22,22 +21,43 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. MOTORES FINANCIEROS Y DE DATOS ---
+# --- 2. MOTORES FINANCIEROS Y DE DATOS DINÁMICOS ---
 
 @st.cache_data(ttl=3600)
 def load_live_data(ticker_symbol):
     try:
         t = yf.Ticker(ticker_symbol)
         info = t.info
-        # Extracción dinámica
+        cf = t.cashflow
+        
+        # Extracción dinámica de precio y beta
         price = info.get('currentPrice', 950.0)
         beta = info.get('beta', 0.79)
-        # Cálculo de FCF aproximado (Op Cash Flow + CapEx)
-        cf = t.cashflow
-        last_fcf = (cf.loc['Operating Cash Flow'].iloc[0] + cf.loc['Capital Expenditure'].iloc[0]) / 1e9
-        return {"precio": price, "beta": beta, "fcf": last_fcf, "name": info.get('longName', 'Costco Wholesale')}
-    except:
-        return {"precio": 950.0, "beta": 0.79, "fcf": 9.5, "name": "Costco Wholesale"}
+        
+        # CÁLCULO DINÁMICO DE FCF HISTÓRICO (Últimos 4 años)
+        # FCF = Operating Cash Flow + Capital Expenditure (CapEx viene negativo en yfinance)
+        ops_flow = cf.loc['Operating Cash Flow']
+        capex = cf.loc['Capital Expenditure']
+        fcf_series = (ops_flow + capex) / 1e9 # Convertir a Billones
+        
+        # Calcular Crecimiento Promedio Histórico (CAGR)
+        # Usamos los valores del más antiguo al más reciente
+        fcf_values = fcf_series.values[::-1] 
+        growth_rates = np.diff(fcf_values) / fcf_values[:-1]
+        avg_growth = np.mean(growth_rates)
+        
+        return {
+            "precio": price, 
+            "beta": beta, 
+            "fcf_hist": fcf_series, # Serie completa para la gráfica
+            "last_fcf": fcf_series.iloc[0],
+            "avg_growth": avg_growth,
+            "name": info.get('longName', 'Costco Wholesale')
+        }
+    except Exception as e:
+        st.error(f"Error cargando datos: {e}")
+        # Fallback en caso de error de API
+        return {"precio": 950.0, "beta": 0.79, "last_fcf": 9.5, "avg_growth": 0.12, "fcf_hist": pd.Series([9.5, 8.2, 7.1]), "name": "Costco Wholesale"}
 
 def dcf_engine(fcf, g1, g2, wacc, gt, shares=0.44365, cash=22.0):
     flows = []
@@ -78,30 +98,25 @@ PEERS_DATA = pd.DataFrame({
 
 # --- 4. INTERFAZ PRINCIPAL ---
 def main():
-    # Cargar datos en vivo al inicio
     live = load_live_data("COST")
     
     st.title(f"🏛️ {live['name']} — Master Intelligence Terminal")
-    st.caption("Terminal Conectada en Tiempo Real • Datos via Yahoo Finance & SEC")
+    st.caption("Terminal Conectada en Tiempo Real • Análisis Dinámico de Flujos")
     
     # --- SIDEBAR: SUPUESTOS DINÁMICOS ---
     st.sidebar.header("🎯 Supuestos del Analista")
     p_actual = st.sidebar.number_input("Precio Mercado ($)", value=float(live['precio']))
-    fcf_in = st.sidebar.slider("FCF Base ($B)", 5.0, 20.0, value=float(live['fcf']))
-    g1_base = st.sidebar.slider("Crecimiento Años 1-5 (%)", 1, 25, 12) / 100
+    fcf_in = st.sidebar.slider("FCF Base ($B)", 5.0, 20.0, value=float(live['last_fcf']))
+    
+    # El crecimiento inicial sugerido es el promedio histórico real
+    g1_base = st.sidebar.slider("Crecimiento Años 1-5 (%)", 1, 25, int(live['avg_growth']*100)) / 100
     g2_base = st.sidebar.slider("Crecimiento Años 6-10 (%)", 1, 20, 8) / 100
     wacc_base = st.sidebar.slider("WACC Base (%)", 5.0, 15.0, 8.5) / 100
     gt = 0.025 
 
-    # Descarga de Guía
     if os.path.exists("Guia_Metodologica_COST.pdf"):
         with open("Guia_Metodologica_COST.pdf", "rb") as file:
-            st.sidebar.download_button(
-                label="📄 Descargar Guía Metodológica",
-                data=file,
-                file_name="Guia_Metodologica_COST.pdf",
-                mime="application/pdf"
-            )
+            st.sidebar.download_button(label="📄 Descargar Guía Metodológica", data=file, file_name="Guia_Metodologica_COST.pdf", mime="application/pdf")
 
     # CÁLCULO CASO BASE
     v_base_ref, flows_base, pv_f_base, pv_t_base = dcf_engine(fcf_in, g1_base, g2_base, wacc_base, gt)
@@ -111,12 +126,12 @@ def main():
     h1.metric("P/E TTM", "51.8x", "Premium")
     h2.metric("Market Cap", "$450.2B", "COST-NASDAQ")
     h3.metric("Beta (Live)", f"{live['beta']}", "Defensivo")
-    h4.metric("Retention", "92.4%", "Gold Standard")
+    h4.metric("Crecimiento Hist. FCF", f"{live['avg_growth']*100:.1f}%", "Sugerido")
 
     st.markdown("---")
     tabs = st.tabs(["📋 Resumen", "💎 Valoración", "📊 Benchmarking", "🎲 Monte Carlo", "🌪️ Stress Test", "📉 Opciones", "📚 Metodología"])
 
-    # --- TAB 0: ESCENARIOS ---
+    # --- TAB 0: RESUMEN ---
     with tabs[0]:
         c_esc1, c_esc2, c_esc3 = st.columns(3)
         v_baj, _, _, _ = dcf_engine(fcf_in, g1_base*0.5, g2_base*0.4, wacc_base+0.02, 0.02)
@@ -130,30 +145,48 @@ def main():
         fig_donut.update_layout(title="Composición del Valor Intrínseco", height=400, template="plotly_white")
         st.plotly_chart(fig_donut, use_container_width=True)
 
-    # --- TAB 1: VALORACIÓN ---
+    # --- TAB 1: VALORACIÓN (EL PUENTE DINÁMICO) ---
     with tabs[1]:
+        st.subheader("Trayectoria Dinámica del FCF: Pasado vs Futuro")
+        
+        # Preparar datos para la gráfica de puente
+        hist_x = [c.strftime('%Y') for c in live['fcf_hist'].index[::-1]]
+        hist_y = live['fcf_hist'].values[::-1]
+        
+        proj_x = [str(int(hist_x[-1]) + i) for i in range(1, 11)]
+        proj_y = flows_base
+        
+        fig_bridge = go.Figure()
+        # Histórico (Azul)
+        fig_bridge.add_trace(go.Scatter(x=hist_x, y=hist_y, name="Histórico Real", line=dict(color='#005BAA', width=4), mode='lines+markers'))
+        # Proyección (Rojo punteado)
+        # Añadimos el último punto histórico al inicio de la proyección para que se toquen
+        fig_bridge.add_trace(go.Scatter(x=[hist_x[-1]] + proj_x, y=[hist_y[-1]] + proj_y, name="Proyección", line=dict(color='#E31837', width=4, dash='dash'), mode='lines+markers'))
+        
+        fig_bridge.update_layout(title="Puente de Generación de Caja ($B)", template="plotly_white", hovermode="x unified")
+        st.plotly_chart(fig_bridge, use_container_width=True)
+        
+        
+
+        st.markdown("---")
         c1, c2 = st.columns([2, 1])
         with c1:
-            st.subheader("Matriz de Sensibilidad: WACC vs G Terminal")
+            st.subheader("Matriz de Sensibilidad")
             w_range = np.linspace(wacc_base-0.02, wacc_base+0.02, 5)
             g_range = np.linspace(0.015, 0.035, 5)
             matrix = [[dcf_engine(fcf_in, g1_base, g2_base, w, g)[0] for g in g_range] for w in w_range]
             df_sens = pd.DataFrame(matrix, index=[f"W:{x*100:.1f}%" for x in w_range], columns=[f"g:{x*100:.1f}%" for x in g_range])
             st.plotly_chart(px.imshow(df_sens, text_auto='.0f', color_continuous_scale='RdYlGn', template="plotly_white"), use_container_width=True)
         with c2:
-            st.subheader("FCF Proyectado ($B)")
-            st.bar_chart(flows_base)
+            st.info(f"**Análisis de Flujos:** El modelo detecta un crecimiento histórico promedio del **{live['avg_growth']*100:.1f}%**. Basado en esto, Costco generaría aproximadamente **${flows_base[-1]:.1f}B** para el año 10.")
 
-    # --- TAB 2: BENCHMARKING ---
-    with tabs[2]:
+    # --- TABS SIGUIENTES (Sin cambios pero mantenidos para integridad) ---
+    with tabs[2]: # Benchmarking
         col_b1, col_b2 = st.columns(2)
-        with col_b1:
-            st.plotly_chart(px.bar(PEERS_DATA, x='Ticker', y='PE', color='Ticker', title="P/E Ratio Comparativo"), use_container_width=True)
-        with col_b2:
-            st.plotly_chart(px.scatter(PEERS_DATA, x='Rev_Growth', y='PE', text='Ticker', size='PE', color='Ticker', title="Crecimiento vs Valuación"), use_container_width=True)
-
-    # --- TAB 3: MONTE CARLO ---
-    with tabs[3]:
+        with col_b1: st.plotly_chart(px.bar(PEERS_DATA, x='Ticker', y='PE', color='Ticker', title="P/E Ratio Comparativo"), use_container_width=True)
+        with col_b2: st.plotly_chart(px.scatter(PEERS_DATA, x='Rev_Growth', y='PE', text='Ticker', size='PE', color='Ticker', title="Crecimiento vs Valuación"), use_container_width=True)
+    
+    with tabs[3]: # Monte Carlo
         vol_mc = st.slider("Volatilidad de Pronóstico", 0.01, 0.05, 0.02)
         sims = [dcf_engine(fcf_in, np.random.normal(g1_base, vol_mc), g2_base, np.random.normal(wacc_base, 0.005), 0.025)[0] for _ in range(1000)]
         prob_success = (np.array(sims) > p_actual).mean() * 100
@@ -161,35 +194,28 @@ def main():
         fig_mc.add_vline(x=p_actual, line_color="red", line_dash="dash")
         st.plotly_chart(fig_mc, use_container_width=True)
 
-    # --- TAB 4: STRESS TEST ---
-    with tabs[4]:
+    with tabs[4]: # Stress Test
         st.header("🌪️ Stress Test Lab")
         cs1, cs2 = st.columns(2)
         with cs1:
-            s_inc = st.slider("Ingreso Disponible %", -10, 5, 0)
-            s_unem = st.slider("Desempleo %", 3, 15, 4)
+            s_inc = st.slider("Ingreso Disponible %", -10, 5, 0); s_unem = st.slider("Desempleo %", 3, 15, 4)
         with cs2:
-            s_cpi = st.slider("Inflación %", 0, 10, 3)
-            s_wage = st.slider("Alza Salarial %", 0, 8, 4)
-        
+            s_cpi = st.slider("Inflación %", 0, 10, 3); s_wage = st.slider("Alza Salarial %", 0, 8, 4)
         adj_g = g1_base + (s_inc/200) - (s_unem/500)
         adj_w = wacc_base + (s_cpi/500) + (s_wage/1000)
         v_stress, _, _, _ = dcf_engine(fcf_in, adj_g, g2_base, adj_w, 0.025)
-        
         st.metric("Valor Post-Estrés", f"${v_stress:.2f}", f"{(v_stress/v_base_ref-1)*100:.1f}%")
 
-    # --- TAB 5: OPCIONES ---
-    with tabs[5]:
+    with tabs[5]: # Opciones
         k = st.number_input("Strike Price", value=float(round(p_actual*1.05, 0)))
         iv = st.slider("Volatilidad %", 5, 100, 25) / 100
         res = calculate_full_greeks(p_actual, k, 30/365, 0.045, iv, 'call')
         st.metric("Prima Call (30D)", f"${res['price']:.2f}")
         st.write(f"**Delta:** {res['delta']:.3f} | **Vega:** {res['vega']:.3f}")
 
-    # --- TAB 6: MASTERCLASS ---
-    with tabs[6]:
+    with tabs[6]: # Metodología
         st.latex(r"K_e = R_f + \beta (R_m - R_f)")
-        st.info("Este modelo utiliza un DCF de 2 etapas con una rampa de transición del año 6 al 10.")
+        st.info("Este modelo utiliza un DCF de 2 etapas con una rampa de transición del año 6 al 10 conectada dinámicamente con datos históricos de la SEC.")
 
 if __name__ == "__main__":
     main()
