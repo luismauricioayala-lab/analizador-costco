@@ -49,6 +49,32 @@ def calculate_advanced_ratios(ticker_symbol):
     }).T
     
     return ratios, is_df, bs_df, cf_df
+      
+    # --- NUEVA SECCIÓN DE GRÁFICAS ---
+        st.markdown("---")
+        st.subheader("📈 Análisis de Tendencias Visual")
+        
+        col_g1, col_g2 = st.columns(2)
+        
+        with col_g1:
+            # Gráfica de Ingresos y Utilidad Neta
+            df_plot = is_df.loc[['Total Revenue', 'Net Income']].T
+            fig_rev = px.line(df_plot, title="Ventas vs Utilidad Neta (Evolución)", 
+                              markers=True, template="plotly_white",
+                              color_discrete_map={"Total Revenue": "#005BAA", "Net Income": "#E31837"})
+            st.plotly_chart(fig_rev, use_container_width=True)
+            
+        with col_g2:
+            # Gráfica de Márgenes
+            margins = r_df.loc[['Margen Bruto (%)', 'Margen Operativo (%)', 'Margen Neto (%)']].T
+            fig_marg = px.bar(margins, barmode='group', title="Estructura de Márgenes (%)",
+                              template="plotly_white")
+            st.plotly_chart(fig_marg, use_container_width=True)
+
+
+
+
+
 
 # --- INTERFAZ STREAMLIT ---
 st.title("🏛️ Extractor de Ratios Pro — Estilo Bloomberg")
