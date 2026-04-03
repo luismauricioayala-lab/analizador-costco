@@ -72,6 +72,15 @@ def main():
     wacc_base = st.sidebar.slider("WACC Base (%)", 5.0, 15.0, 8.5) / 100
     gt = 0.025 
 
+    # En la barra lateral, debajo de los supuestos
+    with open("Guia_Metodologica_COST.pdf", "rb") as file:
+    st.sidebar.download_button(
+        label="📄 Descargar Guía Metodológica",
+        data=file,
+        file_name="Guia_Metodologica_COST.pdf",
+        mime="application/pdf"
+    )
+
     # CÁLCULO CASO BASE PARA REFERENCIA
     v_base_ref, flows_base, pv_f_base, pv_t_base = dcf_engine(fcf_in, g1_base, g2_base, wacc_base, gt)
 
