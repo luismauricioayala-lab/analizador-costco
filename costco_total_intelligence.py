@@ -23,7 +23,6 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 2. MOTORES DE DATOS Y FINANZAS ---
-
 @st.cache_data(ttl=3600)
 def load_live_data(ticker_symbol):
     try:
@@ -62,12 +61,11 @@ def main():
     st.sidebar.header("🎯 Supuestos Base")
     p_actual = st.sidebar.number_input("Precio Mercado ($)", value=float(live['precio']))
     
-    # --- FIX CRÍTICO: PROTECCIÓN DE RANGOS ---
-    fcf_def = min(max(float(live['last_fcf']), 0.0), 40.0)
-    g1_def = min(max(int(live['avg_growth']*100), 0), 40)
+    # --- FIX DE SEGURIDAD (CLAMPER) ---
+    def clamp(val, min_v, max_v): return float(max(min(val, max_v), min_v))
     
-    fcf_in = st.sidebar.slider("FCF Base ($B)", 0.0, 40.0, fcf_def)
-    g1_base = st.sidebar.slider("Crecimiento Años 1-5 (%)", 0, 40, g1_def) / 100
+    fcf_in = st.sidebar.slider("FCF Base ($B)", 0.0, 50.0, clamp(live['last_fcf'], 0.0, 50.0))
+    g1_base = st.sidebar.slider("Crecimiento Años 1-5 (%)", 0, 50, int(clamp(live['avg_growth']*100, 0, 50))) / 100
     g2_base = st.sidebar.slider("Crecimiento Años 6-10 (%)", 0, 20, 8) / 100
     wacc_base = st.sidebar.slider("WACC (%)", 5.0, 15.0, 8.5) / 100
     
@@ -99,18 +97,22 @@ def main():
         fig_b.add_trace(go.Scatter(x=h_x, y=h_y, name="Real", line=dict(color='#005BAA', width=4)))
         fig_b.add_trace(go.Scatter(x=[h_x[-1]] + [str(int(h_x[-1])+i) for i in range(1,11)], y=[h_y[-1]] + flows, name="Proy.", line=dict(dash='dash', color='#E31837')))
         st.plotly_chart(fig_b, use_container_width=True)
-        
+        w_r = np.linspace(wacc_base-0.02, wacc_base+0.02, 5); g_r = np.linspace(0.015, 0.035, 5)
+        m = [[dcf_engine(fcf_in, g1_base, g2_base, wr, gr)[0] for gr in g_r] for wr in w_r]
+        st.plotly_chart(px.imshow(pd.DataFrame(m, index=[f"W:{x*100:.1f}%" for x in w_r], columns=[f"g:{x*100:.1f}%" for x in g_r]), text_auto='.0f', color_continuous_scale='RdYlGn'), use_container_width=True)
 
     with t[2]: # Benchmarking
         peers = pd.DataFrame({'T': ['COST', 'WMT', 'TGT', 'BJ', 'AMZN'], 'PE': [51.8, 31.2, 17.5, 21.1, 45.0], 'G': [9.5, 6.2, 4.5, 8.2, 12.5]})
-        st.plotly_chart(px.bar(peers, x='T', y='PE', color='T', title="P/E Comparativo"), use_container_width=True)
+        bc1, bc2 = st.columns(2)
+        bc1.plotly_chart(px.bar(peers, x='T', y='PE', color='T', title="P/E"), use_container_width=True)
+        bc2.plotly_chart(px.scatter(peers, x='G', y='PE', text='T', title="Crecimiento vs P/E"), use_container_width=True)
 
     with t[3]: # Monte Carlo
         sims = [dcf_engine(fcf_in, np.random.normal(g1_base, 0.02), g2_base, np.random.normal(wacc_base, 0.005), 0.025)[0] for _ in range(500)]
         st.plotly_chart(px.histogram(sims, title=f"Éxito: {(np.array(sims) > p_actual).mean()*100:.1f}%", color_discrete_sequence=['#005BAA']), use_container_width=True)
-        
 
     with t[4]: # Stress Test
+        st.subheader("🌪️ Stress Test Lab")
         st1, st2 = st.columns(2)
         with st1: s_i = st.slider("Ingreso %", -10, 5, 0); s_u = st.slider("Desempleo %", 3, 15, 4)
         with st2: s_c = st.slider("Inflación %", 0, 10, 3); s_w = st.slider("Alza Salarial %", 0, 8, 4)
@@ -125,8 +127,7 @@ def main():
     with t[6]: # Exportar
         buf = io.BytesIO()
         with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
-            live['is'].to_excel(wr, sheet_name='Income'); live['bs'].to_excel(wr, sheet_name='Balance')
-        st.download_button("🟢 Descargar Excel", buf.getvalue(), "Modelo_COST_360.xlsx")
+            live['is'].to_excel(wr, sheet_name='Income'); live['bs'].to_excel(wr, sheet_name='Balance'); live['cf'].to_excel(wr, sheet_name='CashFlow')
+        st.download_button("🟢 Descargar Excel", buf.getvalue(), "Modelo_COST_Full.xlsx")
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__": main()
