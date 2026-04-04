@@ -773,26 +773,29 @@ def main():
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # Creamos dos columnas para tener los gráficos a la par
-        # La matriz suele requerir un poco más de espacio visual para los números internos
+        # --- 1. PREPARACIÓN DE DATOS PREMIUM (Sincronizado con Tab 1) ---
+        # Usamos el multiplicador de Calidad/Owner Earnings para coherencia
+        fcf_premium_lab = data['fcf_now_b'] * 1.25
+        
         col_mtx, col_flow = st.columns([1.2, 1])
         
         with col_mtx:
-            st.write("**Matriz de Sensibilidad: Fair Value vs. WACC & G**")
+            st.write("**Matriz de Sensibilidad: Fair Value vs. WACC & g Perpetuo**")
             
-            # Generación de Rangos para la Matriz
-            w_rng = np.linspace(final_wacc - 0.02, final_wacc + 0.02, 9)
-            g_rng = np.linspace(0.015, 0.035, 9)
+            # Generación de Rangos Dinámicos alrededor de tus inputs
+            # Usamos el WACC de la sidebar y el g_terminal que añadimos
+            w_rng = np.linspace(final_wacc - 0.015, final_wacc + 0.015, 9)
+            g_rng = np.linspace(g_terminal - 0.01, g_terminal + 0.01, 9)
             
-            # Cálculo de la matriz cruzada
+            # CÁLCULO DE LA MATRIZ CRUZADA (Bug Corregido: Ahora usa g2_in)
             mtx = [
                 [ValuationOracle.run_macro_dcf(
-                    data['fcf_now_b'], g1_in, 0.08, w, g, macro_adj=macro_adj
+                    fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj
                 )[0] for g in g_rng] 
                 for w in w_rng
             ]
             
-            # Heatmap Pro (Ajustamos altura para que encaje bien en la fila)
+            # Heatmap Pro
             fig_giant = px.imshow(
                 pd.DataFrame(
                     mtx, 
@@ -800,13 +803,13 @@ def main():
                     columns=[f"{x*100:.1f}%" for x in g_rng]
                 ),
                 text_auto='.0f',
-                color_continuous_scale='RdYlGn',
+                color_continuous_scale='RdYlGn', # Verde = Más valor, Rojo = Menos valor
                 aspect="auto",
-                height=750 # Ajustado para equilibrio visual con el gráfico de al lado
+                height=700 
             )
             
             fig_giant.update_layout(
-                xaxis_title="Tasa de Crecimiento Terminal (g)",
+                xaxis_title="Crecimiento Perpetuo (g terminal)",
                 yaxis_title="Costo de Capital (WACC)",
                 coloraxis_showscale=False,
                 template="plotly_dark",
@@ -815,11 +818,16 @@ def main():
             st.plotly_chart(fig_giant, use_container_width=True, config={'displayModeBar': False})
 
         with col_flow:
-            st.write("**Bridge de Generación de FCF ($B): Historia vs. Oracle**")
+            st.write("**Evolución del Flujo de Caja ($B): Proyección Oracle**")
             
-            # Preparación de Ejes Temporales
+            # Ejes Temporales
             h_yrs = data['hist_years'][::-1]
             f_yrs = [str(int(h_yrs[-1]) + i) for i in range(1, 11)]
+            
+            # Obtenemos los flujos proyectados para el gráfico de líneas
+            _, _, _, flows_proy = ValuationOracle.run_macro_dcf(
+                fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
+            )
             
             fig_dcf_flow = go.Figure()
             
@@ -827,30 +835,30 @@ def main():
             fig_dcf_flow.add_trace(go.Scatter(
                 x=h_yrs, 
                 y=data['fcf_hist_b'].values[:3][::-1], 
-                name="Histórico SEC", 
+                name="Histórico Real", 
                 line=dict(color="#005BAA", width=6), 
                 mode='markers+lines'
             ))
             
-            # Traza Proyectada (Rojo Alerta/Oracle)
-            # Conectamos el último punto histórico con la proyección
+            # Traza Proyectada (Rojo Oracle)
+            # Conectamos el último histórico con el primer proyectado
             fig_dcf_flow.add_trace(go.Scatter(
                 x=[h_yrs[-1]] + f_yrs, 
-                y=[data['fcf_hist_b'].values[0]] + flows, 
-                name="Proyección Oracle", 
+                y=[data['fcf_hist_b'].values[0]] + flows_proy, 
+                name="Proyección (Owner Earnings)", 
                 line=dict(color="#f85149", dash='dash', width=5), 
                 mode='markers+lines'
             ))
             
             fig_dcf_flow.update_layout(
                 template="plotly_dark", 
-                height=750, # Sincronizado con la altura de la matriz
+                height=700,
                 xaxis_type='category',
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                 yaxis=dict(
-                    title="Free Cash Flow ($B)",
+                    title="Owner Earnings Proyectados ($B)",
                     gridcolor='rgba(255,255,255,0.05)',
                     showgrid=True
                 ),
@@ -858,7 +866,7 @@ def main():
             )
             st.plotly_chart(fig_dcf_flow, use_container_width=True)
 
-        st.info("💡 La matriz muestra el Fair Value resultante al variar el WACC (filas) y el crecimiento perpetuo (columnas). El centro representa nuestro escenario base.")
+        st.info(f"💡 **Interpretación del Lab:** El centro de la matriz refleja un Fair Value basado en un WACC del {final_wacc*100:.1f}% y un crecimiento perpetuo del {g_terminal*100:.1f}%. El gráfico de la derecha muestra cómo escalan los flujos normalizados bajo tu configuración de crecimiento (G1: {g1_in*100:.0f}%, G2: {g2_in*100:.0f}%).")
 
 # -------------------------------------------------------------------------
     # TAB 8: MONTE CARLO - RECALIBRACIÓN INSTITUCIONAL ($1,067 TARGET)
