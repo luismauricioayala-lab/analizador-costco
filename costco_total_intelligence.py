@@ -768,13 +768,18 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO - ESCALA DE COLORES CALIBRADA (TARGET $1,067)
+    # TAB 7: DCF LAB PRO - FIX DE TYPEERROR (DATOS NUMÉRICOS PUROS)
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # --- DEFINICIÓN CRÍTICA (Evita el UnboundLocalError) ---
-        precio_actual = data['price'] 
+        # 1. Extracción ultra-segura del precio (Convertimos a escalar float)
+        raw_price = data.get('price', 0)
+        if isinstance(raw_price, (pd.Series, np.ndarray)):
+            precio_actual = float(raw_price.iloc[0] if hasattr(raw_price, 'iloc') else raw_price[0])
+        else:
+            precio_actual = float(raw_price)
+
         fcf_premium_lab = data['fcf_now_b'] * 1.10 
         
         col_mtx, col_flow = st.columns([1.2, 1])
@@ -785,25 +790,34 @@ def main():
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            mtx = [
-                [ValuationOracle.run_macro_dcf(
-                    fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj
-                )[0] for g in g_rng] 
-                for w in w_rng
-            ]
+            # Cálculo de matriz con limpieza de NaNs
+            mtx = []
+            for w in w_rng:
+                row = []
+                for g in g_rng:
+                    val = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj)[0]
+                    # Si el valor es inválido o NaN, ponemos 0 o un valor neutro para no romper Plotly
+                    row.append(float(val) if np.isfinite(val) else 0.0)
+                mtx.append(row)
             
-            # Heatmap con Escala Inteligente
+            # Convertimos a DataFrame y forzamos tipo FLOAT explícitamente
+            df_mtx = pd.DataFrame(
+                mtx, 
+                index=[f"{x*100:.1f}%" for x in w_rng], 
+                columns=[f"{x*100:.1f}%" for x in g_rng]
+            ).astype(float) # <--- CRÍTICO: Evita el TypeError de Plotly
+            
+            # Heatmap con punto medio calibrado
             fig_giant = px.imshow(
-                pd.DataFrame(mtx, index=[f"{x*100:.1f}%" for x in w_rng], columns=[f"{x*100:.1f}%" for x in g_rng]),
+                df_mtx,
                 text_auto='.0f',
-                color_continuous_scale='RdYlGn', # Rojo-Amarillo-Verde
-                zmid=float(precio_actual),        # El color neutro será el precio de hoy
+                color_continuous_scale='RdYlGn',
+                zmid=precio_actual, # Ahora es un float puro
                 aspect="auto", height=600 
             )
             
             fig_giant.update_layout(
                 template="plotly_dark", 
-                coloraxis_showscale=True, 
                 coloraxis_colorbar=dict(title="Fair Value ($)"),
                 margin=dict(t=10, b=10, l=10, r=10)
             )
@@ -812,11 +826,8 @@ def main():
         with col_flow:
             st.write("**Evolución del Flujo de Caja Anual ($B)**")
             
-            res_dcf = ValuationOracle.run_macro_dcf(
-                fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
-            )
+            res_dcf = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj)
             
-            # Extracción segura de flujos
             flows_proy = res_dcf[3] if (isinstance(res_dcf, (list, tuple)) and len(res_dcf) > 3) else []
             if not isinstance(flows_proy, list) or len(flows_proy) == 0:
                 flows_proy = [fcf_premium_lab * (1 + g1_in)**i for i in range(1, 11)]
