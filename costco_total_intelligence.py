@@ -425,175 +425,119 @@ def main():
             st.plotly_chart(fig_radar, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 3: GANANCIAS & SENTIMIENTO (REDISEÑO FINAL: EJE IZQ + SEPARACIÓN)
+    # TAB 3: GANANCIAS & SENTIMIENTO (RECONSTRUCCIÓN TOTAL)
     # -------------------------------------------------------------------------
     with tabs[2]:
         st.subheader("Análisis de Sentimiento y Proyecciones de Wall Street")
         
-        # 1. CSS Refinado para el Contenedor Unificado
+        # 1. CSS de Alta Visibilidad
         st.markdown("""
             <style>
-            .unified-card {
+            .terminal-card-main {
                 background-color: #1e2b3c;
-                border-radius: 10px;
-                padding: 25px;
                 border: 1px solid #34495e;
+                border-radius: 12px;
+                padding: 24px;
+                color: #ffffff !important;
                 font-family: 'Segoe UI', sans-serif;
             }
-            .rec-header {
-                text-align: center;
-                border-bottom: 1px solid #34495e;
-                padding-bottom: 20px;
-                margin-bottom: 20px;
+            .t-header { text-align: center; margin-bottom: 20px; border-bottom: 1px solid #34495e; padding-bottom: 15px; }
+            .t-rec { font-size: 2.5rem; font-weight: 900; color: #2ecc71 !important; margin: 10px 0; }
+            .t-row {
+                display: flex; align-items: center; justify-content: space-between;
+                margin: 12px 0; height: 26px;
             }
-            .stat-line {
-                display: flex;
-                align-items: center;
-                margin-bottom: 12px;
-            }
-            .stat-label {
-                width: 130px;
-                font-size: 0.85rem;
-                color: #bdc3c7;
-                font-weight: 600;
-            }
-            .stat-bar-bg {
-                flex-grow: 1;
-                height: 8px;
-                background-color: #2c3e50;
-                border-radius: 4px;
-                margin: 0 15px;
-                overflow: hidden;
-            }
-            .stat-bar-fill { height: 100%; border-radius: 4px; }
-            .stat-data {
-                width: 95px;
-                text-align: right;
-                font-family: 'JetBrains Mono', monospace;
-                font-size: 0.8rem;
-                font-weight: 700;
-                color: #ffffff;
-            }
-            .stat-footer {
-                margin-top: 20px;
-                padding-top: 15px;
-                border-top: 1px solid #34495e;
-            }
-            .footer-row {
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 8px;
-                font-size: 0.9rem;
-            }
+            .t-label { width: 140px; font-size: 0.9rem; color: #ffffff !important; font-weight: 700; }
+            .t-bar-bg { flex-grow: 1; height: 10px; background: #2c3e50; margin: 0 15px; border-radius: 5px; }
+            .t-bar-fill { height: 100%; border-radius: 5px; }
+            .t-data { width: 100px; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: #ffffff !important; font-weight: 800; }
+            .t-footer { border-top: 1px solid #34495e; margin-top: 20px; padding-top: 15px; }
+            .t-f-line { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.95rem; color: #ffffff !important; }
             </style>
         """, unsafe_allow_html=True)
 
-        # 2. Layout con columna de separación [Widget, Espacio, Gráfico]
-        col_widget, col_spacer, col_chart = st.columns([1.2, 0.3, 2])
+        col_left, col_right = st.columns([1.2, 2], gap="large")
 
-        with col_widget:
-            # Datos dinámicos
+        with col_left:
+            # Datos
             score_v = data['analysts'].get('score', 2.0)
-            rec_key = data['analysts'].get('key', 'BUY')
+            rec_v = data['analysts'].get('key', 'BUY').title()
             
-            # Bloque Superior (Card Header)
+            # Bloque Superior
             st.markdown(f"""
-                <div class="unified-card">
-                    <div class="rec-header">
-                        <div style="font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 1.5px;">Recomendación Consenso</div>
-                        <div style="font-size: 2.5rem; font-weight: 900; color: #2ecc71; margin: 10px 0;">{rec_key.title()}</div>
-                        <div style="font-size: 0.75rem; color: #666;">Basado en 37 analistas | {datetime.date.today().strftime('%d/%m/%Y')}</div>
+                <div class="terminal-card-main">
+                    <div class="t-header">
+                        <div style="font-size: 0.8rem; color: #bdc3c7; text-transform: uppercase; letter-spacing: 1.2px;">Recomendación Consenso</div>
+                        <div class="t-rec">{rec_v}</div>
+                        <div style="font-size: 0.75rem; color: #95a5a6;">Basado en 37 analistas | {datetime.date.today().strftime('%d/%m/%Y')}</div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
-            # Gráfico de Arco (Gauge) - Integrado visualmente
-            gauge_val = 6 - score_v
-            fig_gauge = go.Figure(go.Indicator(
-                mode="gauge",
-                value=gauge_val,
+            # Gauge Chart (Minimalista)
+            g_val = 6 - score_v
+            fig_g = go.Figure(go.Indicator(
+                mode="gauge", value=g_val,
                 domain={'x': [0, 1], 'y': [0, 1]},
                 gauge={
                     'axis': {'range': [1, 5], 'visible': False},
                     'bar': {'color': "white", 'thickness': 0.1},
                     'steps': [
-                        {'range': [1, 1.8], 'color': '#e74c3c'},
-                        {'range': [1.8, 2.6], 'color': '#e67e22'},
+                        {'range': [1, 1.8], 'color': '#f85149'},
+                        {'range': [1.8, 2.6], 'color': '#f39c12'},
                         {'range': [2.6, 3.4], 'color': '#f1c40f'},
                         {'range': [3.4, 4.2], 'color': '#2ecc71'},
-                        {'range': [4.2, 5], 'color': '#27ae60'}
-                    ],
+                        {'range': [4.2, 5], 'color': '#1a7f37'}
+                    ]
                 }
             ))
-            fig_gauge.update_layout(height=140, margin=dict(t=0, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
+            fig_g.update_layout(height=140, margin=dict(t=0, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_g, use_container_width=True, config={'displayModeBar': False})
 
-            # Bloque Inferior (Barras y Footer)
+            # Bloque Inferior
             st.markdown(f"""
-                <div class="unified-card" style="margin-top: -30px; border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0;">
-                    <div class="stat-line">
-                        <div class="stat-label">Compra Agresiva</div>
-                        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 54%; background: #27ae60;"></div></div>
-                        <div class="stat-data">20 (54.1%)</div>
-                    </div>
-                    <div class="stat-line">
-                        <div class="stat-label">Comprar</div>
-                        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 8%; background: #2ecc71;"></div></div>
-                        <div class="stat-data">3 (8.1%)</div>
-                    </div>
-                    <div class="stat-line">
-                        <div class="stat-label">Conservar</div>
-                        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 32%; background: #f1c40f;"></div></div>
-                        <div class="stat-data">12 (32.4%)</div>
-                    </div>
-                    <div class="stat-line">
-                        <div class="stat-label">Vender</div>
-                        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 0%; background: #e67e22;"></div></div>
-                        <div class="stat-data">0 (0.0%)</div>
-                    </div>
-                    <div class="stat-line">
-                        <div class="stat-label">Venta Fuerte</div>
-                        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 5%; background: #e74c3c;"></div></div>
-                        <div class="stat-data">2 (5.4%)</div>
-                    </div>
-                    <div class="stat-footer">
-                        <div class="footer-row"><span style="color:#888;">Precio Objetivo</span><span style="font-weight:700;">USD {data['analysts'].get('target', 0):,.2f}</span></div>
-                        <div class="footer-row"><span style="color:#888;">Volatilidad</span><span style="font-weight:700;">Promedio</span></div>
-                        <div class="footer-row"><span style="color:#888;">Consenso Sector</span><span style="font-weight:700; color:#2ecc71;">Comprar</span></div>
+                <div class="terminal-card-main" style="margin-top: -30px; border-top: none; border-top-left-radius: 0; border-top-right-radius: 0;">
+                    <div class="t-row"><div class="t-label">Compra Agresiva</div><div class="t-bar-bg"><div class="t-bar-fill" style="width: 54%; background: #1a7f37;"></div></div><div class="t-data">20 (54.1%)</div></div>
+                    <div class="t-row"><div class="t-label">Comprar</div><div class="t-bar-bg"><div class="t-bar-fill" style="width: 8%; background: #2ecc71;"></div></div><div class="t-data">3 (8.1%)</div></div>
+                    <div class="t-row"><div class="t-label">Conservar</div><div class="t-bar-bg"><div class="t-bar-fill" style="width: 32%; background: #f1c40f;"></div></div><div class="t-data">12 (32.4%)</div></div>
+                    <div class="t-row"><div class="t-label">Vender</div><div class="t-bar-bg"><div class="t-bar-fill" style="width: 0%; background: #f39c12;"></div></div><div class="t-data">0 (0.0%)</div></div>
+                    <div class="t-row"><div class="t-label">Venta Fuerte</div><div class="t-bar-bg"><div class="t-bar-fill" style="width: 5%; background: #f85149;"></div></div><div class="t-data">2 (5.4%)</div></div>
+                    <div class="t-footer">
+                        <div class="t-f-line"><span>Precio Objetivo</span><span style="font-weight:800;">USD {data['analysts'].get('target', 0):,.2f}</span></div>
+                        <div class="t-f-line"><span>Volatilidad</span><span style="font-weight:800;">Promedio</span></div>
+                        <div class="t-f-line"><span>Consenso Sector</span><span style="font-weight:800; color:#2ecc71;">Comprar</span></div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
-        with col_chart:
-            # Gráfico de Ganancias (Eje a la Izquierda + Diseño Limpio)
+        with col_right:
+            # Gráfico de Ganancias - REPARACIÓN DE EJES
             quarters = ['2025Q3', '2025Q4', '2026Q1', '2026Q2']
-            real_bpa = [3.92, 5.82, 4.58, 4.58]
-            est_bpa = [3.80, 5.51, 4.55, 4.55]
-            
             fig_eps = go.Figure()
-            fig_eps.add_trace(go.Bar(x=quarters, y=est_bpa, name="Estimado", marker_color="#2c3e50", width=0.35))
-            fig_eps.add_trace(go.Bar(x=quarters, y=real_bpa, name="Real", marker_color="#005BAA", width=0.35))
+            fig_eps.add_trace(go.Bar(x=quarters, y=[3.80, 5.51, 4.55, 4.55], name="Estimado", marker_color="#34495e", width=0.3))
+            fig_eps.add_trace(go.Bar(x=quarters, y=[3.92, 5.82, 4.58, 4.58], name="Real", marker_color="#005BAA", width=0.3))
             
             fig_eps.update_layout(
-                title=dict(text="Sorpresas en Beneficio por Acción (BPA)", font=dict(size=18, color="white")),
+                title=dict(text="Sorpresas en Beneficio por Acción (BPA)", font=dict(color="white", size=18)),
                 barmode='group',
                 template="plotly_dark",
-                height=520,
+                height=550,
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
-                margin=dict(t=80, b=40, l=60, r=20),
                 yaxis=dict(
-                    title=dict(text="BPA ($)", font=dict(size=13, color="#888")),
-                    side="left", # Eje a la izquierda solicitado
-                    gridcolor='#34495e',
+                    title="BPA ($)",
+                    side="left",
                     showgrid=True,
-                    zeroline=False,
-                    tickfont=dict(color="#ffffff")
+                    gridcolor='#2c3e50',
+                    tickfont=dict(color='white', size=12),
+                    showline=True,
+                    linecolor='#34495e'
                 ),
                 xaxis=dict(
-                    type='category',
-                    tickfont=dict(color='#ffffff'),
-                    showgrid=False
+                    type='category', # Forzamos que las fechas se vean como texto
+                    tickfont=dict(color='white', size=12),
+                    showline=True,
+                    linecolor='#34495e'
                 ),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
