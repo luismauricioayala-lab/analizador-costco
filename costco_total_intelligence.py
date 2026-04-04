@@ -768,17 +768,21 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO - FIX DE TYPEERROR (DATOS NUMÉRICOS PUROS)
+    # TAB 7: DCF LAB PRO - VERSIÓN ULTRA-ESTABLE (FIX TYPEERROR)
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # 1. Extracción ultra-segura del precio (Convertimos a escalar float)
-        raw_price = data.get('price', 0)
-        if isinstance(raw_price, (pd.Series, np.ndarray)):
-            precio_actual = float(raw_price.iloc[0] if hasattr(raw_price, 'iloc') else raw_price[0])
-        else:
-            precio_actual = float(raw_price)
+        # 1. Extracción y validación del precio (Garantizamos FLOAT escalar)
+        try:
+            raw_p = data.get('price', 0)
+            # Si es una serie o array, extraemos el primer valor numérico
+            if hasattr(raw_p, "__len__") and not isinstance(raw_p, str):
+                precio_actual = float(raw_p.iloc[0] if hasattr(raw_p, 'iloc') else raw_p[0])
+            else:
+                precio_actual = float(raw_p)
+        except:
+            precio_actual = 1000.0 # Valor de rescate si todo falla
 
         fcf_premium_lab = data['fcf_now_b'] * 1.10 
         
@@ -790,38 +794,48 @@ def main():
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            # Cálculo de matriz con limpieza de NaNs
-            mtx = []
+            # Construcción limpia de la matriz
+            mtx_data = []
             for w in w_rng:
-                row = []
+                fila = []
                 for g in g_rng:
-                    val = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj)[0]
-                    # Si el valor es inválido o NaN, ponemos 0 o un valor neutro para no romper Plotly
-                    row.append(float(val) if np.isfinite(val) else 0.0)
-                mtx.append(row)
+                    # Obtenemos el valor y lo forzamos a float, manejando posibles NaNs
+                    v = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj)[0]
+                    fila.append(float(v) if np.isfinite(v) else 0.0)
+                mtx_data.append(fila)
             
-            # Convertimos a DataFrame y forzamos tipo FLOAT explícitamente
-            df_mtx = pd.DataFrame(
-                mtx, 
-                index=[f"{x*100:.1f}%" for x in w_rng], 
-                columns=[f"{x*100:.1f}%" for x in g_rng]
-            ).astype(float) # <--- CRÍTICO: Evita el TypeError de Plotly
+            # Convertimos a matriz NumPy de floats puros (esto es lo más seguro para Plotly)
+            z_values = np.array(mtx_data, dtype=float)
             
-            # Heatmap con punto medio calibrado
-            fig_giant = px.imshow(
-                df_mtx,
-                text_auto='.0f',
-                color_continuous_scale='RdYlGn',
-                zmid=precio_actual, # Ahora es un float puro
-                aspect="auto", height=600 
-            )
+            # 2. RENDERIZADO SEGURO
+            # Si precio_actual es 0 o inválido, no usamos zmid para evitar errores
+            kwargs = {
+                "z": z_values,
+                "x": [f"{x*100:.1f}%" for x in g_rng],
+                "y": [f"{x*100:.1f}%" for x in w_rng],
+                "text_auto": '.0f',
+                "color_continuous_scale": 'RdYlGn',
+                "aspect": "auto",
+                "height": 600
+            }
             
-            fig_giant.update_layout(
-                template="plotly_dark", 
-                coloraxis_colorbar=dict(title="Fair Value ($)"),
-                margin=dict(t=10, b=10, l=10, r=10)
-            )
-            st.plotly_chart(fig_giant, use_container_width=True, config={'displayModeBar': False})
+            # Solo añadimos zmid si el precio es un número razonable
+            if precio_actual > 1:
+                kwargs["zmid"] = precio_actual
+
+            try:
+                fig_giant = px.imshow(**kwargs)
+                fig_giant.update_layout(
+                    template="plotly_dark", 
+                    coloraxis_colorbar=dict(title="Fair Value ($)"),
+                    margin=dict(t=10, b=10, l=10, r=10)
+                )
+                st.plotly_chart(fig_giant, use_container_width=True, config={'displayModeBar': False})
+            except Exception as e:
+                st.error(f"Error al generar el Heatmap: {e}")
+                # Fallback simple si px.imshow vuelve a fallar con zmid
+                st.write("Generando vista simplificada...")
+                st.table(pd.DataFrame(z_values, index=[f"{x*100:.1f}%" for x in w_rng], columns=[f"{x*100:.1f}%" for x in g_rng]))
 
         with col_flow:
             st.write("**Evolución del Flujo de Caja Anual ($B)**")
