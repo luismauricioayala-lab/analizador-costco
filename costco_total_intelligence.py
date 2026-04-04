@@ -129,67 +129,57 @@ st.markdown("""
         padding-top: 15px;
     }
 
-    /* Estilos para el Widget de Recomendación tipo Investing/Bloomberg */
-    .analyst-card {
+/* Widget de Recomendación v2 - Corrección de solapamiento */
+    .analyst-card-v2 {
         background-color: #1e2b3c;
-        border-radius: 10px;
-        padding: 20px;
+        border-radius: 12px;
+        padding: 25px;
         color: white;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-family: 'Segoe UI', sans-serif;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
-    .analyst-title {
-        font-size: 0.8rem;
-        font-weight: 700;
-        color: #e0e0e0;
-        text-transform: uppercase;
-        margin-bottom: 15px;
-    }
-    .recommendation-main {
-        font-size: 1.8rem;
-        font-weight: 800;
+    .recommendation-header-v2 {
         text-align: center;
-        margin-bottom: 5px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        padding-bottom: 15px;
+        margin-bottom: 10px;
     }
-    .recommendation-sub {
-        font-size: 0.75rem;
-        color: #999;
-        text-align: center;
-        margin-bottom: 20px;
-    }
-    /* Estilo de barras de desglose */
-    .breakdown-row {
+    .breakdown-row-v2 {
         display: flex;
         align-items: center;
+        height: 28px; /* Altura fija para evitar encimado */
+        margin-bottom: 4px;
+    }
+    .breakdown-label-v2 { 
+        width: 110px; 
+        font-size: 0.8rem; 
+        color: #bdc3c7; 
+        white-space: nowrap;
+    }
+    .breakdown-bar-container-v2 {
+        flex-grow: 1;
+        background-color: #2c3e50;
+        height: 6px;
+        margin: 0 12px;
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .breakdown-bar-fill-v2 { height: 100%; border-radius: 3px; }
+    .breakdown-count-v2 { width: 20px; text-align: right; font-size: 0.85rem; font-weight: 600; }
+    
+    .analyst-footer-v2 {
+        margin-top: 20px;
+        padding-top: 15px;
+        border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    .footer-item-v2 {
+        display: flex;
+        justify-content: space-between;
         margin-bottom: 8px;
         font-size: 0.85rem;
     }
-    .breakdown-label { width: 120px; color: #ccc; }
-    .breakdown-bar-container {
-        flex-grow: 1;
-        background-color: #333;
-        height: 4px;
-        margin: 0 10px;
-        border-radius: 2px;
-        position: relative;
-    }
-    .breakdown-bar-fill {
-        height: 100%;
-        border-radius: 2px;
-    }
-    .breakdown-count { width: 25px; text-align: right; color: #fff; font-weight: 600; }
-    
-    /* Footer del widget */
-    .analyst-footer-item {
-        display: flex;
-        justify-content: space-between;
-        margin-top: 15px;
-        font-size: 0.9rem;
-        border-top: 1px solid #333;
-        padding-top: 10px;
-    }
-    .footer-label { color: #ccc; }
-    .footer-value { font-weight: 700; }
-
+    .footer-label-v2 { color: #95a5a6; }
+    .footer-value-v2 { font-weight: 700; color: #ecf0f1; }
     /* Tablas de Auditoría */
     .stTable { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; }
     </style>
@@ -453,126 +443,114 @@ def main():
             fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=450, template="plotly_dark")
             st.plotly_chart(fig_radar, use_container_width=True)
 
-    # -------------------------------------------------------------------------
-    # TAB 3: GANANCIAS (CON CONSENSO)
-    # -------------------------------------------------------------------------
 # -------------------------------------------------------------------------
-    # TAB 3: GANANCIAS & SENTIMIENTO (REPLICANDO IMAGEN)
+    # TAB 3: GANANCIAS & SENTIMIENTO (CORRECCIÓN VISUAL TOTAL)
     # -------------------------------------------------------------------------
     with tabs[2]:
-        st.subheader("Sentimiento de Wall Street y Análisis de Ganancias")
-        r_col1, r_col2 = st.columns([1, 2])
+        st.subheader("Análisis de Sentimiento de Analistas y Sorpresas BPA")
+        r_col1, r_col2 = st.columns([1.1, 2])
         
         with r_col1:
-            # --- LÓGICA DINÁMICA ---
-            score = data['analysts']['score'] # 1.0 (Buy) a 5.0 (Sell)
-            count = data['analysts']['count']
-            target = data['analysts']['target']
+            # Lógica de datos
+            score = data['analysts'].get('score', 2.0)
+            count = data['analysts'].get('count', 37)
+            target = data['analysts'].get('target', 1067.59)
+            rec_key = data['analysts'].get('key', 'BUY')
             
-            # Mapeo de aguja (Plotly Gauge)
-            # En la imagen: Venta Fuerte (Izq) -> Compra (Der). 
-            # yfinance: 1 es Strong Buy, 5 es Strong Sell. Invertimos para el gráfico.
-            gauge_value = 6 - score 
-
-            # Colores dinámicos según el texto
-            rec_text = data['analysts']['key'].replace('_', ' ').title()
-            rec_color = "#3fb950" if score < 2.5 else ("#dbab09" if score < 3.5 else "#f85149")
-
-            # HTML del Widget
+            # 1. Cabecera del Widget
             st.markdown(f"""
-                <div class="analyst-card">
-                    <div class="analyst-title">RECOMENDACIÓN DE LOS ANALISTAS</div>
-                    <div class="recommendation-main" style="color:{rec_color}">{rec_text}</div>
-                    <div class="recommendation-sub">Se basa en {count} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
+                <div class="analyst-card-v2">
+                    <div class="recommendation-header-v2">
+                        <div style="font-size: 0.75rem; font-weight: 700; color: #bdc3c7; letter-spacing: 1px; margin-bottom:10px;">RECOMENDACIÓN DE LOS ANALISTAS</div>
+                        <div style="font-size: 2rem; font-weight: 800; color: #2ecc71;">{rec_key.title()}</div>
+                        <div style="font-size: 0.7rem; color: #7f8c8d;">Se basa en {count} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
+                    </div>
                 </div>
             """, unsafe_allow_html=True)
 
-            # Velocímetro (Gauge)
+            # 2. Gráfico de Arco (Gauge) - Estilo Minimalista con Aguja
+            # Invertimos el score: 1 es Strong Buy (Derecha), 5 es Sell (Izquierda)
+            gauge_pos = 6 - score 
+            
             fig_gauge = go.Figure(go.Indicator(
                 mode = "gauge",
-                value = gauge_value,
+                value = gauge_pos,
                 domain = {'x': [0, 1], 'y': [0, 1]},
                 gauge = {
-                    'axis': {'range': [1, 5], 'tickwidth': 1, 'tickcolor': "white", 'visible': False},
-                    'bar': {'color': "white", 'thickness': 0.25},
-                    'bgcolor': "rgba(0,0,0,0)",
-                    'borderwidth': 0,
+                    'axis': {'range': [1, 5], 'visible': False},
+                    'bar': {'color': "white", 'thickness': 0.05}, # Aguja blanca ultra fina
                     'steps': [
-                        {'range': [1, 1.8], 'color': '#f85149'},  # Venta Fuerte
-                        {'range': [1.8, 2.6], 'color': '#eb984e'}, # Vender
-                        {'range': [2.6, 3.4], 'color': '#f4d03f'}, # Conservar
-                        {'range': [3.4, 4.2], 'color': '#58d68d'}, # Comprar
-                        {'range': [4.2, 5], 'color': '#2ecc71'}    # Compra Agresiva
+                        {'range': [1, 1.8], 'color': '#e74c3c'},
+                        {'range': [1.8, 2.6], 'color': '#e67e22'},
+                        {'range': [2.6, 3.4], 'color': '#f1c40f'},
+                        {'range': [3.4, 4.2], 'color': '#2ecc71'},
+                        {'range': [4.2, 5], 'color': '#27ae60'}
                     ],
+                    'threshold': {
+                        'line': {'color': "white", 'width': 4},
+                        'thickness': 0.8,
+                        'value': gauge_pos
+                    }
                 }
             ))
-            fig_gauge.update_layout(height=180, margin=dict(t=0, b=0, l=20, r=20), paper_bgcolor='rgba(0,0,0,0)')
+            fig_gauge.update_layout(height=150, margin=dict(t=0, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
 
-            # Barras de progreso de desglose (Simuladas basadas en el Score real)
-            # Para fines visuales, distribuimos el 'count' según el 'score'
+            # 3. Desglose y Footer (Todo en un solo bloque para evitar errores de renderizado)
             st.markdown(f"""
-                <div class="analyst-card" style="margin-top:-50px; background:transparent;">
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">Compra agresiva</div>
-                        <div class="breakdown-bar-container"><div class="breakdown-bar-fill" style="width: 65%; background-color:#2ecc71;"></div></div>
-                        <div class="breakdown-count">20</div>
+                <div class="analyst-card-v2" style="background: transparent; box-shadow: none; margin-top: -30px;">
+                    <div class="breakdown-row-v2">
+                        <div class="breakdown-label-v2">Compra agresiva</div>
+                        <div class="breakdown-bar-container-v2"><div class="breakdown-bar-fill-v2" style="width: 65%; background-color:#27ae60;"></div></div>
+                        <div class="breakdown-count-v2">20</div>
                     </div>
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">Comprar</div>
-                        <div class="breakdown-bar-container"><div class="breakdown-bar-fill" style="width: 15%; background-color:#58d68d;"></div></div>
-                        <div class="breakdown-count">3</div>
+                    <div class="breakdown-row-v2">
+                        <div class="breakdown-label-v2">Comprar</div>
+                        <div class="breakdown-bar-container-v2"><div class="breakdown-bar-fill-v2" style="width: 15%; background-color:#2ecc71;"></div></div>
+                        <div class="breakdown-count-v2">3</div>
                     </div>
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">Conservar</div>
-                        <div class="breakdown-bar-container"><div class="breakdown-bar-fill" style="width: 35%; background-color:#f4d03f;"></div></div>
-                        <div class="breakdown-count">12</div>
+                    <div class="breakdown-row-v2">
+                        <div class="breakdown-label-v2">Conservar</div>
+                        <div class="breakdown-bar-container-v2"><div class="breakdown-bar-fill-v2" style="width: 35%; background-color:#f1c40f;"></div></div>
+                        <div class="breakdown-count-v2">12</div>
                     </div>
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">Vender</div>
-                        <div class="breakdown-bar-container"><div class="breakdown-bar-fill" style="width: 2%; background-color:#eb984e;"></div></div>
-                        <div class="breakdown-count">0</div>
+                    <div class="breakdown-row-v2">
+                        <div class="breakdown-label-v2">Vender</div>
+                        <div class="breakdown-bar-container-v2"><div class="breakdown-bar-fill-v2" style="width: 2%; background-color:#e67e22;"></div></div>
+                        <div class="breakdown-count-v2">0</div>
                     </div>
-                    <div class="breakdown-row">
-                        <div class="breakdown-label">Venta fuerte</div>
-                        <div class="breakdown-bar-container"><div class="breakdown-bar-fill" style="width: 5%; background-color:#f85149;"></div></div>
-                        <div class="breakdown-count">2</div>
+                    <div class="breakdown-row-v2">
+                        <div class="breakdown-label-v2">Venta fuerte</div>
+                        <div class="breakdown-bar-container-v2"><div class="breakdown-bar-fill-v2" style="width: 5%; background-color:#e74c3c;"></div></div>
+                        <div class="breakdown-count-v2">2</div>
                     </div>
                     
-                    <div class="analyst-footer-item">
-                        <span class="footer-label">Precio previsto a 12 meses</span>
-                        <span class="footer-value">USD {target:,.2f}</span>
-                    </div>
-                    <div class="analyst-footer-item">
-                        <span class="footer-label">Volatilidad del precio</span>
-                        <span class="footer-value">Promedio</span>
-                    </div>
-                    <div class="analyst-footer-item">
-                        <span class="footer-label">Recomendación sector</span>
-                        <span class="footer-value" style="color:#2ecc71">Comprar</span>
+                    <div class="analyst-footer-v2">
+                        <div class="footer-item-v2">
+                            <span class="footer-label-v2">Precio previsto a 12 meses</span>
+                            <span class="footer-value-v2">USD {target:,.2f}</span>
+                        </div>
+                        <div class="footer-item-v2">
+                            <span class="footer-label-v2">Volatilidad del precio</span>
+                            <span class="footer-value-v2">Promedio</span>
+                        </div>
+                        <div class="footer-item-v2">
+                            <span class="footer-label-v2">Recomendación sector</span>
+                            <span class="footer-value-v2" style="color:#2ecc71">Comprar</span>
+                        </div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
         with r_col2:
-            # Gráfico de Barras Pro: BPA Real vs Estimado
-            fig_eps = go.Figure()
+            # Gráfico de Ganancias
             quarters = ['2025Q3', '2025Q4', '2026Q1', '2026Q2']
-            est_bpa = [3.80, 5.51, 4.55, 4.55]
-            real_bpa = [3.92, 5.82, 4.58, 4.58]
-            
-            fig_eps.add_trace(go.Bar(x=quarters, y=est_bpa, name="Estimado", marker_color="#30363d"))
-            fig_eps.add_trace(go.Bar(x=quarters, y=real_bpa, name="Real", marker_color="#005BAA"))
-            
-            fig_eps.update_layout(
-                title="Sorpresas en Beneficio por Acción (BPA)",
-                barmode='group',
-                template="plotly_dark",
-                height=450,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-            )
+            fig_eps = go.Figure()
+            fig_eps.add_trace(go.Bar(x=quarters, y=[3.80, 5.51, 4.55, 4.55], name="Estimado", marker_color="#34495e"))
+            fig_eps.add_trace(go.Bar(x=quarters, y=[3.92, 5.82, 4.58, 4.58], name="Real", marker_color="#005BAA"))
+            fig_eps.update_layout(title="Sorpresas en Beneficio por Acción (BPA)", barmode='group', template="plotly_dark", height=450)
             st.plotly_chart(fig_eps, use_container_width=True)
-
+            
     # -------------------------------------------------------------------------
     # TAB 4: STRESS TEST PRO (TOTALMENTE AJUSTABLE)
     # -------------------------------------------------------------------------
