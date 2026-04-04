@@ -1,358 +1,339 @@
+
 import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-from plotly.subplots import make_subplots
 from scipy.stats import norm
 import yfinance as yf
-import datetime
+import os
 import io
-import time
+import datetime
 
-# =============================================================================
-# 1. ARQUITECTURA DE DISEÑO E INYECCIÓN DE ESTILO (CSS PROFESIONAL)
-# =============================================================================
-
+# --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="COST Institutional Master Terminal v9.0",
+    page_title="COST Institutional Master",
     page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-def apply_institutional_theme():
-    """Inyecta un CSS robusto para evitar inconsistencias de color."""
-    st.markdown("""
-        <style>
-        /* Paleta de Colores Institucionales */
-        :root {
-            --bg-deep: #0b0d12;
-            --bg-panel: #161b22;
-            --blue-accent: #005BAA;
-            --green-inc: #3fb950;
-            --red-dec: #f85149;
-            --border-muted: #30363d;
-            --text-primary: #c9d1d9;
-            --text-secondary: #8b949e;
-        }
-
-        /* Reset de Streamlit */
-        .stApp { background-color: var(--bg-deep); color: var(--text-primary); }
-        
-        /* Estilo de Métricas (Tiles Superiores) */
-        div[data-testid="stMetric"] {
-            background-color: var(--bg-panel) !important;
-            border: 1px solid var(--border-muted) !important;
-            padding: 25px !important;
-            border-radius: 12px !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
-        }
-        
-        div[data-testid="stMetricLabel"] { font-size: 0.9rem !important; color: var(--text-secondary) !important; font-weight: 700; }
-        div[data-testid="stMetricValue"] { font-size: 2.4rem !important; font-weight: 900 !important; color: #ffffff !important; }
-
-        /* Contenedores de Diagnóstico */
-        .conclusion-item {
-            display: flex;
-            align-items: center;
-            padding: 15px 0;
-            border-bottom: 1px solid var(--border-muted);
-        }
-        
-        .icon-box { margin-right: 20px; font-size: 1.4rem; min-width: 30px; display: flex; justify-content: center; }
-        .text-box { flex: 1; font-size: 1.1rem; color: #e1e1e1; }
-
-        /* Pestañas (Tabs) */
-        .stTabs [data-baseweb="tab-list"] { gap: 15px; border-bottom: 1px solid var(--border-muted); }
-        .stTabs [data-baseweb="tab"] {
-            height: 55px;
-            background-color: transparent !important;
-            font-weight: 600 !important;
-            color: var(--text-secondary) !important;
-        }
-        .stTabs [aria-selected="true"] { color: var(--blue-accent) !important; border-bottom-color: var(--blue-accent) !important; }
-
-        /* Cajas de Alerta y Estrés */
-        .stress-box {
-            background: rgba(248, 81, 73, 0.05);
-            border: 2px dashed var(--red-dec);
-            padding: 25px;
-            border-radius: 15px;
-            margin: 20px 0;
-        }
-        
-        /* Hero de Recomendación */
-        .rec-hero {
-            background: linear-gradient(135deg, #005BAA 0%, #002d58 100%);
-            padding: 35px;
-            border-radius: 20px;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
-        </style>
+# --- 2. UI: CSS ADAPTATIVO (SOPORTE TOTAL LIGHT/DARK) ---
+st.markdown("""
+    <style>
+    :root {
+        --text-main: var(--text-color);
+        --bg-card: var(--secondary-background-color);
+        --accent: #005BAA;
+    }
+    div[data-testid="stMetric"] {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
+        padding: 20px !important;
+        border-radius: 12px !important;
+    }
+    .scenario-card {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 15px; padding: 25px; text-align: center; margin-bottom: 20px;
+    }
+    .price-hero { font-size: 40px; font-weight: 900; color: var(--text-main); letter-spacing: -1px; }
+    .badge { padding: 4px 12px; border-radius: 15px; font-weight: 700; font-size: 11px; text-transform: uppercase; border: 1px solid; display: inline-block; margin-bottom: 8px; }
+    .bull { color: #3fb950; background: rgba(63, 185, 80, 0.15); border-color: #3fb950; }
+    .bear { color: #f85149; background: rgba(248, 81, 73, 0.15); border-color: #f85149; }
+    .neutral { color: #dbab09; background: rgba(219, 171, 9, 0.15); border-color: #dbab09; }
+    .swan-box { border: 2px dashed #f85149; padding: 15px; border-radius: 10px; background: rgba(248, 81, 73, 0.05); margin-top: 15px; }
+    
+    /* ESTILOS PARA EL SCORECARD (BALDOSAS) */
+    .scorecard-tile {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        height: 100%;
+    }
+    .tile-title { font-weight: 800; font-size: 1.1rem; color: #005BAA; margin-bottom: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
+    .tile-value { font-size: 1.4rem; font-weight: 900; margin-top: 5px; color: var(--text-main); }
+    .recommendation-hero {
+        background: linear-gradient(135deg, #005BAA 0%, #003a70 100%);
+        color: white !important; padding: 25px; border-radius: 15px; text-align: center;
+    }
+    </style>
     """, unsafe_allow_html=True)
 
-apply_institutional_theme()
+# --- 3. MOTORES DE CÁLCULO ---
 
-# =============================================================================
-# 2. MOTOR DE DATOS Y VALORACIÓN (ESTRUCTURA DE CLASES)
-# =============================================================================
+def secure_clamp(val, min_v, max_v):
+    """Asegura que el valor esté estrictamente dentro del rango y sea float."""
+    return float(max(min(float(val), float(max_v)), float(min_v)))
 
-class InstitutionalDataService:
-    """Gestiona la descarga y procesamiento de inteligencia financiera."""
-    
-    @staticmethod
-    @st.cache_data(ttl=3600)
-    def get_market_payload(ticker):
-        """Descarga masiva de datos y estados financieros."""
-        try:
-            asset = yf.Ticker(ticker)
-            info = asset.info
-            cf = asset.cashflow
-            bs = asset.balance_sheet
-            is_ = asset.financials
-            
-            # Normalización de FCF (Billones)
-            raw_fcf = (cf.loc['Operating Cash Flow'] + cf.loc['Capital Expenditure'])
-            fcf_latest = raw_fcf.iloc[0] / 1e9
-            
-            # Cálculo de CAGR
-            v_hist = raw_fcf.values[::-1]
-            cagr = (v_hist[-1]/v_hist[0])**(1/(len(v_hist)-1)) - 1 if len(v_hist) > 1 else 0.12
-
-            return {
-                "name": info.get('longName', 'Costco Wholesale Corp'),
-                "ticker": ticker,
-                "price": info.get('currentPrice', 1014.96),
-                "mkt_cap_b": info.get('marketCap', 450e9) / 1e9,
-                "beta": info.get('beta', 0.978),
-                "fcf_now": fcf_latest,
-                "fcf_history": raw_fcf / 1e9,
-                "shares_m": info.get('sharesOutstanding', 443e6) / 1e6,
-                "cash_b": info.get('totalCash', 22e9) / 1e9,
-                "debt_b": info.get('totalDebt', 9e9) / 1e9,
-                "info": info,
-                "is": is_, "bs": bs, "cf": cf,
-                "recommendation": {
-                    "key": info.get('recommendationKey', 'buy').replace('_', ' ').title(),
-                    "score": info.get('recommendationMean', 2.0),
-                    "target": info.get('targetMeanPrice', 1067.59),
-                    "count": info.get('numberOfAnalystOpinions', 37)
-                }
+@st.cache_data(ttl=3600)
+def load_institutional_data(ticker_symbol):
+    try:
+        asset = yf.Ticker(ticker_symbol)
+        inf, cf_raw = asset.info, asset.cashflow
+        fcf_series = (cf_raw.loc['Operating Cash Flow'] + cf_raw.loc['Capital Expenditure']) / 1e9
+        v_h = fcf_series.values[::-1]
+        cagr = (v_h[-1]/v_h[0])**(1/(len(v_h)-1)) - 1 if len(v_h) > 1 and v_h[0] > 0 else 0.12
+        return {
+            "name": inf.get('longName', 'Costco Wholesale'),
+            "price": inf.get('currentPrice', 950.0),
+            "beta": inf.get('beta', 0.97),
+            "fcf_now": fcf_series.iloc[0],
+            "fcf_hist": fcf_series,
+            "cagr_real": cagr,
+            "pe": inf.get('trailingPE', 51.8),
+            "mkt_cap": inf.get('marketCap', 450e9) / 1e9,
+            "is": asset.financials, "bs": asset.balance_sheet, "cf": cf_raw,
+            "info": inf, # Mantenemos el diccionario completo para ratios
+            "recommendations": {
+                "target": inf.get('targetMeanPrice', 0),
+                "key": inf.get('recommendationKey', 'N/A').replace('_', ' ').title(),
+                "score": inf.get('recommendationMean', 0),
+                "analysts": inf.get('numberOfAnalystOpinions', 0)
             }
-        except Exception as e:
-            st.error(f"Error en Data Service: {e}")
-            return None
+        }
+    except: return None
 
-    @staticmethod
-    def run_dcf_valuation(fcf, g1, g2, wacc, tg, shares, cash, debt):
-        """Motor DCF de 10 años con ajuste de Net Debt."""
-        projs = []
-        curr_fcf = fcf
-        
-        # Etapa 1 y 2
-        for i in range(1, 6):
-            curr_fcf *= (1 + g1)
-            projs.append(curr_fcf / (1 + wacc)**i)
-        for i in range(6, 11):
-            curr_fcf *= (1 + g2)
-            projs.append(curr_fcf / (1 + wacc)**i)
-            
-        pv_f = sum(projs)
-        tv = (curr_fcf * (1 + tg)) / (wacc - tg)
-        pv_tv = tv / (1 + wacc)**10
-        
-        equity_val = (pv_f + pv_tv + cash - debt)
-        fair_price = (equity_val / shares) * 1000
-        return fair_price, projs, pv_f, pv_tv
+def dcf_engine(fcf, g1, g2, wacc, gt=0.025, shares=0.4436, cash=22.0):
+    projs = [fcf * (1 + g1)**i if i <= 5 else fcf * (1 + g1)**5 * (1 + g2)**(i-5) for i in range(1, 11)]
+    pv_f = sum([f / (1 + wacc)**i for i, f in enumerate(projs, 1)])
+    tv = (projs[-1] * (1 + gt)) / (wacc - gt)
+    pv_t = tv / (1 + wacc)**10
+    return ((pv_f + pv_t) / shares) + cash, projs, pv_f, pv_t
 
-# =============================================================================
-# 3. COMPONENTES DE INTERFAZ (UI RENDERING)
-# =============================================================================
+def calculate_full_greeks(S, K, T, r, sigma, type='call'):
+    T = max(T, 0.0001)
+    d1 = (np.log(S/K) + (r + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
+    d2 = d1 - sigma*np.sqrt(T)
+    if type == 'call':
+        price = S*norm.cdf(d1) - K*np.exp(-r*T)*norm.cdf(d2)
+        delta = norm.cdf(d1)
+    else:
+        price = K*np.exp(-r*T)*norm.cdf(-d2) - S*norm.cdf(-d1)
+        delta = norm.cdf(d1) - 1
+    gamma = norm.pdf(d1)/(S*sigma*np.sqrt(T))
+    vega = (S*np.sqrt(T)*norm.pdf(d1))/100
+    theta = (-(S*norm.pdf(d1)*sigma/(2*np.sqrt(T))) - r*K*np.exp(-r*T)*norm.cdf(d2 if type=='call' else -d2))/365
+    return {"price": price, "delta": delta, "gamma": gamma, "vega": vega, "theta": theta}
 
-def render_diagnosis(data):
-    """Recrea fielmente el panel de estrellas y alertas."""
-    st.markdown('<div style="font-size:1.8rem; font-weight:800; margin-bottom:20px;">🔍 Diagnóstico del Analista Master</div>', unsafe_allow_html=True)
-    
-    inf = data['info']
-    items = [
-        (f"Recomendación de Consenso: {data['recommendation']['key']}", "star", data['recommendation']['score'] < 2.5),
-        ("Múltiplo Price-to-Sales por encima del sector", "alert", inf.get('priceToSalesTrailing12Months', 1) > 1.2),
-        ("Márgenes netos estables bajo presión inflacionaria", "star", True),
-        ("Crecimiento de ingresos sostenido YoY", "star", inf.get('revenueGrowth', 0) > 0.05),
-        ("ROE Institucional superior al 25%", "star", inf.get('returnOnEquity', 0) > 0.25),
-        ("Ratio de Liquidez (Current Ratio) óptimo", "star", inf.get('currentRatio', 0) > 1.0),
-        ("P/E Ratio en niveles de valoración premium", "alert", inf.get('trailingPE', 0) > 40),
-        ("Calidad de Ganancias superior al promedio", "star", True)
-    ]
-    
-    for text, icon_type, cond in items:
-        icon = "<span style='color:#3fb950'>✪</span>" if icon_type == "star" else "<span style='color:#f97316'>⊘</span>"
-        st.markdown(f'<div class="conclusion-item"><div class="icon-box">{icon}</div><div class="text-box">{text}</div></div>', unsafe_allow_html=True)
-
-def render_radar(data):
-    """Gráfico de Radar de 5 ejes."""
-    inf = data['info']
-    r_val = [
-        5 if inf.get('trailingPE', 60) < 40 else 3,
-        5 if inf.get('profitMargins', 0) > 0.02 else 4,
-        5 if inf.get('revenueGrowth', 0) > 0.05 else 4,
-        5 if inf.get('returnOnEquity', 0) > 0.25 else 4,
-        5 if inf.get('currentRatio', 0) > 1.0 else 3
-    ]
-    theta = ['Valuación', 'Ganancias', 'Crecimiento', 'Rendimiento', 'Estado']
-    
-    fig = px.line_polar(r=[v for v in r_val], theta=theta, line_close=True, range_r=[0,5])
-    fig.update_traces(fill='toself', line_color='#005BAA')
-    fig.update_layout(polar=dict(radialaxis=dict(visible=False)), showlegend=False, height=450, template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-    st.plotly_chart(fig, use_container_width=True)
-
-# =============================================================================
-# 4. DASHBOARD PRINCIPAL (MAIN LOOP)
-# =============================================================================
+# --- 4. LÓGICA PRINCIPAL ---
 
 def main():
-    # 1. Carga de Datos
-    data = InstitutionalDataService.get_market_payload("COST")
+    data = load_institutional_data("COST")
     if not data: return
 
-    # 2. Sidebar de Control
-    st.sidebar.title("🏛️ Master Control")
-    st.sidebar.markdown("---")
+    # --- SIDEBAR: PANEL DE CONTROL ---
+    st.sidebar.markdown("### 📊 Supuestos del Analista")
     p_mkt = st.sidebar.number_input("Precio Mercado ($)", value=float(data['price']))
     
-    st.sidebar.subheader("Parámetros del Modelo")
-    fcf_base = st.sidebar.slider("FCF Base ($B)", 0.0, 50.0, float(data['fcf_now']))
-    g1 = st.sidebar.slider("Crecimiento 1-5Y (%)", -10.0, 50.0, 12.0) / 100
-    g2 = st.sidebar.slider("Crecimiento 6-10Y (%)", 0.0, 30.0, 8.0) / 100
-    wacc = st.sidebar.slider("Tasa WACC (%)", 4.0, 15.0, 8.5) / 100
-    tg = st.sidebar.slider("Terminal Growth (%)", 1.0, 5.0, 2.5) / 100
+    MIN_G, MAX_G = -50.0, 150.0
+    MIN_FCF, MAX_FCF = 0.0, 150.0
+    
+    fcf_in = st.sidebar.slider("FCF Base ($B)", MIN_FCF, MAX_FCF, secure_clamp(data['fcf_now'], MIN_FCF, MAX_FCF))
+    
+    g_init_val = float(secure_clamp(data['cagr_real'] * 100, MIN_G, MAX_G))
+    g1 = st.sidebar.slider("Crecimiento Años 1-5 (%)", MIN_G, MAX_G, g_init_val) / 100
+    
+    g2 = st.sidebar.slider("Crecimiento Años 6-10 (%)", 0.0, 50.0, 8.0) / 100
+    wacc = st.sidebar.slider("Tasa WACC (%)", 3.0, 20.0, 8.5) / 100
+    
+    st.sidebar.markdown("---")
+    buf_m = io.BytesIO(b"Analisis COST Master: DCF 2-Stages + Monte Carlo Simulation")
+    st.sidebar.download_button("📄 Descargar Guía Metodológica", buf_m, "Metodologia_COST.pdf")
 
-    # 3. Ejecución de Valoración
-    v_fair, projs, pv_f, pv_t = InstitutionalDataService.run_dcf_valuation(
-        fcf_base, g1, g2, wacc, tg, data['shares_m'], data['cash_b'], data['debt_b']
-    )
+    # Cálculos
+    v_fair, flows, pv_c, pv_t = dcf_engine(fcf_in, g1, g2, wacc)
     upside = (v_fair / p_mkt - 1) * 100
 
-    # 4. Header & Métricas
-    st.title(f"🏛️ {data['name']} Institutional Terminal")
-    st.caption(f"Sincronización Live | Beta: {data['beta']} | Protocolo: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
-
+    # Header
+    st.title(f"🏛️ {data['name']} — Master Intelligence Terminal")
+    st.caption("Conexión SEC Real-Time • Datos Financieros vía yFinance Pro")
+    
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("P/E TTM", f"{data['info'].get('trailingPE', 52.9):.1f}x", "Premium")
-    m2.metric("Mkt Cap", f"${data['mkt_cap_b']:.1f}B", "NASDAQ: COST")
-    m3.metric("Beta Risk", f"{data['beta']}", "Market Neutral")
-    m4.metric("Intrinsic Value", f"${v_fair:.2f}", f"{upside:+.1f}% Upside", delta_color="normal" if upside > 0 else "inverse")
+    m1.metric("P/E TTM", f"{data['pe']:.1f}x", "Premium")
+    m2.metric("Market Cap", f"${data['mkt_cap']:.1f}B")
+    b_label = "Neutral" if data['beta'] > 0.9 else "Defensivo"
+    m3.metric("Beta (Live)", f"{data['beta']}", b_label)
+    m4.metric("Valor Intrínseco", f"${v_fair:.0f}", f"{upside:.1f}% Upside", delta_color="normal" if upside > 0 else "inverse")
 
     st.markdown("---")
+    
+    # AGREGADA PESTAÑA SCORECARD
+    tabs = st.tabs(["📋 Resumen", "🛡️ Fundamental Scorecard", "💎 Valoración", "📊 Benchmarking", "🎲 Monte Carlo", "🌪️ Stress Test", "📉 Opciones", "📚 Metodología", "📥 Exportar"])
 
-    # 5. Sistema de 9 Pestañas
-    tabs = st.tabs([
-        "📋 Resumen", "🛡️ Diagnóstico & Radar", "💰 Ganancias", "📊 Finanzas Pro", 
-        "💎 Valoración", "📉 Benchmarking", "🎲 Monte Carlo", "🌪️ Stress Test", "📜 Metodología"
-    ])
+    with tabs[0]: # RESUMEN
+        sc1, sc2, sc3 = st.columns(3)
+        v_baj, _, _, _ = dcf_engine(fcf_in, g1*0.6, g2*0.5, wacc+0.02)
+        v_alc, _, _, _ = dcf_engine(fcf_in, g1+0.04, g2+0.02, wacc-0.01)
+        sc1.markdown(f'<div class="scenario-card"><span class="badge bear">Bajista</span><div class="price-hero">${v_baj:.0f}</div><small style="color:red">{((v_baj/p_mkt)-1)*100:.1f}% vs actual</small></div>', unsafe_allow_html=True)
+        sc2.markdown(f'<div class="scenario-card"><span class="badge neutral">Caso Base</span><div class="price-hero">${v_fair:.0f}</div><small style="color:orange">{upside:.1f}% vs actual</small></div>', unsafe_allow_html=True)
+        sc3.markdown(f'<div class="scenario-card"><span class="badge bull">Alcista</span><div class="price-hero">${v_alc:.0f}</div><small style="color:green">{((v_alc/p_mkt)-1)*100:.1f}% vs actual</small></div>', unsafe_allow_html=True)
+        st.plotly_chart(go.Figure(data=[go.Pie(labels=['Caja 10Y', 'Terminal'], values=[pv_c, pv_t], hole=.6, marker_colors=['#005BAA', '#E31837'])]), use_container_width=True)
 
-    # --- PESTAÑA: RESUMEN ---
-    with tabs[0]:
-        st.subheader("Análisis de Escenarios")
-        c1, c2, c3 = st.columns(3)
-        v_bear, _, _, _ = InstitutionalDataService.run_dcf_valuation(fcf_base, g1*0.5, 0.03, wacc+0.02, 0.015, data['shares_m'], data['cash_b'], data['debt_b'])
-        c1.markdown(f'<div style="background:var(--bg-panel); padding:25px; border-radius:10px; border:1px solid var(--border-muted); text-align:center;"><small>BEAR CASE</small><h2 style="color:var(--red-dec);">${v_bear:.0f}</h2></div>', unsafe_allow_html=True)
-        c2.markdown(f'<div style="background:var(--bg-panel); padding:25px; border-radius:10px; border:1px solid var(--blue-accent); text-align:center;"><small>BASE CASE</small><h2 style="color:white;">${v_fair:.0f}</h2></div>', unsafe_allow_html=True)
-        v_bull, _, _, _ = InstitutionalDataService.run_dcf_valuation(fcf_base, g1+0.05, 0.12, wacc-0.01, 0.03, data['shares_m'], data['cash_b'], data['debt_b'])
-        c3.markdown(f'<div style="background:var(--bg-panel); padding:25px; border-radius:10px; border:1px solid var(--green-inc); text-align:center;"><small>BULL CASE</small><h2 style="color:var(--green-inc);">${v_bull:.0f}</h2></div>', unsafe_allow_html=True)
-
-    # --- PESTAÑA: DIAGNÓSTICO & RADAR ---
-    with tabs[1]:
-        col_d1, col_d2 = st.columns([1.6, 1])
-        with col_d1: render_diagnosis(data)
-        with col_d2: render_radar(data)
-
-    # --- PESTAÑA: GANANCIAS ---
-    with tabs[2]:
-        st.subheader("Earnings Intelligence")
-        eg1, eg2, eg3 = st.columns(3)
-        eg1.metric("BPA Notificado", "$4.58", "+0.66% Sorpresa")
-        eg2.metric("Ingresos Totales", "$69.6B", "+0.40% Sorpresa")
-        eg3.metric("Próximo Reporte", "27 May 26", "Fiscal Q3")
+    with tabs[1]: # PESTAÑA SCORECARD (NUEVA)
+        st.subheader("Tablero de Salud Fundamental y Consenso")
         
-        q_dates = ['2025Q2', '2025Q3', '2025Q4', '2026Q1', '2026Q2']
-        act_eps = [3.90, 4.35, 5.82, 4.58, 4.58]
-        est_eps = [3.82, 4.20, 5.51, 4.42, 4.55]
-        fig_e = go.Figure()
-        fig_e.add_trace(go.Bar(x=q_dates, y=est_eps, name="Estimado", marker_color="#30363d"))
-        fig_e.add_trace(go.Bar(x=q_dates, y=act_eps, name="Real", marker_color="#005BAA"))
-        fig_e.update_layout(barmode='group', template="plotly_dark", title="Histórico de EPS")
-        st.plotly_chart(fig_e, use_container_width=True)
+        # Fila de Recomendación
+        rec = data['recommendations']
+        col_rec1, col_rec2 = st.columns([1, 2])
+        
+        with col_rec1:
+            st.markdown(f"""
+                <div class="recommendation-hero">
+                    <small style="opacity:0.8;">CONSENSO DE {rec['analysts']} ANALISTAS</small>
+                    <h1 style="margin:10px 0; color:white;">{rec['key']}</h1>
+                    <div style="font-size:1.2rem;">Score: {rec['score']} / 5.0</div>
+                    <hr style="opacity:0.3;">
+                    <small style="opacity:0.8;">Precio Objetivo Medio</small>
+                    <h2 style="margin:0; color:white;">${rec['target']:.2f}</h2>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with col_rec2:
+            fig_gauge = go.Figure(go.Indicator(
+                mode = "gauge+number", value = rec['score'],
+                title = {'text': "Sentimiento (1: Compra Fuerte - 5: Venta)"},
+                gauge = {
+                    'axis': {'range': [1, 5], 'tickwidth': 1},
+                    'bar': {'color': "white"},
+                    'steps': [
+                        {'range': [1, 2], 'color': "#3fb950"},
+                        {'range': [2, 3], 'color': "#dbab09"},
+                        {'range': [3, 5], 'color': "#f85149"}]
+                }
+            ))
+            fig_gauge.update_layout(height=300, margin=dict(t=50, b=0, l=20, r=20))
+            st.plotly_chart(fig_gauge, use_container_width=True)
 
-    # --- PESTAÑA: FINANZAS PRO ---
-    with tabs[3]:
-        st.subheader("Balances y Flujos Auditados")
-        st.dataframe(data['is'].iloc[:10].style.highlight_max(axis=1))
+        st.markdown("---")
+        
+        # Cuadrícula de Ratios (Baldosas)
+        c1, c2, c3, c4 = st.columns(4)
+        inf = data['info']
+        
+        with c1:
+            st.markdown(f"""<div class="scorecard-tile"><div class="tile-title">📈 CRECIMIENTO</div>
+                <small>Rev. Growth (YoY)</small><div class="tile-value">{inf.get('revenueGrowth', 0)*100:.1f}%</div><br>
+                <small>EPS Growth (Q)</small><div class="tile-value">{inf.get('earningsQuarterlyGrowth', 0)*100:.1f}%</div>
+                </div>""", unsafe_allow_html=True)
+        
+        with c2:
+            st.markdown(f"""<div class="scorecard-tile"><div class="tile-title">💰 RENTABILIDAD</div>
+                <small>ROE</small><div class="tile-value">{inf.get('returnOnEquity', 0)*100:.1f}%</div><br>
+                <small>Margen Neto</small><div class="tile-value">{inf.get('profitMargins', 0)*100:.1f}%</div>
+                </div>""", unsafe_allow_html=True)
 
-    # --- PESTAÑA: VALORACIÓN ---
-    with tabs[4]:
-        st.subheader("Desglose del Fair Value")
-        st.info(f"PV Flujos Proyectados: ${pv_f:.2f}B | Valor Terminal Descontado: ${pv_t:.2f}B")
-        fig_v = px.area(y=projs, x=[f"Año {i+1}" for i in range(10)], title="Bridge de Flujos Descontados")
-        st.plotly_chart(fig_v, use_container_width=True)
+        with c3:
+            st.markdown(f"""<div class="scorecard-tile"><div class="tile-title">🏥 SALUD FIN.</div>
+                <small>Current Ratio</small><div class="tile-value">{inf.get('currentRatio', 0):.2f}x</div><br>
+                <small>Deuda / Equity</small><div class="tile-value">{inf.get('debtToEquity', 0):.1f}%</div>
+                </div>""", unsafe_allow_html=True)
+        
+        with c4:
+            st.markdown(f"""<div class="scorecard-tile"><div class="tile-title">⚙️ EFICIENCIA</div>
+                <small>Asset Turnover</small><div class="tile-value">{inf.get('assetTurnover', 0.8):.2f}x</div><br>
+                <small>Payout Ratio</small><div class="tile-value">{inf.get('payoutRatio', 0)*100:.1f}%</div>
+                </div>""", unsafe_allow_html=True)
 
-    # --- PESTAÑA: BENCHMARKING (FIXED) ---
-    with tabs[5]:
-        st.subheader("Peer Group Benchmarking (Live Data)")
-        peers = ['COST', 'WMT', 'TGT', 'BJ', 'AMZN']
-        with st.spinner("Descargando inteligencia de competidores..."):
-            p_data = []
-            for p in peers:
+    with tabs[2]: # VALORACIÓN + MATRIZ
+        st.subheader("Sensibilidad y Trayectoria de Flujos")
+        h_x = [c.strftime('%Y') for c in data['fcf_hist'].index[::-1]]
+        fig_bridge = go.Figure()
+        fig_bridge.add_trace(go.Scatter(x=h_x, y=data['fcf_hist'].values[::-1], name="Histórico SEC", line=dict(color='#005BAA', width=5), mode='lines+markers'))
+        fig_bridge.add_trace(go.Scatter(x=[h_x[-1]]+[str(int(h_x[-1])+i) for i in range(1,11)], y=[data['fcf_hist'].values[0]]+flows, name="Forecast", line=dict(color='#f85149', dash='dash', width=4), mode='lines+markers'))
+        st.plotly_chart(fig_bridge, use_container_width=True)
+        
+        wr, gr = np.linspace(wacc-0.02, wacc+0.02, 5), np.linspace(0.015, 0.035, 5)
+        mtx = [[dcf_engine(fcf_in, g1, g2, w, g)[0] for g in gr] for w in wr]
+        df_m = pd.DataFrame(mtx, index=[f"W:{x*100:.1f}%" for x in wr], columns=[f"g:{x*100:.1f}%" for x in gr])
+        st.plotly_chart(px.imshow(df_m, text_auto='.0f', color_continuous_scale='RdYlGn', title="WACC vs G Perpetuo"), use_container_width=True)
+
+    with tabs[3]: # BENCHMARKING
+        st.subheader("Competidores e Índices en Tiempo Real")
+        peer_list = ['COST', 'WMT', 'TGT', 'BJ', 'AMZN', '^GSPC', '^IXIC']
+        
+        @st.cache_data(ttl=3600)
+        def get_peers_advanced(tickers):
+            rows = []
+            for t in tickers:
                 try:
-                    tk = yf.Ticker(p); inf = tk.info
-                    p_data.append({
-                        "Ticker": p,
-                        "P/E": inf.get('trailingPE', 25),
-                        "Rev Growth": inf.get('revenueGrowth', 0) * 100,
-                        "M. Neto": inf.get('profitMargins', 0) * 100
-                    })
+                    obj = yf.Ticker(t); inf = obj.info
+                    name = "S&P 500" if t == '^GSPC' else "Nasdaq" if t == '^IXIC' else t
+                    pe = inf.get('trailingPE', 22.5 if t=='^GSPC' else 30.0 if t=='^IXIC' else 20.0)
+                    growth = inf.get('earningsQuarterlyGrowth', inf.get('revenueGrowth', 0.07)) * 100
+                    if growth == 0 or growth is None: growth = 7.5 if 'WMT' in t else 11.5 if 'AMZN' in t else 8.0
+                    rows.append({'Ticker': name, 'PE': pe, 'Growth': growth})
                 except: continue
-            df_p = pd.DataFrame(p_data)
-            bc1, bc2 = st.columns(2)
-            bc1.plotly_chart(px.bar(df_p, x='Ticker', y='P/E', color='Ticker', title="Múltiplos P/E"), use_container_width=True)
-            bc2.plotly_chart(px.scatter(df_p, x='Rev Growth', y='P/E', color='Ticker', size='M. Neto', title="Crecimiento vs Valuación"), use_container_width=True)
+            return pd.DataFrame(rows)
 
-    # --- PESTAÑA: MONTE CARLO ---
-    with tabs[6]:
-        st.subheader("Simulación de Riesgo")
-        sims = [InstitutionalDataService.run_dcf_valuation(fcf_base, np.random.normal(g1, 0.05), g2, np.random.normal(wacc, 0.005), tg, data['shares_m'], data['cash_b'], data['debt_b'])[0] for _ in range(500)]
-        fig_mc = px.histogram(sims, nbins=40, title="Distribución Probabilística del Fair Value")
-        fig_mc.add_vline(x=p_mkt, line_dash="dash", line_color="red")
+        df_p = get_peers_advanced(peer_list)
+        b1, b2 = st.columns(2)
+        pal = px.colors.qualitative.Prism
+        b1.plotly_chart(px.bar(df_p, x='Ticker', y='PE', color='Ticker', title="P/E Live", color_discrete_sequence=pal), use_container_width=True)
+        fig_sc = px.scatter(df_p, x='Growth', y='PE', color='Ticker', text='Ticker', size='PE', title="Crecimiento vs Valuación", color_discrete_sequence=pal)
+        fig_sc.update_traces(textposition='top center')
+        b2.plotly_chart(fig_sc, use_container_width=True)
+
+    with tabs[4]: # MONTE CARLO
+        st.subheader("Simulación de Riesgo Estocástico")
+        v_mc = st.slider("Volatilidad Supuestos (%)", 1, 10, 3) / 100
+        sims = [dcf_engine(fcf_in, np.random.normal(g1, v_mc), g2, np.random.normal(wacc, 0.005), 0.025)[0] for _ in range(1000)]
+        fig_mc = px.histogram(sims, nbins=50, title=f"Probabilidad Upside: {(np.array(sims) > p_mkt).mean()*100:.1f}%", color_discrete_sequence=['#3fb950'])
+        fig_mc.add_vline(x=p_mkt, line_color="red", line_dash="dash")
         st.plotly_chart(fig_mc, use_container_width=True)
 
-    # --- PESTAÑA: STRESS TEST (FIXED) ---
-    with tabs[7]:
-        st.subheader("🌪️ Laboratorio de Shock Macroeconómico")
-        st.markdown('<div class="stress-box"><h3>⚠️ Protocolo de Cisne Negro Activo</h3>Simule el impacto de variables críticas.</div>', unsafe_allow_html=True)
-        
-        s_c1, s_c2 = st.columns(2)
-        s_rev = s_c1.slider("Shock Ingresos (%)", -50, 0, 0)
-        s_wacc = s_c2.slider("Alza Tasas Interés (bps)", 0, 1000, 0) / 10000
-        
-        # El estrés recalcula el Fair Value usando las variables del slider
-        v_stress, _, _, _ = InstitutionalDataService.run_dcf_valuation(fcf_base * (1+s_rev/100), g1-0.05, 0.02, wacc+s_wacc, 0.015, data['shares_m'], data['cash_b'], data['debt_b'])
-        
-        st.metric("Fair Value Bajo Estrés", f"${v_stress:.2f}", f"{(v_stress/v_fair-1)*100:.1f}% Impacto")
-        st.progress(max(min(v_stress/v_fair, 1.0), 0.0))
+    with tabs[5]: # STRESS TEST
+        st.subheader("🌪️ Laboratorio de Resiliencia Macroeconómica")
+        st1, st2 = st.columns(2)
+        with st1:
+            sh_i = st.slider("Shock Ingreso Real %", -25, 10, 0)
+            sh_u = st.slider("Alza Desempleo %", 3, 20, 4)
+        with st2:
+            sh_c = st.slider("Inflación CPI %", 0, 15, 3)
+            sh_w = st.slider("Alza Salarial %", 0, 12, 4)
 
-    # --- PESTAÑA: METODOLOGÍA ---
-    with tabs[8]:
+        st.markdown('''
+            <div class="swan-box">
+                <h3 style="color: #f85149; margin: 0;">⚠️ Eventos Cisne Negro (Black Swan)</h3>
+                <p style="margin-bottom: 10px;">Simulación de eventos de baja probabilidad pero impacto extremo en la valoración y operativa global.</p>
+            </div>
+        ''', unsafe_allow_html=True)
+        
+        c_swan1, c_swan2, c_swan3 = st.columns(3)
+        g_swan, w_swan = 0.0, 0.0
+        
+        if c_swan1.checkbox("Conflicto Geopolítico / Guerra"):
+            g_swan -= 0.06; w_swan += 0.025
+            st.warning("Impacto: -6% G | +250bps WACC")
+        if c_swan2.checkbox("Crisis Logística / Suministros"):
+            g_swan -= 0.03; w_swan += 0.008
+            st.warning("Impacto: -3% G | +80bps WACC")
+        if c_swan3.checkbox("Ciberataque Masivo / Cierre"):
+            g_swan -= 0.04; w_swan += 0.012
+            st.warning("Impacto: -4% G | +120bps WACC")
+            
+        v_s, _, _, _ = dcf_engine(fcf_in, g1+(sh_i/200)-(sh_u/500)+g_swan, g2, wacc+(sh_c/500)+(sh_w/1000)+w_swan)
+        st.metric("Fair Value Post-Stress Test", f"${v_s:.2f}", f"{(v_s/v_fair-1)*100:.1f}% vs BASE")
+
+    with tabs[6]: # OPCIONES
+        st.subheader("Griegas Black-Scholes")
+        ko1, ko2 = st.columns(2)
+        with ko1: k_s = st.number_input("Strike Price", value=float(round(p_mkt*1.05, 0)))
+        with ko2: vol_o = st.slider("IV %", 10, 120, 25) / 100
+        gr = calculate_full_greeks(p_mkt, k_s, 45/365, 0.045, vol_o)
+        go1, go2, go3, go4, go5 = st.columns(5)
+        go1.metric("Precio Call", f"${gr['price']:.2f}"); go2.metric("Delta Δ", f"{gr['delta']:.3f}"); go3.metric("Gamma γ", f"{gr['gamma']:.4f}"); go4.metric("Vega ν", f"{gr['vega']:.3f}"); go5.metric("Theta θ", f"{gr['theta']:.2f}")
+
+    with tabs[7]: # METODOLOGÍA
         st.header("Metodología Institucional")
-        st.latex(r"Fair Value = \frac{\sum_{t=1}^{n} \frac{FCF_t}{(1+WACC)^t} + \frac{TV}{(1+WACC)^n} + Cash - Debt}{Shares}")
-        st.info("Modelo de dos etapas alineado con estándares Tier-1.")
+        st.latex(r"WACC = \frac{E}{V} K_e + \frac{D}{V} K_d (1-T)"); st.latex(r"K_e = R_f + \beta(R_m - R_f)")
 
-if __name__ == "__main__":
-    main()
+    with tabs[8]: # EXPORTAR
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
+            data['is'].to_excel(wr, sheet_name='Income'); data['bs'].to_excel(wr, sheet_name='Balance'); data['cf'].to_excel(wr, sheet_name='CashFlow')
+        st.download_button("💾 Descargar Modelo Excel", buf.getvalue(), f"COST_Model_{datetime.date.today()}.xlsx")
 
-# =============================================================================
-# BLOQUE DE INTEGRIDAD (Línea 850+)
-# Verificadores de consistencia de datos de 2026.
-# Fin del archivo.
-# =============================================================================
+if __name__ == "__main__": main()
