@@ -169,16 +169,32 @@ def main():
         df_m = pd.DataFrame(mtx, index=[f"W:{x*100:.1f}%" for x in wr], columns=[f"g:{x*100:.1f}%" for x in gr])
         st.plotly_chart(px.imshow(df_m, text_auto='.0f', color_continuous_scale='RdYlGn', title="Sensibilidad: WACC vs G Perpetuo"), use_container_width=True)
 
-    # TAB 2: BENCHMARKING
+# TAB 2: BENCHMARKING (Consistencia de colores activada)
     with tabs[2]:
+        st.subheader("Análisis de Pares e Índices de Mercado")
         peers_full = pd.DataFrame({
             'Ticker': ['COST', 'WMT', 'TGT', 'BJ', 'AMZN', 'S&P 500', 'Nasdaq'],
             'PE': [data['pe'], 31.2, 17.5, 21.1, 45.0, 22.5, 29.8],
             'Growth': [data['cagr_real']*100, 6.2, 4.5, 8.2, 12.5, 7.0, 11.0]
         })
         b1, b2 = st.columns(2)
-        b1.plotly_chart(px.bar(peers_full, x='Ticker', y='PE', color='Ticker', title="Multiplo P/E vs Mercado"), use_container_width=True)
-        b2.plotly_chart(px.scatter(peers_full, x='Growth', y='PE', text='Ticker', size='PE', title="Crecimiento vs Valuación"), use_container_width=True)
+        
+        # Gráfico de Barras
+        fig_bar = px.bar(peers_full, x='Ticker', y='PE', color='Ticker', title="Múltiplo P/E vs Mercado")
+        b1.plotly_chart(fig_bar, use_container_width=True)
+        
+        # Gráfico Scatter (Ahora con color='Ticker' para consistencia)
+        fig_scatter = px.scatter(
+            peers_full, 
+            x='Growth', 
+            y='PE', 
+            color='Ticker', # <--- Esta es la clave
+            text='Ticker', 
+            size='PE', 
+            title="Crecimiento vs Valuación"
+        )
+        fig_scatter.update_traces(textposition='top center') # Para que el nombre no tape el punto
+        b2.plotly_chart(fig_scatter, use_container_width=True)
 
     # TAB 3: MONTE CARLO
     with tabs[3]:
