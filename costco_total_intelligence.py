@@ -1,4 +1,3 @@
-
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -18,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. UI: CSS ADAPTATIVO (SOPORTE TOTAL LIGHT/DARK) ---
+# --- 2. UI: CSS ADAPTATIVO PROFESIONAL ---
 st.markdown("""
     <style>
     :root {
@@ -32,19 +31,6 @@ st.markdown("""
         padding: 20px !important;
         border-radius: 12px !important;
     }
-    .scenario-card {
-        background-color: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: 15px; padding: 25px; text-align: center; margin-bottom: 20px;
-    }
-    .price-hero { font-size: 40px; font-weight: 900; color: var(--text-main); letter-spacing: -1px; }
-    .badge { padding: 4px 12px; border-radius: 15px; font-weight: 700; font-size: 11px; text-transform: uppercase; border: 1px solid; display: inline-block; margin-bottom: 8px; }
-    .bull { color: #3fb950; background: rgba(63, 185, 80, 0.15); border-color: #3fb950; }
-    .bear { color: #f85149; background: rgba(248, 81, 73, 0.15); border-color: #f85149; }
-    .neutral { color: #dbab09; background: rgba(219, 171, 9, 0.15); border-color: #dbab09; }
-    .swan-box { border: 2px dashed #f85149; padding: 15px; border-radius: 10px; background: rgba(248, 81, 73, 0.05); margin-top: 15px; }
-    
-    /* ESTILOS PARA EL SCORECARD (BALDOSAS) */
     .scorecard-tile {
         background-color: var(--bg-card);
         border: 1px solid var(--border-color);
@@ -53,11 +39,19 @@ st.markdown("""
         margin-bottom: 20px;
         height: 100%;
     }
-    .tile-title { font-weight: 800; font-size: 1.1rem; color: #005BAA; margin-bottom: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
-    .tile-value { font-size: 1.4rem; font-weight: 900; margin-top: 5px; color: var(--text-main); }
+    .tile-title { font-weight: 800; font-size: 0.9rem; color: #005BAA; text-transform: uppercase; margin-bottom: 8px; }
+    .tile-value { font-size: 1.5rem; font-weight: 900; color: var(--text-main); }
+    .scenario-card {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 15px; padding: 25px; text-align: center; margin-bottom: 20px;
+    }
+    .price-hero { font-size: 40px; font-weight: 900; color: var(--text-main); letter-spacing: -1px; }
+    .badge { padding: 4px 12px; border-radius: 15px; font-weight: 700; font-size: 11px; text-transform: uppercase; border: 1px solid; display: inline-block; margin-bottom: 8px; }
+    .swan-box { border: 2px dashed #f85149; padding: 15px; border-radius: 10px; background: rgba(248, 81, 73, 0.05); margin-top: 15px; }
     .recommendation-hero {
         background: linear-gradient(135deg, #005BAA 0%, #003a70 100%);
-        color: white !important; padding: 25px; border-radius: 15px; text-align: center;
+        color: white !important; padding: 25px; border-radius: 20px; text-align: center;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -65,7 +59,6 @@ st.markdown("""
 # --- 3. MOTORES DE CÁLCULO ---
 
 def secure_clamp(val, min_v, max_v):
-    """Asegura que el valor esté estrictamente dentro del rango y sea float."""
     return float(max(min(float(val), float(max_v)), float(min_v)))
 
 @st.cache_data(ttl=3600)
@@ -79,14 +72,14 @@ def load_institutional_data(ticker_symbol):
         return {
             "name": inf.get('longName', 'Costco Wholesale'),
             "price": inf.get('currentPrice', 950.0),
-            "beta": inf.get('beta', 0.97),
+            "beta": inf.get('beta', 0.978),
             "fcf_now": fcf_series.iloc[0],
             "fcf_hist": fcf_series,
             "cagr_real": cagr,
             "pe": inf.get('trailingPE', 51.8),
             "mkt_cap": inf.get('marketCap', 450e9) / 1e9,
             "is": asset.financials, "bs": asset.balance_sheet, "cf": cf_raw,
-            "info": inf, # Mantenemos el diccionario completo para ratios
+            "info": inf,
             "recommendations": {
                 "target": inf.get('targetMeanPrice', 0),
                 "key": inf.get('recommendationKey', 'N/A').replace('_', ' ').title(),
@@ -107,16 +100,9 @@ def calculate_full_greeks(S, K, T, r, sigma, type='call'):
     T = max(T, 0.0001)
     d1 = (np.log(S/K) + (r + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
     d2 = d1 - sigma*np.sqrt(T)
-    if type == 'call':
-        price = S*norm.cdf(d1) - K*np.exp(-r*T)*norm.cdf(d2)
-        delta = norm.cdf(d1)
-    else:
-        price = K*np.exp(-r*T)*norm.cdf(-d2) - S*norm.cdf(-d1)
-        delta = norm.cdf(d1) - 1
-    gamma = norm.pdf(d1)/(S*sigma*np.sqrt(T))
-    vega = (S*np.sqrt(T)*norm.pdf(d1))/100
-    theta = (-(S*norm.pdf(d1)*sigma/(2*np.sqrt(T))) - r*K*np.exp(-r*T)*norm.cdf(d2 if type=='call' else -d2))/365
-    return {"price": price, "delta": delta, "gamma": gamma, "vega": vega, "theta": theta}
+    price = S*norm.cdf(d1) - K*np.exp(-r*T)*norm.cdf(d2) if type=='call' else K*np.exp(-r*T)*norm.cdf(-d2) - S*norm.cdf(-d1)
+    delta = norm.cdf(d1) if type=='call' else norm.cdf(d1) - 1
+    return {"price": price, "delta": delta, "gamma": norm.pdf(d1)/(S*sigma*np.sqrt(T)), "vega": (S*np.sqrt(T)*norm.pdf(d1))/100, "theta": (-(S*norm.pdf(d1)*sigma/(2*np.sqrt(T))) - r*K*np.exp(-r*T)*norm.cdf(d1))/365}
 
 # --- 4. LÓGICA PRINCIPAL ---
 
@@ -124,216 +110,100 @@ def main():
     data = load_institutional_data("COST")
     if not data: return
 
-    # --- SIDEBAR: PANEL DE CONTROL ---
-    st.sidebar.markdown("### 📊 Supuestos del Analista")
+    # --- SIDEBAR ---
+    st.sidebar.markdown("### 📊 Supuestos")
     p_mkt = st.sidebar.number_input("Precio Mercado ($)", value=float(data['price']))
-    
-    MIN_G, MAX_G = -50.0, 150.0
-    MIN_FCF, MAX_FCF = 0.0, 150.0
-    
-    fcf_in = st.sidebar.slider("FCF Base ($B)", MIN_FCF, MAX_FCF, secure_clamp(data['fcf_now'], MIN_FCF, MAX_FCF))
-    
-    g_init_val = float(secure_clamp(data['cagr_real'] * 100, MIN_G, MAX_G))
-    g1 = st.sidebar.slider("Crecimiento Años 1-5 (%)", MIN_G, MAX_G, g_init_val) / 100
-    
-    g2 = st.sidebar.slider("Crecimiento Años 6-10 (%)", 0.0, 50.0, 8.0) / 100
+    fcf_in = st.sidebar.slider("FCF Base ($B)", 0.0, 150.0, secure_clamp(data['fcf_now'], 0.0, 150.0))
+    g1 = st.sidebar.slider("Crecimiento Años 1-5 (%)", -30.0, 120.0, float(secure_clamp(data['cagr_real']*100, -30.0, 120.0))) / 100
     wacc = st.sidebar.slider("Tasa WACC (%)", 3.0, 20.0, 8.5) / 100
-    
-    st.sidebar.markdown("---")
-    buf_m = io.BytesIO(b"Analisis COST Master: DCF 2-Stages + Monte Carlo Simulation")
-    st.sidebar.download_button("📄 Descargar Guía Metodológica", buf_m, "Metodologia_COST.pdf")
 
-    # Cálculos
-    v_fair, flows, pv_c, pv_t = dcf_engine(fcf_in, g1, g2, wacc)
+    v_fair, flows, pv_c, pv_t = dcf_engine(fcf_in, g1, 0.08, wacc)
     upside = (v_fair / p_mkt - 1) * 100
 
     # Header
-    st.title(f"🏛️ {data['name']} — Master Intelligence Terminal")
-    st.caption("Conexión SEC Real-Time • Datos Financieros vía yFinance Pro")
-    
+    st.title(f"🏛️ {data['name']} Intelligence")
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("P/E TTM", f"{data['pe']:.1f}x", "Premium")
+    m1.metric("P/E TTM", f"{data['pe']:.1f}x")
     m2.metric("Market Cap", f"${data['mkt_cap']:.1f}B")
-    b_label = "Neutral" if data['beta'] > 0.9 else "Defensivo"
-    m3.metric("Beta (Live)", f"{data['beta']}", b_label)
-    m4.metric("Valor Intrínseco", f"${v_fair:.0f}", f"{upside:.1f}% Upside", delta_color="normal" if upside > 0 else "inverse")
+    m3.metric("Beta", f"{data['beta']}", "Neutral")
+    m4.metric("Fair Value", f"${v_fair:.0f}", f"{upside:.1f}%")
 
     st.markdown("---")
     
-    # AGREGADA PESTAÑA SCORECARD
-    tabs = st.tabs(["📋 Resumen", "🛡️ Fundamental Scorecard", "💎 Valoración", "📊 Benchmarking", "🎲 Monte Carlo", "🌪️ Stress Test", "📉 Opciones", "📚 Metodología", "📥 Exportar"])
+    # LISTA DE PESTAÑAS (Consolidada)
+    tabs = st.tabs([
+        "📋 Resumen", 
+        "🛡️ Fundamental Scorecard", 
+        "📊 Análisis Financiero Pro", 
+        "💎 Valoración", 
+        "📈 Benchmarking", 
+        "🎲 Monte Carlo", 
+        "🌪️ Stress Test", 
+        "📉 Opciones",
+        "📚 Metodología"
+    ])
 
-    with tabs[0]: # RESUMEN
-        sc1, sc2, sc3 = st.columns(3)
-        v_baj, _, _, _ = dcf_engine(fcf_in, g1*0.6, g2*0.5, wacc+0.02)
-        v_alc, _, _, _ = dcf_engine(fcf_in, g1+0.04, g2+0.02, wacc-0.01)
-        sc1.markdown(f'<div class="scenario-card"><span class="badge bear">Bajista</span><div class="price-hero">${v_baj:.0f}</div><small style="color:red">{((v_baj/p_mkt)-1)*100:.1f}% vs actual</small></div>', unsafe_allow_html=True)
-        sc2.markdown(f'<div class="scenario-card"><span class="badge neutral">Caso Base</span><div class="price-hero">${v_fair:.0f}</div><small style="color:orange">{upside:.1f}% vs actual</small></div>', unsafe_allow_html=True)
-        sc3.markdown(f'<div class="scenario-card"><span class="badge bull">Alcista</span><div class="price-hero">${v_alc:.0f}</div><small style="color:green">{((v_alc/p_mkt)-1)*100:.1f}% vs actual</small></div>', unsafe_allow_html=True)
-        st.plotly_chart(go.Figure(data=[go.Pie(labels=['Caja 10Y', 'Terminal'], values=[pv_c, pv_t], hole=.6, marker_colors=['#005BAA', '#E31837'])]), use_container_width=True)
-
-    with tabs[1]: # PESTAÑA SCORECARD (NUEVA)
-        st.subheader("Tablero de Salud Fundamental y Consenso")
-        
-        # Fila de Recomendación
+    with tabs[1]: # PESTAÑA SCORECARD
+        st.subheader("Tablero de Salud (Tiles)")
         rec = data['recommendations']
-        col_rec1, col_rec2 = st.columns([1, 2])
+        c1, c2 = st.columns([1, 2])
+        with c1:
+            st.markdown(f'<div class="recommendation-hero"><small>CONSENSO</small><h1>{rec["key"]}</h1><div>Score: {rec["score"]}/5</div><hr><small>Target Price</small><h2>${rec["target"]:.2f}</h2></div>', unsafe_allow_html=True)
+        with c2:
+            st.plotly_chart(go.Figure(go.Indicator(mode="gauge+number", value=rec['score'], gauge={'axis':{'range':[1,5]}, 'steps':[{'range':[1,2],'color':"#3fb950"},{'range':[2,3],'color':"#dbab09"},{'range':[3,5],'color':"#f85149"}], 'bar':{'color':"white"}})), use_container_width=True)
+
+    # --- NUEVA PESTAÑA: ANÁLISIS FINANCIERO PRO ---
+    with tabs[2]:
+        st.subheader("📈 Análisis de Ratios y Estados Financieros")
         
-        with col_rec1:
-            st.markdown(f"""
-                <div class="recommendation-hero">
-                    <small style="opacity:0.8;">CONSENSO DE {rec['analysts']} ANALISTAS</small>
-                    <h1 style="margin:10px 0; color:white;">{rec['key']}</h1>
-                    <div style="font-size:1.2rem;">Score: {rec['score']} / 5.0</div>
-                    <hr style="opacity:0.3;">
-                    <small style="opacity:0.8;">Precio Objetivo Medio</small>
-                    <h2 style="margin:0; color:white;">${rec['target']:.2f}</h2>
-                </div>
-            """, unsafe_allow_html=True)
-            
-        with col_rec2:
-            fig_gauge = go.Figure(go.Indicator(
-                mode = "gauge+number", value = rec['score'],
-                title = {'text': "Sentimiento (1: Compra Fuerte - 5: Venta)"},
-                gauge = {
-                    'axis': {'range': [1, 5], 'tickwidth': 1},
-                    'bar': {'color': "white"},
-                    'steps': [
-                        {'range': [1, 2], 'color': "#3fb950"},
-                        {'range': [2, 3], 'color': "#dbab09"},
-                        {'range': [3, 5], 'color': "#f85149"}]
-                }
-            ))
-            fig_gauge.update_layout(height=300, margin=dict(t=50, b=0, l=20, r=20))
-            st.plotly_chart(fig_gauge, use_container_width=True)
+        # 1. Extracción de Ratios (Dinámica)
+        is_df, bs_df = data['is'], data['bs']
+        
+        # Cálculos de Ratios
+        gross_margin = (is_df.loc['Gross Profit'] / is_df.loc['Total Revenue']) * 100
+        net_margin = (is_df.loc['Net Income'] / is_df.loc['Total Revenue']) * 100
+        roe = (is_df.loc['Net Income'] / bs_df.loc['Stockholders Equity']) * 100
+        current_ratio = bs_df.loc['Current Assets'] / bs_df.loc['Current Liabilities']
+        
+        ratios_df = pd.DataFrame({
+            "Margen Bruto (%)": gross_margin,
+            "Margen Neto (%)": net_margin,
+            "ROE (%)": roe,
+            "Liquidez Corriente": current_ratio
+        }).T
+        
+        st.dataframe(ratios_df.style.format("{:.2f}"))
 
         st.markdown("---")
+        col_g1, col_g2 = st.columns(2)
         
-        # Cuadrícula de Ratios (Baldosas)
-        c1, c2, c3, c4 = st.columns(4)
-        inf = data['info']
-        
-        with c1:
-            st.markdown(f"""<div class="scorecard-tile"><div class="tile-title">📈 CRECIMIENTO</div>
-                <small>Rev. Growth (YoY)</small><div class="tile-value">{inf.get('revenueGrowth', 0)*100:.1f}%</div><br>
-                <small>EPS Growth (Q)</small><div class="tile-value">{inf.get('earningsQuarterlyGrowth', 0)*100:.1f}%</div>
-                </div>""", unsafe_allow_html=True)
-        
-        with c2:
-            st.markdown(f"""<div class="scorecard-tile"><div class="tile-title">💰 RENTABILIDAD</div>
-                <small>ROE</small><div class="tile-value">{inf.get('returnOnEquity', 0)*100:.1f}%</div><br>
-                <small>Margen Neto</small><div class="tile-value">{inf.get('profitMargins', 0)*100:.1f}%</div>
-                </div>""", unsafe_allow_html=True)
-
-        with c3:
-            st.markdown(f"""<div class="scorecard-tile"><div class="tile-title">🏥 SALUD FIN.</div>
-                <small>Current Ratio</small><div class="tile-value">{inf.get('currentRatio', 0):.2f}x</div><br>
-                <small>Deuda / Equity</small><div class="tile-value">{inf.get('debtToEquity', 0):.1f}%</div>
-                </div>""", unsafe_allow_html=True)
-        
-        with c4:
-            st.markdown(f"""<div class="scorecard-tile"><div class="tile-title">⚙️ EFICIENCIA</div>
-                <small>Asset Turnover</small><div class="tile-value">{inf.get('assetTurnover', 0.8):.2f}x</div><br>
-                <small>Payout Ratio</small><div class="tile-value">{inf.get('payoutRatio', 0)*100:.1f}%</div>
-                </div>""", unsafe_allow_html=True)
-
-    with tabs[2]: # VALORACIÓN + MATRIZ
-        st.subheader("Sensibilidad y Trayectoria de Flujos")
-        h_x = [c.strftime('%Y') for c in data['fcf_hist'].index[::-1]]
-        fig_bridge = go.Figure()
-        fig_bridge.add_trace(go.Scatter(x=h_x, y=data['fcf_hist'].values[::-1], name="Histórico SEC", line=dict(color='#005BAA', width=5), mode='lines+markers'))
-        fig_bridge.add_trace(go.Scatter(x=[h_x[-1]]+[str(int(h_x[-1])+i) for i in range(1,11)], y=[data['fcf_hist'].values[0]]+flows, name="Forecast", line=dict(color='#f85149', dash='dash', width=4), mode='lines+markers'))
-        st.plotly_chart(fig_bridge, use_container_width=True)
-        
-        wr, gr = np.linspace(wacc-0.02, wacc+0.02, 5), np.linspace(0.015, 0.035, 5)
-        mtx = [[dcf_engine(fcf_in, g1, g2, w, g)[0] for g in gr] for w in wr]
-        df_m = pd.DataFrame(mtx, index=[f"W:{x*100:.1f}%" for x in wr], columns=[f"g:{x*100:.1f}%" for x in gr])
-        st.plotly_chart(px.imshow(df_m, text_auto='.0f', color_continuous_scale='RdYlGn', title="WACC vs G Perpetuo"), use_container_width=True)
-
-    with tabs[3]: # BENCHMARKING
-        st.subheader("Competidores e Índices en Tiempo Real")
-        peer_list = ['COST', 'WMT', 'TGT', 'BJ', 'AMZN', '^GSPC', '^IXIC']
-        
-        @st.cache_data(ttl=3600)
-        def get_peers_advanced(tickers):
-            rows = []
-            for t in tickers:
-                try:
-                    obj = yf.Ticker(t); inf = obj.info
-                    name = "S&P 500" if t == '^GSPC' else "Nasdaq" if t == '^IXIC' else t
-                    pe = inf.get('trailingPE', 22.5 if t=='^GSPC' else 30.0 if t=='^IXIC' else 20.0)
-                    growth = inf.get('earningsQuarterlyGrowth', inf.get('revenueGrowth', 0.07)) * 100
-                    if growth == 0 or growth is None: growth = 7.5 if 'WMT' in t else 11.5 if 'AMZN' in t else 8.0
-                    rows.append({'Ticker': name, 'PE': pe, 'Growth': growth})
-                except: continue
-            return pd.DataFrame(rows)
-
-        df_p = get_peers_advanced(peer_list)
-        b1, b2 = st.columns(2)
-        pal = px.colors.qualitative.Prism
-        b1.plotly_chart(px.bar(df_p, x='Ticker', y='PE', color='Ticker', title="P/E Live", color_discrete_sequence=pal), use_container_width=True)
-        fig_sc = px.scatter(df_p, x='Growth', y='PE', color='Ticker', text='Ticker', size='PE', title="Crecimiento vs Valuación", color_discrete_sequence=pal)
-        fig_sc.update_traces(textposition='top center')
-        b2.plotly_chart(fig_sc, use_container_width=True)
-
-    with tabs[4]: # MONTE CARLO
-        st.subheader("Simulación de Riesgo Estocástico")
-        v_mc = st.slider("Volatilidad Supuestos (%)", 1, 10, 3) / 100
-        sims = [dcf_engine(fcf_in, np.random.normal(g1, v_mc), g2, np.random.normal(wacc, 0.005), 0.025)[0] for _ in range(1000)]
-        fig_mc = px.histogram(sims, nbins=50, title=f"Probabilidad Upside: {(np.array(sims) > p_mkt).mean()*100:.1f}%", color_discrete_sequence=['#3fb950'])
-        fig_mc.add_vline(x=p_mkt, line_color="red", line_dash="dash")
-        st.plotly_chart(fig_mc, use_container_width=True)
-
-    with tabs[5]: # STRESS TEST
-        st.subheader("🌪️ Laboratorio de Resiliencia Macroeconómica")
-        st1, st2 = st.columns(2)
-        with st1:
-            sh_i = st.slider("Shock Ingreso Real %", -25, 10, 0)
-            sh_u = st.slider("Alza Desempleo %", 3, 20, 4)
-        with st2:
-            sh_c = st.slider("Inflación CPI %", 0, 15, 3)
-            sh_w = st.slider("Alza Salarial %", 0, 12, 4)
-
-        st.markdown('''
-            <div class="swan-box">
-                <h3 style="color: #f85149; margin: 0;">⚠️ Eventos Cisne Negro (Black Swan)</h3>
-                <p style="margin-bottom: 10px;">Simulación de eventos de baja probabilidad pero impacto extremo en la valoración y operativa global.</p>
-            </div>
-        ''', unsafe_allow_html=True)
-        
-        c_swan1, c_swan2, c_swan3 = st.columns(3)
-        g_swan, w_swan = 0.0, 0.0
-        
-        if c_swan1.checkbox("Conflicto Geopolítico / Guerra"):
-            g_swan -= 0.06; w_swan += 0.025
-            st.warning("Impacto: -6% G | +250bps WACC")
-        if c_swan2.checkbox("Crisis Logística / Suministros"):
-            g_swan -= 0.03; w_swan += 0.008
-            st.warning("Impacto: -3% G | +80bps WACC")
-        if c_swan3.checkbox("Ciberataque Masivo / Cierre"):
-            g_swan -= 0.04; w_swan += 0.012
-            st.warning("Impacto: -4% G | +120bps WACC")
+        with col_g1:
+            # Ventas vs Utilidad Neta
+            df_plot = is_df.loc[['Total Revenue', 'Net Income']].T
+            fig_rev = px.line(df_plot, title="Evolución: Ventas vs Utilidad Neta", markers=True, template="plotly_white", color_discrete_map={"Total Revenue": "#005BAA", "Net Income": "#E31837"})
+            st.plotly_chart(fig_rev, use_container_width=True)
             
-        v_s, _, _, _ = dcf_engine(fcf_in, g1+(sh_i/200)-(sh_u/500)+g_swan, g2, wacc+(sh_c/500)+(sh_w/1000)+w_swan)
-        st.metric("Fair Value Post-Stress Test", f"${v_s:.2f}", f"{(v_s/v_fair-1)*100:.1f}% vs BASE")
+            
+        with col_g2:
+            # Estructura de Márgenes
+            fig_marg = px.bar(ratios_df.iloc[:2].T, barmode='group', title="Márgenes Operativos (%)", template="plotly_white")
+            st.plotly_chart(fig_marg, use_container_width=True)
 
-    with tabs[6]: # OPCIONES
-        st.subheader("Griegas Black-Scholes")
-        ko1, ko2 = st.columns(2)
-        with ko1: k_s = st.number_input("Strike Price", value=float(round(p_mkt*1.05, 0)))
-        with ko2: vol_o = st.slider("IV %", 10, 120, 25) / 100
-        gr = calculate_full_greeks(p_mkt, k_s, 45/365, 0.045, vol_o)
-        go1, go2, go3, go4, go5 = st.columns(5)
-        go1.metric("Precio Call", f"${gr['price']:.2f}"); go2.metric("Delta Δ", f"{gr['delta']:.3f}"); go3.metric("Gamma γ", f"{gr['gamma']:.4f}"); go4.metric("Vega ν", f"{gr['vega']:.3f}"); go5.metric("Theta θ", f"{gr['theta']:.2f}")
+    with tabs[6]: # STRESS TEST (Black Swan Corrected)
+        st.subheader("🌪️ Laboratorio de Stress Test")
+        st.markdown('''<div class="swan-box"><h3 style="color: #f85149; margin: 0;">⚠️ Eventos Cisne Negro (Black Swan)</h3><p style="opacity: 0.8;">Simulación de eventos de baja probabilidad pero impacto extremo.</p></div>''', unsafe_allow_html=True)
+        
+        c1, c2, c3 = st.columns(3)
+        g_sw, w_sw = 0, 0
+        if c1.checkbox("Guerra Geopolítica"): g_sw -= 0.06; w_sw += 0.025
+        if c2.checkbox("Crisis Suministros"): g_sw -= 0.03; w_sw += 0.01
+        
+        v_s, _, _, _ = dcf_engine(fcf_in, g1+g_sw, 0.08, wacc+w_sw)
+        st.metric("Fair Value Post-Stress", f"${v_s:.2f}", f"{(v_s/v_fair-1)*100:.1f}%")
 
-    with tabs[7]: # METODOLOGÍA
-        st.header("Metodología Institucional")
-        st.latex(r"WACC = \frac{E}{V} K_e + \frac{D}{V} K_d (1-T)"); st.latex(r"K_e = R_f + \beta(R_m - R_f)")
-
-    with tabs[8]: # EXPORTAR
-        buf = io.BytesIO()
-        with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
-            data['is'].to_excel(wr, sheet_name='Income'); data['bs'].to_excel(wr, sheet_name='Balance'); data['cf'].to_excel(wr, sheet_name='CashFlow')
-        st.download_button("💾 Descargar Modelo Excel", buf.getvalue(), f"COST_Model_{datetime.date.today()}.xlsx")
+    with tabs[8]: # METODOLOGÍA
+        st.header("Metodología de Valoración")
+        st.latex(r"WACC = \frac{E}{V} K_e + \frac{D}{V} K_d (1-T)")
+        
 
 if __name__ == "__main__": main()
