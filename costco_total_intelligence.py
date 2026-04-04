@@ -957,7 +957,8 @@ def main():
                 #### Resumen Matemático
                 La tasa de descuento (WACC) se recalcula diariamente basándose en la curva de tipos y el equity risk premium actual.
             """)
-            st.latex(r"WACC = \left( \frac{E}{V} \times R_e \right) + \left( \frac{D}{V} \times R_d \times (1 - T) \right)")
+            st.latex(r"FairValue = \frac{\sum_{t=1}^{10} \frac{FCF_t(1+MacroAdjust)}{(1+WACC)^t} + \frac{TV}{(1+WACC)^{10}} + Caja - Deuda}{Shares}")
+            st.latex(r"TV = \frac{FCF_{10} \times (1+g)}{WACC - g}")
 
         with m_col2:
             with st.container(border=True):
