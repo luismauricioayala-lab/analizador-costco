@@ -199,23 +199,36 @@ def main():
         fig_mc.add_vline(x=p_mkt, line_color="red", line_dash="dash")
         st.plotly_chart(fig_mc, use_container_width=True)
         
-
-    with tabs[4]: # STRESS TEST + SWAN
-        st.subheader("🌪️ Stress Test Lab")
+# TAB 4: STRESS TEST (NUEVA SECCIÓN CISNE NEGRO)
+    with tabs[4]:
+        st.subheader("🌪️ Laboratorio de Resiliencia Macroeconómica")
         st1, st2 = st.columns(2)
-        with st1: sh_i = st.slider("Shock Ingreso %", -25, 10, 0); sh_u = st.slider("Alza Desempleo %", 3, 20, 4)
-        with st2: sh_c = st.slider("Inflación CPI %", 0, 15, 3); sh_w = st.slider("Alza Salarial %", 0, 12, 4)
+        with st1:
+            sh_i = st.slider("Shock Ingreso Real %", -25, 10, 0)
+            sh_u = st.slider("Alza Desempleo %", 3, 20, 4)
+        with st2:
+            sh_c = st.slider("Inflación CPI %", 0, 15, 3)
+            sh_w = st.slider("Alza Salarial %", 0, 12, 4)
         
-        st.markdown('<div class="swan-box">### ⚠️ Black Swan Events', unsafe_allow_html=True)
-        sw1, sw2, sw3 = st.columns(3)
-        g_sw, w_sw = 0, 0
-        if sw1.checkbox("Guerra"): g_sw -= 0.06; w_sw += 0.025
-        if sw2.checkbox("Crisis Suministros"): g_sw -= 0.03; w_sw += 0.01
-        if sw3.checkbox("Ciberataque"): g_sw -= 0.04; w_sw += 0.015
+        st.markdown('<div class="swan-box">', unsafe_allow_html=True)
+        st.markdown("### ⚠️ Eventos Cisne Negro (Black Swan)")
+        c_swan1, c_swan2, c_swan3 = st.columns(3)
+        g_swan = 0.0
+        w_swan = 0.0
+        
+        if c_swan1.checkbox("Conflicto Geopolítico / Guerra"):
+            g_swan -= 0.06; w_swan += 0.025
+            st.warning("Impacto: -6% G | +250bps WACC")
+        if c_swan2.checkbox("Crisis Logística / Suministros"):
+            g_swan -= 0.03; w_swan += 0.008
+            st.warning("Impacto: -3% G | +80bps WACC")
+        if c_swan3.checkbox("Ciberataque Masivo / Cierre"):
+            g_swan -= 0.04; w_swan += 0.012
+            st.warning("Impacto: -4% G | +120bps WACC")
         st.markdown('</div>', unsafe_allow_html=True)
             
-        v_s, _, _, _ = dcf_engine(fcf_in, g1+(sh_i/200)-(sh_u/500)+g_sw, g2, wacc+(sh_c/500)+(sh_w/1000)+w_sw)
-        st.metric("Fair Value Post-Stress", f"${v_s:.2f}", f"{(v_s/v_fair-1)*100:.1f}% vs BASE")
+        v_s, _, _, _ = dcf_engine(fcf_in, g1+(sh_i/200)-(sh_u/500)+g_swan, g2, wacc+(sh_c/500)+(sh_w/1000)+w_swan)
+        st.metric("Fair Value Post-Stress Test", f"${v_s:.2f}", f"{(v_s/v_fair-1)*100:.1f}% vs BASE")
 
     with tabs[5]: # OPCIONES + GRIEGOS
         st.subheader("Griegas Black-Scholes")
