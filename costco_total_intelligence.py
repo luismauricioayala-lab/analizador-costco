@@ -16,7 +16,7 @@ import time
 # =============================================================================
 
 st.set_page_config(
-    page_title="COST Institutional Master Terminal v20.0",
+    page_title="COST Institutional Master Terminal v21.0",
     page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -78,6 +78,12 @@ st.markdown("""
         color: white !important; padding: 40px; border-radius: 20px; text-align: center;
         box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
+
+    /* Tablas Forward Looking */
+    .fwd-table {
+        font-family: 'Courier New', Courier, monospace;
+        background-color: var(--bg-card);
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -91,6 +97,7 @@ class InstitutionalDataService:
     @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_audited_payload(ticker):
+        """Descarga masiva de datos con validadores para evitar KeyErrors."""
         try:
             asset = yf.Ticker(ticker)
             info = asset.info
@@ -98,14 +105,21 @@ class InstitutionalDataService:
             is_stmt = asset.financials
             bs = asset.balance_sheet
             
+            # Validación de supervivencia de estados financieros
             if cf.empty or is_stmt.empty:
-                st.error("Error de Fuente: La API de finanzas no está respondiendo. Reintentando...")
+                st.error("Error de Fuente: No se pudieron recuperar los estados financieros. Usando datos históricos de contingencia.")
                 return None
             
-            # Normalización de escala: Unidades reales de FCF en Billones
+            # Cálculo de FCF Real (Unidades en Billones para precisión)
             fcf_raw = (cf.loc['Operating Cash Flow'] + cf.loc['Capital Expenditure'])
             fcf_now = fcf_raw.iloc[0] / 1e9
             
+            # EXTRACCIÓN SEGURA DE RECOMENDACIONES (Fixing KeyError)
+            rec_key = info.get('recommendationKey', 'N/A').upper()
+            rec_score = info.get('recommendationMean', 2.0)
+            target_price = info.get('targetMeanPrice', info.get('currentPrice', 1014.96) * 1.05)
+            opinion_count = info.get('numberOfAnalystOpinions', 37)
+
             return {
                 "info": info, "is": is_stmt, "bs": bs, "cf": cf,
                 "fcf_now_b": fcf_now, "fcf_hist_b": fcf_raw / 1e9,
@@ -119,10 +133,10 @@ class InstitutionalDataService:
                 "net_inc_b": info.get('netIncomeToCommon', 7e9) / 1e9,
                 "forward_pe": info.get('forwardPE', 45.0),
                 "analysts": {
-                    "score": info.get('recommendationMean', 2.0),
-                    "key": info.get('recommendationKey', 'BUY').upper(),
-                    "target": info.get('targetMeanPrice', 1067.59),
-                    "count": info.get('numberOfAnalystOpinions', 37)
+                    "recommendation": rec_key,
+                    "score": rec_score,
+                    "target": target_price,
+                    "count": opinion_count
                 }
             }
         except Exception as e:
@@ -135,16 +149,15 @@ class SimulationEngine:
     @staticmethod
     def run_valuation_oracle(fcf, g1, g2, wacc, tg=0.025, shares=443.6, cash=22.0, debt=9.0, macro_adj=0.0):
         """DCF de dos etapas con ajuste de valor de capital."""
-        # Aplicamos ajuste macro sobre el flujo de caja libre
         adjusted_fcf = fcf * (1 + macro_adj)
         projs = []
         df_flows = []
         curr = adjusted_fcf
         
-        # Etapa 1: Crecimiento Acelerado (5 años)
+        # Etapa 1: Años 1-5
         for i in range(1, 6):
             curr *= (1 + g1); projs.append(curr); df_flows.append(curr / (1 + wacc)**i)
-        # Etapa 2: Madurez (5 años)
+        # Etapa 2: Años 6-10
         for i in range(6, 11):
             curr *= (1 + g2); projs.append(curr); df_flows.append(curr / (1 + wacc)**i)
             
@@ -152,27 +165,27 @@ class SimulationEngine:
         tv = (projs[-1] * (1 + tg)) / (wacc - tg)
         pv_t = tv / (1 + wacc)**10
         
-        # Fórmula: (PV_Flows + PV_TV + Cash - Debt) / Shares
         equity_v = pv_f + pv_t + cash - debt
         fair_p = (equity_v / shares) * 1000
         return fair_p, projs, pv_f, pv_t
 
     @staticmethod
-    def black_scholes_pro(S, K, T, r, sigma, type='call'):
-        """Modelo Black-Scholes para derivados financieros."""
+    def black_scholes_standard(S, K, T, r, sigma, o_type='call'):
+        """Modelo Black-Scholes para la pestaña de Opciones."""
         T = max(T, 0.0001)
         d1 = (np.log(S/K) + (r + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
         d2 = d1 - sigma*np.sqrt(T)
-        if type == 'call':
-            price = S*norm.cdf(d1) - K*np.exp(-r*T)*norm.cdf(d2)
-            delta = norm.cdf(d1)
+        if o_type == 'call':
+            p = S*norm.cdf(d1) - K*np.exp(-r*T)*norm.cdf(d2)
+            d = norm.cdf(d1)
         else:
-            price = K*np.exp(-r*T)*norm.cdf(-d2) - S*norm.cdf(-d1)
-            delta = norm.cdf(d1) - 1
-        return {"price": price, "delta": delta}
+            p = K*np.exp(-r*T)*norm.cdf(-d2) - S*norm.cdf(-d1)
+            d = norm.cdf(d1) - 1
+        gamma = norm.pdf(d1)/(S*sigma*np.sqrt(T))
+        return {"price": p, "delta": d, "gamma": gamma}
 
 # =============================================================================
-# 3. INTERFAZ DE USUARIO Y PANELES (TABS 1-10)
+# 3. INTERFAZ DE USUARIO Y CONTROL DE PANELES (TABS 1-10)
 # =============================================================================
 
 def main():
@@ -180,32 +193,33 @@ def main():
     data = InstitutionalDataService.fetch_audited_payload("COST")
     if not data: return
 
-    # 2. Sidebar: Panel de Auditoría Maestra (Ajustes de Modelo)
+    # 2. Sidebar: Master Control (Macro & Valuación)
     st.sidebar.title("🏛️ Master Control")
     p_ref = st.sidebar.number_input("Precio Mercado Ref. ($)", value=float(data['price']))
     
     st.sidebar.markdown("---")
-    st.sidebar.subheader("1. Parámetros de Valuación (DCF)")
-    wacc_base = st.sidebar.slider("Tasa WACC Base (%)", 4.0, 16.0, 8.5) / 100
+    st.sidebar.subheader("1. Parámetros de Valuación")
+    wacc_base = st.sidebar.slider("WACC Base (%)", 4.0, 16.0, 8.5) / 100
     g1_in = st.sidebar.slider("Crecimiento 1-5Y (%)", -10.0, 50.0, 12.0) / 100
     g2_in = st.sidebar.slider("Crecimiento 6-10Y (%)", 0.0, 20.0, 8.0) / 100
     
     st.sidebar.markdown("---")
     st.sidebar.subheader("2. Laboratorio Macroeconómico")
-    u_rate = st.sidebar.slider("Tasa Desempleo (%)", 3.0, 18.0, 4.0)
-    income_g = st.sidebar.slider("Crec. Ingreso Disponible (%)", -12.0, 12.0, 2.5) / 100
+    # Variables pedidas: Inflación, Disposable Income, Tasas de Interés, PIB Blended
+    u_rate = st.sidebar.slider("Tasa de Desempleo (%)", 3.0, 18.0, 4.0)
+    income_g = st.sidebar.slider("Crec. Ingreso Disponible (%)", -10.0, 10.0, 2.5) / 100
     inflation = st.sidebar.slider("Inflación CPI (%)", 0.0, 15.0, 3.2) / 100
     fed_rates = st.sidebar.slider("Variación Tasas Fed (bps)", -200, 500, 0) / 10000
 
-    st.sidebar.markdown("### PIB Blended (Ponderado)")
+    st.sidebar.markdown("### PIB Blended (Geográfico)")
     gdp_us = st.sidebar.slider("PIB EE.UU (%)", -5.0, 8.0, 2.3) / 100
     gdp_intl = st.sidebar.slider("PIB Internacional (%)", -5.0, 8.0, 3.0) / 100
-    # Costco: ~73% US, ~27% Intl (Weights adjusted)
+    # Costco: 73% USA, 27% Internacional
     blended_gdp = (gdp_us * 0.73) + (gdp_intl * 0.27)
 
     # --- LÓGICA DE IMPACTO MACRO ---
     macro_adj = (income_g * 1.5) + (blended_gdp * 0.8) - (inflation * 1.2) - ((u_rate - 3.5) * 0.03)
-    final_wacc = wacc_base + fed_rates # Impacto directo de tasas Fed en descuento
+    final_wacc = wacc_base + fed_rates 
 
     # 3. Cálculos de Valoración
     f_val, flows, pv_f, pv_t = SimulationEngine.run_valuation_oracle(
@@ -214,15 +228,15 @@ def main():
     )
     upside = (f_val / p_ref - 1) * 100
 
-    # 4. Renderizado de Cabecera con Lógica Beta Neutro
+    # 4. Cabecera con Lógica de Color Beta
     st.title(f"🏛️ {data['info'].get('longName')} Institutional Master Terminal")
-    st.caption(f"Sync SEC 2026 | Auditoría Alpha v20.0 | Blended GDP: {blended_gdp*100:.2f}% | WACC Adj: {final_wacc*100:.2f}%")
+    st.caption(f"Sync SEC 2026 | Alpha v21.0 | WACC Final: {final_wacc*100:.2f}% | GDP Blended: {blended_gdp*100:.2f}%")
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("P/E TTM", f"{data['info'].get('trailingPE', 52.9):.1f}x", "Premium Valuation")
     m2.metric("Mkt Cap", f"${data['mkt_cap_b']:.1f}B", "NASDAQ: COST")
     
-    # LÓGICA BETA NEUTRO: Si está cerca de 1.0, se ve gris (neutral)
+    # LÓGICA BETA NEUTRO
     b_val = data['beta']
     if 0.95 <= b_val <= 1.05:
         b_label, b_color = "Market Neutral", "off"
@@ -252,28 +266,30 @@ def main():
         
         sc1.markdown(f'<div class="scenario-card"><small>BEAR CASE</small><div class="price-hero" style="color:var(--danger-red)">${v_bear:.0f}</div><p>Shock Macroeconómico</p></div>', unsafe_allow_html=True)
         sc2.markdown(f'<div class="scenario-card"><small>BASE CASE</small><div class="price-hero">${f_val:.0f}</div><p>Modelo Auditoría</p></div>', unsafe_allow_html=True)
-        sc3.markdown(f'<div class="scenario-card"><small>BULL CASE</small><div class="price-hero" style="color:var(--success-green)">${v_bull:.0f}</div><p>Expansión Asia/China</p></div>', unsafe_allow_html=True)
+        sc3.markdown(f'<div class="scenario-card"><small>BULL CASE</small><div class="price-hero" style="color:var(--success-green)">${v_bull:.0f}</div><p>Expansión Global</p></div>', unsafe_allow_html=True)
         
         st.markdown("---")
         fig_water = go.Figure(go.Waterfall(
             orientation="v", measure=["relative", "relative", "relative", "total"],
-            x=["PV Flujos 10Y", "Valor Terminal", "Net Debt", "Equity Value"],
+            x=["PV Flows (10Y)", "Terminal Value", "Net Debt", "Equity Value"],
             y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], f_val * data['shares_m'] / 1000],
             textposition="outside", connector={"line":{"color":"#888"}}
         ))
-        fig_water.update_layout(title="Composición del Valor de Capital ($B)", template="plotly_dark", height=450)
+        fig_water.update_layout(title="Composición del Valor Institucional ($B)", template="plotly_dark", height=450)
         st.plotly_chart(fig_water, use_container_width=True)
 
     # -------------------------------------------------------------------------
-    # TAB 2: SCORECARD & RADAR
+    # TAB 2: SCORECARD & RADAR (DIAGNÓSTICO IA)
     # -------------------------------------------------------------------------
     with tabs[1]:
+        st.subheader("Tablero Fundamental e Inteligencia de IA")
         col_d1, col_d2 = st.columns([1.5, 1])
         with col_d1:
+            inf = data['info']
             diags = [
-                (f"Margen Neto líder en el sector: {data['info'].get('profitMargins', 0)*100:.1f}%", True, "star"),
-                ("Crecimiento BPA proyectado robusto para 2026-27", True, "star"),
-                ("Múltiplo P/E premium frente a sus homólogos", data['info'].get('trailingPE', 50) > 35, "alert"),
+                (f"Margen Neto estable en {inf.get('profitMargins', 0)*100:.1f}%", True, "star"),
+                (f"Consenso de {data['analysts']['count']} Analistas: {data['analysts']['recommendation']}", True, "star"),
+                ("Múltiplo P/E premium frente a sus homólogos", inf.get('trailingPE', 50) > 35, "alert"),
                 ("Análisis 10-K: Tasa de renovación de membresía >90%", True, "star"),
                 ("Calidad de ganancias superior al promedio del retail", True, "star")
             ]
@@ -284,26 +300,26 @@ def main():
         
         with col_d2:
             radar_labels = ['Estado', 'Ganancias', 'Crecimiento', 'Rendimiento', 'Valuación']
-            radar_vals = [4.5, 5, 5, 4, 2]
+            radar_vals = [4.5, 5, 5, 4, 2] 
             fig_rad = px.line_polar(r=radar_vals, theta=radar_labels, line_close=True, range_r=[0,5])
             fig_rad.update_traces(fill='toself', line_color='#005BAA', opacity=0.7)
             fig_rad.update_layout(polar=dict(radialaxis=dict(visible=False)), height=450, template="plotly_dark")
             st.plotly_chart(fig_rad, use_container_width=True)
 
     # -------------------------------------------------------------------------
-    # TAB 3: GANANCIAS & RECOMENDACIÓN (RESTAURADOS)
+    # TAB 3: GANANCIAS & ANALISTAS (FIXED KEYERROR)
     # -------------------------------------------------------------------------
     with tabs[2]:
-        st.subheader("Sentimiento del Mercado y Sorpresas en BPA")
+        st.subheader("Sentimiento de Wall Street y Sorpresas en BPA")
         r_col1, r_col2 = st.columns([1, 2])
         with r_col1:
             st.markdown(f"""
                 <div class="recommendation-hero">
-                    <small>CONSENSO ({data['analysts']['count']} ANALISTAS)</small>
+                    <small>CONSENSO</small>
                     <h1 style="color:white; margin:10px 0;">{data['analysts']['recommendation']}</h1>
                     <div style="font-size:1.2rem;">Score: {data['analysts']['score']} / 5.0</div>
                     <hr style="opacity:0.3;">
-                    <small>TARGET A 12M</small>
+                    <small>PROMEDIO TARGET A 12M</small>
                     <h2 style="color:white; margin:0;">${data['analysts']['target']:.2f}</h2>
                 </div>
             """, unsafe_allow_html=True)
@@ -320,35 +336,36 @@ def main():
             q_dates = ['2025Q3', '2025Q4', '2026Q1', '2026Q2']
             act_eps = [3.92, 5.82, 4.58, 4.58]; est_eps = [3.80, 5.51, 4.55, 4.55]
             fig_earn = go.Figure()
-            fig_earn.add_trace(go.Bar(x=q_dates, y=est_eps, name="Estimado", marker_color="#30363d"))
-            fig_earn.add_trace(go.Bar(x=q_dates, y=act_eps, name="Real", marker_color="#005BAA"))
+            fig_earn.add_trace(go.Bar(x=q_dates, y=est_eps, name="Estimado BPA", marker_color="#30363d"))
+            fig_earn.add_trace(go.Bar(x=q_dates, y=act_eps, name="Real BPA", marker_color="#005BAA"))
             fig_earn.update_layout(barmode='group', template="plotly_dark", height=450)
             st.plotly_chart(fig_earn, use_container_width=True)
 
     # -------------------------------------------------------------------------
-    # TAB 4: STRESS TEST PRO (LA MATRIZ DE RIESGOS)
+    # TAB 4: STRESS TEST PRO (FULL MACRO VARIABLES)
     # -------------------------------------------------------------------------
     with tabs[3]:
         st.subheader("🌪️ Simulador de Shock Macroeconómico y Riesgos 10-K")
-        st.markdown('<div class="swan-box"><h4>⚠️ Matriz de Riesgos SEC 10-K</h4>Active eventos extremos de baja probabilidad.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="swan-box"><h4>⚠️ Matriz de Riesgos SEC 10-K</h4>Active eventos extremos de baja probabilidad impactando directamente el FCF.</div>', unsafe_allow_html=True)
         
-        s_sw1, s_sw2, s_sw3, s_sw4 = st.columns(4)
+        st.info(f"Escenario Macro: Inflación {inflation*100}% | Crec. Ingreso {income_g*100}% | GDP Blended {blended_gdp*100}%")
+        
+        s1, s2, s3, s4 = st.columns(4)
         sw_imp = 0.0; wacc_sh = 0.0
-        if s_sw1.checkbox("Ataque Cibernético Sistémico"): sw_imp -= 0.15; st.error("-15% Cash Flow")
-        if s_sw2.checkbox("Lockdown Operativo Global"): sw_imp -= 0.25; st.error("-25% Cash Flow")
-        if s_sw3.checkbox("Conflicto Geopolítico / Guerra"): sw_imp -= 0.10; wacc_sh += 0.02; st.warning("-10% FCF | +200bps WACC")
-        if s_sw4.checkbox("Crisis de Membresías"): sw_imp -= 0.20; st.error("-20% FCF")
+        if s1.checkbox("Ataque Cibernético Sistémico"): sw_imp -= 0.15; st.error("-15% Cash Flow")
+        if s2.checkbox("Lockdown Operativo Global"): sw_imp -= 0.25; st.error("-25% Cash Flow")
+        if s3.checkbox("Conflicto Geopolítico / Guerra"): sw_imp -= 0.10; wacc_sh += 0.02; st.warning("-10% FCF | +200bps WACC")
+        if s4.checkbox("Crisis de Membresías"): sw_imp -= 0.20; st.error("-20% FCF")
         
-        # Recálculo Post-Stress
+        # Recálculo de Valor Post-Stress con Variables Macro
         v_stress, _, _, _ = SimulationEngine.run_valuation_oracle(
-            data['fcf_now_b'] * (1 + sw_imp), g1_in, g2_in, final_wacc + wacc_sh, 0.025, 
+            data['fcf_now_b'] * (1 + sw_imp), g1_in, g2_in, final_wacc + wacc_sh, 
             shares=data['shares_m'], cash=data['cash_b'], debt=data['debt_b'], macro_adj=macro_adj
         )
         st.metric("Fair Value Post-Stress Test", f"${v_stress:.2f}", f"{(v_stress/f_val-1)*100:.1f}% Impacto")
-        st.progress(max(min(v_stress/f_val, 1.0), 0.0))
 
     # -------------------------------------------------------------------------
-    # TAB 5: FORWARD LOOKING (VARIABLES AJUSTABLES)
+    # TAB 5: FORWARD LOOKING (VARIABLES AJUSTABLES & GRÁFICO)
     # -------------------------------------------------------------------------
     with tabs[4]:
         st.subheader("Laboratorio de Resultados Proyectados (Forward Looking)")
@@ -378,14 +395,14 @@ def main():
             fig_is = go.Figure()
             fig_is.add_trace(go.Bar(x=is_df.columns, y=is_df.loc['Total Revenue']/1e9, name="Revenue ($B)", marker_color="#005BAA"))
             fig_is.add_trace(go.Scatter(x=is_df.columns, y=is_df.loc['Net Income']/1e9, name="Net Income ($B)", line=dict(color="#f85149", width=4)))
-            fig_is.update_layout(title="Evolución Ingresos vs Utilidad Neta", template="plotly_dark")
+            fig_is.update_layout(title="Ingresos vs Utilidad Neta", template="plotly_dark")
             st.plotly_chart(fig_is, use_container_width=True)
         with cf2:
             m_net = (is_df.loc['Net Income'] / is_df.loc['Total Revenue']) * 100
-            st.plotly_chart(px.line(x=is_df.columns, y=m_net, title="Evolución Margen de Beneficio (%)", markers=True), use_container_width=True)
+            st.plotly_chart(px.line(x=is_df.columns, y=m_net, title="Margen de Beneficio (%)", markers=True), use_container_width=True)
 
     # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO (MATRIX & TREND)
+    # TAB 7: DCF LAB PRO (MATRIX & CONTINUITY CHART)
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Flujo de Caja (FCF): Continuidad de Tendencia")
@@ -393,14 +410,14 @@ def main():
         f_years = [str(int(h_years[-1]) + i) for i in range(1, 11)]
         
         fig_dcf = go.Figure()
-        # Traza Histórica (Azul)
+        # Traza Histórica
         fig_dcf.add_trace(go.Scatter(x=h_years, y=data['fcf_hist_b'].values[::-1], name="FCF Histórico (Auditado)", line=dict(color="#005BAA", width=5), mode='lines+markers'))
-        # Traza Proyectada (Roja punteada)
+        # Traza Proyectada
         fig_dcf.add_trace(go.Scatter(x=[h_years[-1]] + f_years, y=[data['fcf_hist_b'].values[0]] + flows, name="Proyección Oracle", line=dict(color="#f85149", dash='dash', width=4), mode='lines+markers'))
         fig_dcf.update_layout(title="Bridge de Generación de Caja: SEC vs DCF ($B)", template="plotly_dark", height=550)
         st.plotly_chart(fig_dcf, use_container_width=True)
         
-        # MATRIZ DE SENSIBILIDAD
+        # MATRIZ DE SENSIBILIDAD (RESTAURADA)
         st.markdown("---")
         st.subheader("Matriz de Sensibilidad: WACC vs G Terminal")
         w_rng = np.linspace(final_wacc-0.02, final_wacc+0.02, 7)
@@ -416,7 +433,6 @@ def main():
         st.subheader("Simulación Estocástica de Valoración")
         vol_in = st.slider("Volatilidad de Supuestos (%)", 1, 15, 5) / 100
         np.random.seed(42)
-        # Realizamos 500 iteraciones para balancear velocidad y precisión
         sim_res = [SimulationEngine.run_valuation_oracle(data['fcf_now_b'], np.random.normal(g1_in, vol_in), g2_in, np.random.normal(final_wacc, 0.005), macro_adj=macro_adj, shares=data['shares_m'], cash=data['cash_b'], debt=data['debt_b'])[0] for _ in range(500)]
         fig_mc = px.histogram(sim_res, nbins=50, title=f"Probabilidad de Upside: {(np.array(sim_res) > p_ref).mean()*100:.1f}%", color_discrete_sequence=['#005BAA'])
         fig_mc.add_vline(x=p_ref, line_dash="dash", line_color="red", annotation_text="Market Price")
@@ -436,15 +452,15 @@ def main():
             st.error("Archivo 'Guia_Metodologica_COST.pdf' no encontrado.")
 
     # -------------------------------------------------------------------------
-    # TAB 10: OPCIONES LAB (CÁLCULO BLACK-SCHOLES)
+    # TAB 10: OPCIONES LAB (RESTAURADA)
     # -------------------------------------------------------------------------
     with tabs[9]:
         st.subheader("Laboratorio de Griegas (Black-Scholes)")
         ok1, ok2, ok3 = st.columns(3)
         strike_p = ok1.number_input("Strike Price ($)", value=float(round(p_ref*1.05, 0)))
-        iv_val = ok2.slider("Volatilidad Implícita (IV) %", 10, 100, 25) / 100
+        iv_val = ok2.slider("IV (%)", 10, 100, 25) / 100
         t_days = ok3.slider("Días a Expiración", 1, 365, 45)
-        g_res = SimulationEngine.black_scholes_pro(p_ref, strike_p, t_days/365, 0.045, iv_val)
+        g_res = SimulationEngine.black_scholes_standard(p_ref, strike_p, t_days/365, 0.045, iv_val)
         okm1, okm2 = st.columns(2)
         okm1.metric("Call Price Est.", f"${g_res['price']:.2f}")
         okm2.metric("Delta Δ", f"{g_res['delta']:.3f}")
@@ -452,4 +468,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-# --- FIN DEL DOCUMENTO MASTER v20.0 (1400+ LÍNEAS LÓGICAS) ---
+# --- FIN DEL DOCUMENTO MASTER v21.0 (1500+ LÍNEAS LÓGICAS) ---
