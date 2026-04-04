@@ -425,140 +425,201 @@ def main():
             st.plotly_chart(fig_radar, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 3: GANANCIAS & SENTIMIENTO (VERSIÓN TITÁN REFORZADA)
+    # TAB 3: GANANCIAS & SENTIMIENTO (REDISEÑO INSTITUCIONAL TOTAL)
     # -------------------------------------------------------------------------
     with tabs[2]:
         st.subheader("Análisis de Sentimiento y Proyecciones de Wall Street")
-        r_col1, r_col2 = st.columns([1.3, 2])
         
-        with r_col1:
-            # 1. Extracción de Datos
-            score_v = data['analysts'].get('score', 2.0)
-            target_v = data['analysts'].get('target', 1067.59)
-            rec_v = data['analysts'].get('key', 'BUY')
-            count_v = data['analysts'].get('count', 37)
-            
-            # 2. CSS LOCAL AGRESIVO (Forzamos legibilidad y fondo)
-            st.markdown("""
-                <style>
-                .terminal-box-final {
-                    background-color: #1e2b3c !important;
-                    border-radius: 12px;
-                    padding: 25px;
-                    font-family: 'Segoe UI', sans-serif;
-                    border: 1px solid #34495e;
-                    color: #ffffff !important;
-                }
-                .term-header-final { text-align: center; border-bottom: 1px solid #34495e; padding-bottom: 15px; margin-bottom: 15px; }
-                .term-main-val-final { font-size: 2.5rem; font-weight: 900; color: #2ecc71 !important; margin: 5px 0; }
-                
-                .term-row-final {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    margin: 12px 0;
-                    height: 28px;
-                }
-                .term-label-final { width: 120px; font-size: 0.95rem; color: #ffffff !important; font-weight: 700; }
-                .term-bar-bg-final {
-                    flex-grow: 1;
-                    height: 12px;
-                    background: #2c3e50;
-                    margin: 0 15px;
-                    border-radius: 6px;
-                    overflow: hidden;
-                }
-                .term-bar-fill-final { height: 100%; border-radius: 6px; }
-                .term-info-final { 
-                    width: 110px; 
-                    text-align: right; 
-                    font-family: 'JetBrains Mono', monospace; 
-                    font-size: 0.9rem; 
-                    font-weight: 800;
-                    color: #ffffff !important;
-                }
-                .term-footer-final { border-top: 1px solid #34495e; margin-top: 20px; padding-top: 15px; }
-                .term-f-line-final { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.95rem; color: #ffffff !important; }
-                </style>
-            """, unsafe_allow_html=True)
+        # Inyectamos un CSS más robusto para controlar el layout exacto
+        st.markdown("""
+            <style>
+            .main-terminal-card {
+                background-color: #1e2b3c;
+                border-radius: 8px;
+                padding: 20px;
+                border: 1px solid #34495e;
+                color: white;
+            }
+            .rec-title-box {
+                text-align: center;
+                border-bottom: 1px solid #34495e;
+                padding-bottom: 10px;
+                margin-bottom: 10px;
+            }
+            .stat-row {
+                display: flex;
+                align-items: center;
+                margin-bottom: 10px;
+                font-family: 'Segoe UI', sans-serif;
+            }
+            .stat-label {
+                width: 140px; /* Ancho aumentado para evitar saltos de línea */
+                font-size: 0.85rem;
+                color: #bdc3c7;
+                font-weight: 600;
+                white-space: nowrap;
+            }
+            .stat-bar-container {
+                flex-grow: 1;
+                height: 8px;
+                background-color: #2c3e50;
+                border-radius: 4px;
+                margin: 0 15px;
+                overflow: hidden;
+            }
+            .stat-bar-fill { height: 100%; border-radius: 4px; }
+            .stat-value {
+                width: 90px;
+                text-align: right;
+                font-family: 'JetBrains Mono', monospace;
+                font-size: 0.8rem;
+                font-weight: 700;
+                color: #ffffff;
+            }
+            .footer-grid {
+                margin-top: 15px;
+                padding-top: 15px;
+                border-top: 1px solid #34495e;
+            }
+            .footer-flex {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 6px;
+                font-size: 0.85rem;
+            }
+            </style>
+        """, unsafe_allow_html=True)
 
-            # 3. Renderizado del Widget
+        col_left, col_right = st.columns([1, 1.8])
+
+        with col_left:
+            # 1. Cabecera Unificada
+            score_v = data['analysts'].get('score', 2.0)
+            rec_key = data['analysts'].get('key', 'BUY')
+            
             st.markdown(f"""
-                <div class="terminal-box-final">
-                    <div class="term-header-final">
-                        <div style="font-size: 0.8rem; color: #bdc3c7; text-transform: uppercase; font-weight: 700;">Recomendación de los analistas</div>
-                        <div class="term-main-val-final">{rec_v.title()}</div>
-                        <div style="font-size: 0.75rem; color: #bdc3c7;">Basado en {count_v} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
+                <div class="main-terminal-card">
+                    <div class="rec-title-box">
+                        <div style="font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 1px;">Recomendación Consenso</div>
+                        <div style="font-size: 2.2rem; font-weight: 800; color: #2ecc71; margin: 5px 0;">{rec_key.title()}</div>
+                        <div style="font-size: 0.7rem; color: #666;">n=37 Analistas | {datetime.date.today().strftime('%d/%m/%Y')}</div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
-            # 4. Gráfico Gauge (Sin aguja para evitar errores, usando color de fondo dinámico)
-            gauge_pos = 6 - score_v
+            # 2. Gráfico Gauge (Ajustado para integrarse al card)
+            # Invertimos: 1 (Strong Buy) es verde, 5 (Sell) es rojo. 
+            # Gauge value: 1 es izquierda (rojo), 5 es derecha (verde).
+            gauge_val = 6 - score_v 
+            
             fig_gauge = go.Figure(go.Indicator(
-                mode = "gauge+number",
-                value = gauge_pos,
-                domain = {'x': [0, 1], 'y': [0, 1]},
-                gauge = {
-                    'axis': {'range': [1, 5], 'visible': False},
-                    'bar': {'color': "white", 'thickness': 0.1},
+                mode="gauge+number",
+                value=gauge_val,
+                domain={'x': [0, 1], 'y': [0, 1]},
+                number={'font': {'color': 'white', 'size': 1}, 'suffix': ""}, # Ocultamos el número grande
+                gauge={
+                    'axis': {'range': [1, 5], 'tickwidth': 1, 'tickcolor': "#34495e", 'visible': False},
+                    'bar': {'color': "white", 'thickness': 0.15},
+                    'bgcolor': "rgba(0,0,0,0)",
                     'steps': [
-                        {'range': [1, 1.8], 'color': '#f85149'},
-                        {'range': [1.8, 2.6], 'color': '#f39c12'},
-                        {'range': [2.6, 3.4], 'color': '#f1c40f'},
-                        {'range': [3.4, 4.2], 'color': '#2ecc71'},
-                        {'range': [4.2, 5], 'color': '#1a7f37'}
-                    ]
+                        {'range': [1, 1.8], 'color': '#e74c3c'}, # Venta Fuerte
+                        {'range': [1.8, 2.6], 'color': '#e67e22'}, # Venta
+                        {'range': [2.6, 3.4], 'color': '#f1c40f'}, # Hold
+                        {'range': [3.4, 4.2], 'color': '#2ecc71'}, # Buy
+                        {'range': [4.2, 5], 'color': '#27ae60'}    # Strong Buy
+                    ],
                 }
             ))
-            fig_gauge.update_layout(height=170, margin=dict(t=15, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)', font={'color': "white"})
+            fig_gauge.update_layout(
+                height=160, 
+                margin=dict(t=10, b=10, l=40, r=40), 
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
+            )
             st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
 
-            # 5. Cuerpo de Barras (Con conteo y % explícito)
+            # 3. Desglose de Barras y Footer en el mismo bloque visual
             st.markdown(f"""
-                <div class="terminal-box-final" style="background: transparent !important; border: none !important; box-shadow: none !important; margin-top: -35px;">
-                    <div class="term-row-final"><div class="term-label-final">Compra Agresiva</div><div class="term-bar-bg-final"><div class="term-bar-fill-final" style="width: 54%; background: #1a7f37;"></div></div><div class="term-info-final">20 (54.1%)</div></div>
-                    <div class="term-row-final"><div class="term-label-final">Comprar</div><div class="term-bar-bg-final"><div class="term-bar-fill-final" style="width: 8%; background: #2ecc71;"></div></div><div class="term-info-final">3 (8.1%)</div></div>
-                    <div class="term-row-final"><div class="term-label-final">Conservar</div><div class="term-bar-bg-final"><div class="term-bar-fill-final" style="width: 32%; background: #f1c40f;"></div></div><div class="term-info-final">12 (32.4%)</div></div>
-                    <div class="term-row-final"><div class="term-label-final">Vender</div><div class="term-bar-bg-final"><div class="term-bar-fill-final" style="width: 0%; background: #f39c12;"></div></div><div class="term-info-final">0 (0.0%)</div></div>
-                    <div class="term-row-final"><div class="term-label-final">Venta Fuerte</div><div class="term-bar-bg-final"><div class="term-bar-fill-final" style="width: 5%; background: #f85149;"></div></div><div class="term-info-final">2 (5.4%)</div></div>
-                    <div class="term-footer-final">
-                        <div class="term-f-line-final"><span>Precio previsto (12m)</span><span style="font-weight:900;">USD {target_v:,.2f}</span></div>
-                        <div class="term-f-line-final"><span>Volatilidad</span><span style="font-weight:900;">Promedio</span></div>
-                        <div class="term-f-line-final"><span>Recomendación sector</span><span style="font-weight:900; color:#2ecc71;">Comprar</span></div>
+                <div class="main-terminal-card" style="margin-top: -30px; border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0;">
+                    <div class="stat-row">
+                        <div class="stat-label">Compra Agresiva</div>
+                        <div class="stat-bar-container"><div class="stat-bar-fill" style="width: 54%; background: #27ae60;"></div></div>
+                        <div class="stat-value">20 (54.1%)</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Comprar</div>
+                        <div class="stat-bar-container"><div class="stat-bar-fill" style="width: 8%; background: #2ecc71;"></div></div>
+                        <div class="stat-value">3 (8.1%)</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Conservar</div>
+                        <div class="stat-bar-container"><div class="stat-bar-fill" style="width: 32%; background: #f1c40f;"></div></div>
+                        <div class="stat-value">12 (32.4%)</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Vender</div>
+                        <div class="stat-bar-container"><div class="stat-bar-fill" style="width: 0%; background: #e67e22;"></div></div>
+                        <div class="stat-value">0 (0.0%)</div>
+                    </div>
+                    <div class="stat-row">
+                        <div class="stat-label">Venta Fuerte</div>
+                        <div class="stat-bar-container"><div class="stat-bar-fill" style="width: 5%; background: #e74c3c;"></div></div>
+                        <div class="stat-value">2 (5.4%)</div>
+                    </div>
+                    <div class="footer-grid">
+                        <div class="footer-flex">
+                            <span style="color:#888;">Precio Previsto (12m)</span>
+                            <span style="font-weight:700;">USD {data['analysts'].get('target', 0):,.2f}</span>
+                        </div>
+                        <div class="footer-flex">
+                            <span style="color:#888;">Volatilidad</span>
+                            <span style="font-weight:700;">Promedio</span>
+                        </div>
+                        <div class="footer-flex">
+                            <span style="color:#888;">Consenso Sector</span>
+                            <span style="font-weight:700; color:#2ecc71;">Compra</span>
+                        </div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
-        with r_col2:
-            # 6. Gráfico de Ganancias (Eje Derecho, Estabilidad Máxima)
+        with col_right:
+            # 4. Gráfico de BPA Refinado
             quarters = ['2025Q3', '2025Q4', '2026Q1', '2026Q2']
             real_bpa = [3.92, 5.82, 4.58, 4.58]
             est_bpa = [3.80, 5.51, 4.55, 4.55]
             
             fig_eps = go.Figure()
-            fig_eps.add_trace(go.Bar(x=quarters, y=est_bpa, name="Estimado", marker_color="#34495e"))
-            fig_eps.add_trace(go.Bar(x=quarters, y=real_bpa, name="Real", marker_color="#005BAA"))
+            fig_eps.add_trace(go.Bar(
+                x=quarters, y=est_bpa, name="Estimado", 
+                marker_color="#2c3e50", width=0.3
+            ))
+            fig_eps.add_trace(go.Bar(
+                x=quarters, y=real_bpa, name="Real", 
+                marker_color="#005BAA", width=0.3
+            ))
             
             fig_eps.update_layout(
-                title=dict(text="Sorpresas en Beneficio por Acción (BPA)", font=dict(color="white", size=18)),
+                title=dict(text="Sorpresas en Beneficio por Acción (BPA)", font=dict(size=16, color="white")),
                 barmode='group',
                 template="plotly_dark",
-                height=480,
+                height=520, # Aumentamos altura para evitar distorsión plana
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                margin=dict(t=80, b=40, l=20, r=80),
                 yaxis=dict(
-                    title=dict(text="BPA ($)", font=dict(color="#bdc3c7")),
+                    title=dict(text="BPA ($)", font=dict(size=12, color="#888")),
                     side="right",
-                    gridcolor='#2c3e50',
-                    tickfont=dict(color='white')
+                    gridcolor='#34495e',
+                    showgrid=True,
+                    zeroline=False
                 ),
                 xaxis=dict(
                     type='category',
-                    tickfont=dict(color='white')
-                ),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                margin=dict(t=80, b=40, l=20, r=60)
+                    tickfont=dict(color='#888'),
+                    showgrid=False
+                )
             )
             st.plotly_chart(fig_eps, use_container_width=True, config={'displayModeBar': False})
             
