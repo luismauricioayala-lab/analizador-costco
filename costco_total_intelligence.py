@@ -336,16 +336,24 @@ def main():
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "📜 Metodología", "📈 Opciones Lab"
     ])
 
-    # -------------------------------------------------------------------------
-    # TAB 1: RESUMEN EJECUTIVO (MODIFICADO: DISEÑO SOBRIO)
+# -------------------------------------------------------------------------
+    # TAB 1: RESUMEN EJECUTIVO (DINÁMICO + ESCALA CORREGIDA)
     # -------------------------------------------------------------------------
     with tabs[0]:
         st.subheader("Análisis de Sensibilidad de Escenarios")
         
-        # Cálculos de Escenarios
-        v_bear, _, _, _ = ValuationOracle.run_macro_dcf(data['fcf_now_b'], 0.045, 0.02, final_wacc+0.02, macro_adj=-0.15)
-        v_bull, _, _, _ = ValuationOracle.run_macro_dcf(data['fcf_now_b'], 0.185, 0.10, final_wacc-0.01, macro_adj=0.12)
+        # --- 1. CÁLCULOS DE ESCENARIOS DINÁMICOS (Corrección Claude) ---
+        # Escenario Bajista: 50% del crecimiento base, +200bps en WACC, ajuste macro negativo
+        v_bear, _, _, _ = ValuationOracle.run_macro_dcf(
+            data['fcf_now_b'], g1_in * 0.50, g2_in * 0.40, final_wacc + 0.02, macro_adj=-0.15
+        )
         
+        # Escenario Alcista: 150% del crecimiento base, -100bps en WACC, ajuste macro positivo
+        v_bull, _, _, _ = ValuationOracle.run_macro_dcf(
+            data['fcf_now_b'], g1_in * 1.50, g2_in * 1.30, final_wacc - 0.01, macro_adj=0.12
+        )
+        
+        # --- 2. TARJETAS DE ESCENARIOS ---
         c_sc1, c_sc2, c_sc3 = st.columns(3)
         
         with c_sc1:
@@ -354,9 +362,9 @@ def main():
                     <div class="scenario-label-sober">Escenario Bajista (Bear)</div>
                     <div class="price-hero-sober" style="color:#f85149">${v_bear:.0f}</div>
                     <div class="driver-list-sober">
-                        • <b>Macro:</b> Recesión profunda en Norteamérica.<br>
-                        • <b>CPI:</b> Inflación persistente erosiona poder de compra.<br>
-                        • <b>WACC:</b> Incremento en primas de riesgo (+200bps).
+                        • <b>Crecimiento:</b> Frenazo al {g1_in*50:.1f}% (50% del base).<br>
+                        • <b>Riesgo:</b> WACC estresado (+200bps).<br>
+                        • <b>Entorno:</b> Recesión y contracción de márgenes.
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -367,9 +375,9 @@ def main():
                     <div class="scenario-label-sober">Escenario Base (Base)</div>
                     <div class="price-hero-sober" style="color:var(--text-color)">${f_val:.0f}</div>
                     <div class="driver-list-sober">
-                        • <b>Crecimiento:</b> Expansión orgánica según guidance.<br>
-                        • <b>Membresía:</b> Retención estable por encima del 90%.<br>
-                        • <b>WACC:</b> Costo de capital institucional ({final_wacc*100:.1f}%).
+                        • <b>Crecimiento:</b> Según configuración ({g1_in*100:.1f}%).<br>
+                        • <b>Membresía:</b> Retención institucional > 90%.<br>
+                        • <b>WACC:</b> Costo de capital base ({final_wacc*100:.1f}%).
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -380,22 +388,38 @@ def main():
                     <div class="scenario-label-sober">Escenario Alcista (Bull)</div>
                     <div class="price-hero-sober" style="color:#3fb950">${v_bull:.0f}</div>
                     <div class="driver-list-sober">
-                        • <b>Asia:</b> Escalamiento acelerado de Costco China.<br>
-                        • <b>Márgenes:</b> Eficiencia digital mejora el Op. Margin.<br>
-                        • <b>Kirkland:</b> Mayor penetración de marca propia.
+                        • <b>Crecimiento:</b> Expansión agresiva ({g1_in*150:.1f}%).<br>
+                        • <b>Eficiencia:</b> WACC optimizado (-100bps).<br>
+                        • <b>Kirkland:</b> Penetración récord de marca propia.
                     </div>
                 </div>
             """, unsafe_allow_html=True)
         
-        # Bridge Waterfall (se mantiene por su alto valor analítico)
+        # --- 3. BRIDGE WATERFALL (Corrección de Escala a $B) ---
         st.markdown("---")
+        
+        # Calculamos el Equity Value total en Billones para el cierre del gráfico
+        equity_value_b = (f_val * data['shares_m']) / 1000 
+        
         fig_water = go.Figure(go.Waterfall(
-            orientation="v", measure=["relative", "relative", "relative", "total"],
-            x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Valor de Capital"],
-            y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], (f_val * data['shares_m'] / 1000)],
-            textposition="outside", connector={"line":{"color":"#888"}}
+            orientation="v", 
+            measure=["relative", "relative", "relative", "total"],
+            x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Equity Value ($B)"],
+            # y debe contener los valores en Billones
+            y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_value_b],
+            textposition="outside", 
+            connector={"line":{"color":"#888"}},
+            decreasing={"marker":{"color":"#f85149"}},
+            increasing={"marker":{"color":"#3fb950"}},
+            totals={"marker":{"color":"#005BAA"}}
         ))
-        fig_water.update_layout(title="Bridge de Composición de Valor ($B)", template="plotly_dark", height=400)
+        
+        fig_water.update_layout(
+            title="Composición del Valor de Mercado Proyectado ($B)", 
+            template="plotly_dark", 
+            height=450,
+            showlegend=False
+        )
         st.plotly_chart(fig_water, use_container_width=True)
 
     # -------------------------------------------------------------------------
