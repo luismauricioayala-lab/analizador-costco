@@ -153,23 +153,35 @@ class InstitutionalDataService:
             target_price = info.get('targetMeanPrice', info.get('currentPrice', 1014.96) * 1.05)
             opinion_count = info.get('numberOfAnalystOpinions', 37)
 
-            return {
-                "info": info, "is": is_stmt, "bs": bs, "cf": cf,
-                "fcf_now_b": fcf_now, "fcf_hist_b": fcf_raw / 1e9,
-                "price": info.get('currentPrice', 1014.96),
-                "mkt_cap_b": info.get('marketCap', 450e9) / 1e9,
-                "beta": info.get('beta', 0.978),
-                "shares_m": info.get('sharesOutstanding', 443e6) / 1e6,
-                "cash_b": info.get('totalCash', 22e9) / 1e9,
-                "debt_b": info.get('totalDebt', 9e9) / 1e9,
-                "acc_summary": acc_summary,
-                "analysts": {
-                    "key": rec_key,
-                    "score": rec_score,
-                    "target": target_price,
-                    "count": opinion_count
-                }
-            }
+return {
+    "info": info, 
+    "is": is_stmt.iloc[:, :3], # Forzamos 3 años
+    "bs": bs.iloc[:, :3],      # Forzamos 3 años
+    "cf": cf.iloc[:, :3],
+    "fcf_now_b": fcf_now, 
+    "fcf_hist_b": fcf_raw / 1e9,
+    "price": info.get('currentPrice', 1014.96),
+    "mkt_cap_b": info.get('marketCap', 450e9) / 1e9,
+    "beta": info.get('beta', 0.978),
+    "shares_m": info.get('sharesOutstanding', 443e6) / 1e6,
+    "cash_b": info.get('totalCash', 22e9) / 1e9,
+    "debt_b": info.get('totalDebt', 9e9) / 1e9,
+    "acc_summary": { # Resumen de ratios para Finanzas Pro
+        "Revenue ($B)": info.get('totalRevenue', 0) / 1e9,
+        "EBITDA ($B)": info.get('ebitda', 0) / 1e9,
+        "Net Income ($B)": info.get('netIncomeToCommon', 0) / 1e9,
+        "ROE (%)": info.get('returnOnEquity', 0) * 100,
+        "Debt/Equity": info.get('debtToEquity', 0),
+        "Current Ratio": info.get('currentRatio', 0),
+        "Op. Margin (%)": info.get('operatingMargins', 0) * 100
+    },
+    "analysts": {
+        "key": info.get('recommendationKey', 'N/A').upper(),
+        "score": info.get('recommendationMean', 2.0),
+        "target": info.get('targetMeanPrice', 1067.59),
+        "count": info.get('numberOfAnalystOpinions', 37)
+    }
+}
         except Exception as e:
             st.error(f"Fallo Crítico de Infraestructura: {e}")
             return None
