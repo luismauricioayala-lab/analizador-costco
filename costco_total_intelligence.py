@@ -614,59 +614,64 @@ def main():
         st.plotly_chart(px.line(df_fwd, x="Año", y="Rev ($B)", markers=True, title="Trayectoria Proyectada de Ingresos"), use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 6: FINANZAS PRO (COMPARATIVO HISTÓRICO - EXCLUYENDO 2021)
+    # TAB 6: FINANZAS PRO (DATOS REALES + ORDEN CONTABLE + BPA CORREGIDO)
     # -------------------------------------------------------------------------
     with tabs[5]:
         st.subheader("Análisis de Estados Financieros (Gestión Institucional 2022-2025)")
         
-        # 1. Procesamiento de Datos Amigables (No US GAAP)
+        # 1. Procesamiento de Datos
         df_is_raw = data['is'].copy()
         
-        # Diccionario de traducción para reporte de gestión
-        map_gest = {
-            'Total Revenue': 'Ingresos Totales',
-            'Cost Of Revenue': 'Coste de Ventas (COGS)',
-            'Gross Profit': 'Utilidad Bruta',
-            'Operating Expense': 'Gastos Operativos (OPEX)',
-            'Operating Income': 'Utilidad Operativa (EBIT)',
-            'EBITDA': 'EBITDA',
-            'Net Income Common Stockholders': 'Utilidad Neta',
-            'Basic EPS': 'BPA (Beneficio por Acción)'
-        }
+        # Definimos la estructura profesional de un P&L (Estado de Resultados)
+        orden_contable = [
+            ('Total Revenue', 'Ingresos Totales'),
+            ('Cost Of Revenue', 'Coste de Ventas (COGS)'),
+            ('Gross Profit', 'Utilidad Bruta'),
+            ('Operating Expense', 'Gastos Operativos (OPEX)'),
+            ('Operating Income', 'Utilidad Operativa (EBIT)'),
+            ('EBITDA', 'EBITDA'),
+            ('Net Income Common Stockholders', 'Utilidad Neta'),
+            ('Basic EPS', 'BPA (Beneficio por Acción)')
+        ]
         
-        # Filtramos y renombramos las filas
-        df_mgmt = df_is_raw.loc[df_is_raw.index.intersection(map_gest.keys())].copy()
-        df_mgmt.index = [map_gest[idx] for idx in df_mgmt.index]
+        # Extraemos y renombramos
+        keys_sec = [item[0] for item in orden_contable]
+        nombres_amigables = [item[1] for item in orden_contable]
         
-        # Invertimos para orden cronológico [Antiguo -> Reciente]
+        df_mgmt = df_is_raw.reindex(keys_sec)
+        df_mgmt.index = nombres_amigables
+        
+        # Orden cronológico y Filtro de exclusión 2021
         df_mgmt = df_mgmt[df_mgmt.columns[::-1]]
-
-        # --- FILTRO CRÍTICO: Eliminamos el año 2021 ---
-        # Filtramos las columnas comprobando que el año no sea '2021'
         cols_validas = [c for c in df_mgmt.columns if str(c).split('-')[0] != '2021']
         df_mgmt = df_mgmt[cols_validas]
         
-        # Pasamos a Billones ($B)
-        df_mgmt_billions = df_mgmt / 1e9
+        # 2. Gestión de Unidades (Billones vs Unitario)
+        # Creamos una copia para visualización
+        df_viz = df_mgmt.copy()
         
-        # Limpiamos los nombres de las columnas para visualización (solo el año)
-        años_clean = [str(c).split('-')[0] for c in df_mgmt_billions.columns]
-        df_mgmt_billions.columns = años_clean
+        # Todas las filas excepto BPA se dividen por 1 Billón
+        filas_billones = [n for n in nombres_amigables if n != 'BPA (Beneficio por Acción)']
+        df_viz.loc[filas_billones] = df_viz.loc[filas_billones] / 1e9
+        
+        # El BPA se queda como valor real (USD por acción)
+        # Ya viene correcto de yfinance, no se toca.
+
+        # Limpieza de nombres de columnas (Años)
+        años_clean = [str(c).split('-')[0] for c in df_viz.columns]
+        df_viz.columns = años_clean
 
         c_fin1, c_fin2 = st.columns([1, 1.2], gap="large")
         
         with c_fin1:
-            st.write("**Principales Magnitudes de Gestión ($B)**")
-            # Mostramos la tabla con el filtro aplicado
-            st.table(df_mgmt_billions.style.format("{:.2f}"))
+            st.write("**Estado de Resultados de Gestión (Valores en $B / BPA en $)**")
+            # Mostramos la tabla con el orden tradicional y valores REALES
+            st.table(df_viz.style.format("{:.2f}"))
             
             # --- GENERACIÓN DE EXCEL AMIGABLE ---
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                # Pestaña 1: Resumen de Gestión (Sin 2021)
-                df_mgmt_billions.to_excel(writer, sheet_name='Management_View')
-                
-                # Pestaña 2: Datos Auditados Completos
+                df_viz.to_excel(writer, sheet_name='Management_View')
                 df_is_raw.to_excel(writer, sheet_name='Audit_SEC_Data')
                 
                 workbook = writer.book
@@ -674,33 +679,31 @@ def main():
                 fmt_header = workbook.add_format({'bold': True, 'bg_color': '#1e2b3c', 'font_color': 'white', 'border': 1})
                 fmt_num = workbook.add_format({'num_format': '#,##0.00'})
                 
-                for col_num, value in enumerate(df_mgmt_billions.columns.values):
+                for col_num, value in enumerate(df_viz.columns.values):
                     ws.write(0, col_num + 1, value, fmt_header)
-                ws.set_column('A:A', 30)
+                ws.set_column('A:A', 35)
                 ws.set_column('B:F', 15, fmt_num)
 
             st.download_button(
-                label="📥 Descargar Reporte en Excel",
+                label="📥 Descargar Reporte Completo (Excel)",
                 data=output.getvalue(),
-                file_name=f"COST_Financial_Report_Filtered.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                help="Exporta la visión de gestión (2022-2025) y los datos auditados."
+                file_name=f"COST_Financial_Report_Management.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
         with c_fin2:
-            st.write("**Evolución de Ingresos y Márgenes**")
+            st.write("**Rentabilidad: Evolución de Ingresos y Márgenes**")
             
-            # Cálculo de Margen Neto % basado en los datos filtrados
+            # Cálculo de Margen Neto % (Utilidad Neta / Ingresos Totales)
             m_neto_vals = (df_mgmt.loc['Utilidad Neta'] / df_mgmt.loc['Ingresos Totales']) * 100
             
-            # Crear gráfico de doble eje idéntico al solicitado
             fig_fin = make_subplots(specs=[[{"secondary_y": True}]])
             
-            # Barras: Revenue
+            # Barras: Revenue ($B)
             fig_fin.add_trace(
                 go.Bar(
                     x=años_clean, 
-                    y=df_mgmt_billions.loc['Ingresos Totales'], 
+                    y=df_viz.loc['Ingresos Totales'], 
                     name="Revenue", 
                     marker_color="#005BAA",
                     hovertemplate="Rev: $%{y:.1f}B<extra></extra>"
@@ -708,14 +711,14 @@ def main():
                 secondary_y=False
             )
             
-            # Línea: Margen Neto
+            # Línea: Margen Neto (%)
             fig_fin.add_trace(
                 go.Scatter(
                     x=años_clean, 
                     y=m_neto_vals.values, 
                     name="Net Margin %", 
                     line=dict(color="#f85149", width=5),
-                    marker=dict(size=10),
+                    marker=dict(size=10, symbol="diamond"),
                     hovertemplate="Margin: %{y:.2f}%<extra></extra>"
                 ),
                 secondary_y=True
