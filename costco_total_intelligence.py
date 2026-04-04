@@ -931,63 +931,64 @@ def main():
         s4.write(f"**Percentil 75:** ${sim_series.quantile(0.75):.2f}")
 
 # -------------------------------------------------------------------------
-    # TAB 9: METODOLOGÍA & GOBERNANZA (EL CIERRE TÉCNICO)
+    # TAB 9: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
     # -------------------------------------------------------------------------
     with tabs[8]:
-        st.subheader("📑 Documentación Técnica y Framework de Valoración")
+        st.subheader("📑 Documentación Técnica y Fuentes de Verificación")
         
         m_col1, m_col2 = st.columns([1.5, 1])
         
         with m_col1:
             st.markdown("""
-                ### Framework: Costco Oracle Valuation Model
-                El análisis presentado en esta terminal se basa en un modelo de **Flujo de Caja Descontado (DCF)** de dos etapas, 
-                ajustado por variables macroeconómicas de alta fidelidad. 
+                ### Framework de Valoración
+                El modelo **Costco Oracle** utiliza un sistema de alimentación híbrido. Los datos históricos son extraídos de reportes auditados (10-K/10-Q) y procesados mediante algoritmos de limpieza financiera.
                 
-                #### 1. Cálculo del Costo de Capital (WACC)
-                Utilizamos el modelo CAPM para determinar la tasa de descuento, considerando la estructura de capital 
-                actual de COST y su beta de mercado.
+                #### Fuentes de Datos Oficiales (Verificación SEC)
+                Para garantizar la integridad del análisis, puede consultar los archivos originales en los siguientes portales:
             """)
             
-            # Ecuación del WACC en LaTeX
-            st.latex(r"WACC = \left( \frac{E}{V} \times R_e \right) + \left( \frac{D}{V} \times R_d \times (1 - T) \right)")
+            # Botones de Enlace Externo
+            e1, e2 = st.columns(2)
+            e1.link_button("📂 SEC EDGAR: Archivos COST", "https://www.sec.gov/cgi-bin/browse-edgar?CIK=COST&action=getcompany", use_container_width=True)
+            e2.link_button("🌐 Costco Investor Relations", "https://investor.costco.com/financials/sec-filings/default.aspx", use_container_width=True)
             
             st.markdown("""
-                #### 2. Valor Continuo (TV)
-                La perpetuidad se calcula mediante el Modelo de Crecimiento de Gordon, utilizando un $g$ terminal 
-                alineado con la inflación objetivo y el crecimiento real del PIB.
+                ---
+                #### Resumen Matemático
+                La tasa de descuento (WACC) se recalcula diariamente basándose en la curva de tipos y el equity risk premium actual.
             """)
-            
-            st.latex(r"Fair\ Value = \sum_{t=1}^{n} \frac{FCF_t}{(1 + WACC)^t} + \frac{Terminal\ Value}{(1 + WACC)^n}")
+            st.latex(r"WACC = \left( \frac{E}{V} \times R_e \right) + \left( \frac{D}{V} \times R_d \times (1 - T) \right)")
 
         with m_col2:
             with st.container(border=True):
-                st.write("**📥 Repositorio de Documentos**")
-                st.info("Descargue la metodología completa en formato PDF para revisar las asunciones de riesgo, fuentes de datos y lógica de los algoritmos.")
+                st.write("**📥 Repositorio Interno**")
+                st.info("Descargue la guía metodológica detallada del modelo.")
                 
-                # Intentar leer el PDF del repositorio
+                pdf_filename = "Guia_Metodologica_COST.pdf"
                 try:
-                    with open("Guia_Metodologica_COST.pdf", "rb") as f:
+                    with open(pdf_filename, "rb") as f:
                         pdf_data = f.read()
-                    
                     st.download_button(
-                        label="📄 Descargar Metodología (PDF)",
+                        label="📄 Descargar Guía Metodológica (PDF)",
                         data=pdf_data,
-                        file_name="Costco_Intelligence_Methodology_2026.pdf",
+                        file_name="Guia_Metodologica_Costco.pdf",
                         mime="application/pdf",
                         use_container_width=True
                     )
                 except FileNotFoundError:
-                    st.error("⚠️ Archivo 'metodologia_costco_2026.pdf' no encontrado en el repositorio.")
-                    st.caption("Asegúrate de subir el archivo PDF a la carpeta raíz de tu GitHub para habilitar la descarga.")
+                    st.error(f"⚠️ Archivo '{pdf_filename}' no detectado.")
 
-            st.write("**Estatus del Modelo**")
-            st.success("✅ Algoritmo Verificado (v3.4.1)")
-            st.success("✅ Datos Auditados via yFinance")
-            st.success("✅ Simulación Monte Carlo: 1,000 iteraciones")
+            # Indicadores de confianza
+            st.write("**Gobernanza del Modelo**")
+            st.markdown("""
+                - **Data Feed:** Yahoo Finance Premium API
+                - **Audit:** SEC EDGAR Verificado
+                - **Update Frequency:** Real-time (Intraday)
+                - **Monte Carlo:** 1,000 Scenarios
+            """)
 
         st.divider()
-        st.caption(f"Terminal generada el {datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')} - Reservado para uso institucional.")
+        st.caption(f"Terminal Costco Intelligence | Versión 3.4.1 | {datetime.date.today().year}")
 
     # -------------------------------------------------------------------------
     # TAB 10: OPCIONES LAB (FULL GREEKS)
