@@ -936,7 +936,7 @@ def main():
     with tabs[8]:
         st.subheader("📑 Documentación Técnica y Fuentes de Verificación")
         
-        m_col1, m_col2 = st.columns([1.5, 1])
+        m_col1, m_col2 = st.columns([1.5, 1], gap="large")
         
         with m_col1:
             st.markdown("""
@@ -952,25 +952,24 @@ def main():
             e1.link_button("📂 SEC EDGAR: Archivos COST", "https://www.sec.gov/cgi-bin/browse-edgar?CIK=COST&action=getcompany", use_container_width=True)
             e2.link_button("🌐 Costco Investor Relations", "https://investor.costco.com/financials/sec-filings/default.aspx", use_container_width=True)
             
-with m_col1:
             st.markdown("""
                 ---
                 #### 🧮 Resumen Matemático del Modelo
                 El motor de valoración opera bajo un framework de **Flujo de Caja Descontado (DCF)** dinámico. A continuación se detallan los pilares algorítmicos:
                 
-                **1. Costo del Patrimonio (CAPM):** Calcula la rentabilidad mínima exigida por los accionistas basándose en el riesgo sistémico ($\beta$).
+                **1. Costo del Patrimonio (CAPM):** Calcula la rentabilidad mínima exigida por los accionistas basándose en el riesgo sistémico ($$\beta$$).
             """)
             st.latex(r"R_e = R_f + \beta \times (E_m - R_f)")
-            st.caption("Donde $R_f$ es la tasa libre de riesgo (T-Bond 10Y) y $(E_m - R_f)$ es la prima de riesgo de mercado.")
+            st.caption("Donde $$R_f$$ es la tasa libre de riesgo (T-Bond 10Y) y $$(E_m - R_f)$$ es la prima de riesgo de mercado.")
 
             st.markdown("""
                 **2. Costo Promedio Ponderado de Capital (WACC):** Es la tasa de descuento oficial del modelo. Representa el costo de financiar los activos promediando deuda y capital propio.
             """)
             st.latex(r"WACC = \left( \frac{E}{V} \times R_e \right) + \left( \frac{D}{V} \times R_d \times (1 - T) \right)")
-            st.caption("Ajustado por el escudo fiscal $(1-T)$ sobre el costo de la deuda ($R_d$).")
+            st.caption("Ajustado por el escudo fiscal $$(1-T)$$ sobre el costo de la deuda ($$R_d$$).")
 
             st.markdown("""
-                **3. Valor Continuo o Terminal (TV):** Utilizamos el modelo de Gordon-Shapiro para estimar el valor de Costco más allá del año 10, asumiendo un crecimiento perpetuo ($g$).
+                **3. Valor Continuo o Terminal (TV):** Utilizamos el modelo de Gordon-Shapiro para estimar el valor de Costco más allá del año 10, asumiendo un crecimiento perpetuo ($$g$$).
             """)
             st.latex(r"TV = \frac{FCF_{10} \times (1 + g)}{WACC - g}")
 
@@ -1008,10 +1007,18 @@ with m_col1:
                 - **Update Frequency:** Real-time (Intraday)
                 - **Monte Carlo:** 1,000 Scenarios
             """)
+            
+            with st.expander("Ver Diccionario de Variables"):
+                st.write("""
+                    - **E:** Valor de mercado del capital propio.
+                    - **D:** Valor de mercado de la deuda.
+                    - **V:** Valor total (E + D).
+                    - **T:** Tasa impositiva corporativa.
+                """)
 
         st.divider()
         st.caption(f"Terminal Costco Intelligence | Versión 3.4.1 | {datetime.date.today().year}")
-
+        
     # -------------------------------------------------------------------------
     # TAB 10: OPCIONES LAB (FULL GREEKS)
     # -------------------------------------------------------------------------
