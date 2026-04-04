@@ -613,37 +613,84 @@ def main():
         st.table(df_fwd.style.format("{:.2f}"))
         st.plotly_chart(px.line(df_fwd, x="Año", y="Rev ($B)", markers=True, title="Trayectoria Proyectada de Ingresos"), use_container_width=True)
 
-    # -------------------------------------------------------------------------
-    # TAB 6: FINANZAS PRO (CUADRO 3 AÑOS + FECHAS LÍMPIAS + EXCEL)
+# -------------------------------------------------------------------------
+    # TAB 6: FINANZAS PRO (COMPARATIVO 5 AÑOS + EXCEL AMIGABLE)
     # -------------------------------------------------------------------------
     with tabs[5]:
-        st.subheader("Análisis de Estados Financieros (Comparativo Auditado 2023-2025)")
-        c_acc1, c_acc2 = st.columns([1, 1.4])
+        st.subheader("Análisis de Estados Financieros (Gestión Institucional)")
+        
+        # 1. Preparación de Datos Amigables (5 años si están disponibles)
+        # yfinance suele entregar 4 años, intentamos extraer los máximos posibles
+        df_is = data['is'] # Estado de Resultados Crudo
+        años_disponibles = df_is.columns.year.astype(str).tolist()
+        
+        # Mapeo de nombres contables US GAAP a Nombres Amigables
+        mapeo_amigable = {
+            'Total Revenue': 'Ingresos Totales',
+            'Cost Of Revenue': 'Coste de Ventas',
+            'Gross Profit': 'Margen Bruto',
+            'Operating Expense': 'Gastos Operativos',
+            'Operating Income': 'Resultado Operativo (EBIT)',
+            'EBITDA': 'EBITDA',
+            'Net Income Common Stockholders': 'Beneficio Neto',
+            'Basic EPS': 'BPA (Beneficio por Acción)'
+        }
+        
+        # Filtramos solo las líneas que queremos en la versión "Amigable"
+        df_friendly = df_is.loc[df_is.index.intersection(mapeo_amigable.keys())].copy()
+        df_friendly.index = [mapeo_amigable[idx] for idx in df_friendly.index]
+        
+        # Ordenamos cronológicamente (de más antiguo a más reciente para la tabla)
+        df_friendly_display = df_friendly[df_friendly.columns[::-1]] / 1e9 # Pasamos a Billones
+        
+        c_acc1, c_acc2 = st.columns([1.2, 1.2])
+        
         with c_acc1:
-            st.write("**Principales Magnitudes Financieras ($B)**")
-            # Cuadro comparativo de 3 años solicitado (Reverse para orden cronológico)
-            df_3y_table = pd.DataFrame({
-                "Año": data['hist_years'][::-1],
-                "Ingresos ($B)": data['rev_vals'][::-1],
-                "EBITDA ($B)": data['ebitda_vals'][::-1],
-                "Utilidad ($B)": data['ni_vals'][::-1]
-            }).set_index("Año").T
-            st.table(df_3y_table.style.format("{:.2f}"))
+            st.write(f"**Comparativo Histórico ({len(años_disponibles)} años) - Valores en $B**")
+            # Aplicamos estilo para resaltar el Beneficio Neto
+            st.table(df_friendly_display.style.format("{:.2f}").highlight_max(axis=1, color="#005BAA22"))
             
+            # --- LÓGICA DE DESCARGA EXCEL AMIGABLE ---
             buf = io.BytesIO()
             with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
-                data['is'].to_excel(writer, sheet_name='Audit')
-            st.download_button("📥 Exportar a Excel", buf.getvalue(), "COST_Audit.xlsx")
+                # Hoja 1: Versión de Gestión (Amigable)
+                df_friendly_display.to_excel(writer, sheet_name='Resumen_Gestion')
+                # Hoja 2: Datos Auditados (Crudos)
+                df_is.to_excel(writer, sheet_name='Datos_Auditados_SEC')
+                
+                # Formateo básico del Excel
+                workbook = writer.book
+                worksheet = writer.sheets['Resumen_Gestion']
+                header_format = workbook.add_format({'bold': True, 'bg_color': '#1e2b3c', 'font_color': 'white'})
+                for col_num, value in enumerate(df_friendly_display.columns.values):
+                    worksheet.write(0, col_num + 1, value, header_format)
+
+            st.download_button(
+                label="📥 Descargar Estados Financieros (5Y Friendly)",
+                data=buf.getvalue(),
+                file_name=f"COST_Financials_Management_View.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                help="Descarga un Excel con los estados financieros limpios y formateados para análisis de gestión."
+            )
 
         with c_acc2:
-            st.write("**Evolución de Ingresos y Márgenes**")
-            fig_fin_trend = make_subplots(specs=[[{"secondary_y": True}]])
-            # CORRECCIÓN DE FECHAS: Eje X forzado como categoría
-            fig_fin_trend.add_trace(go.Bar(x=data['hist_years'][::-1], y=data['rev_vals'][::-1], name="Revenue", marker_color="#005BAA"))
-            fig_fin_trend.add_trace(go.Scatter(x=data['hist_years'][::-1], y=(np.array(data['ni_vals'][::-1])/np.array(data['rev_vals'][::-1]))*100, name="Net Margin %", line=dict(color="#f85149", width=5)), secondary_y=True)
-            fig_fin_trend.update_layout(template="plotly_dark", height=450, xaxis_type='category')
-            st.plotly_chart(fig_fin_trend, use_container_width=True)
-
+            st.write("**Análisis de Márgenes y Eficiencia**")
+            # Cálculo de márgenes sobre la marcha
+            margen_bruto = (df_friendly.loc['Margen Bruto'] / df_friendly.loc['Ingresos Totales']) * 100
+            margen_neto = (df_friendly.loc['Beneficio Neto'] / df_friendly.loc['Ingresos Totales']) * 100
+            
+            fig_trends = go.Figure()
+            fig_trends.add_trace(go.Scatter(x=años_disponibles[::-1], y=margen_bruto[::-1], name="Margen Bruto %", line=dict(color="#2ecc71", width=4)))
+            fig_trends.add_trace(go.Scatter(x=años_disponibles[::-1], y=margen_neto[::-1], name="Margen Neto %", line=dict(color="#f85149", width=4)))
+            
+            fig_trends.update_layout(
+                template="plotly_dark", 
+                height=400, 
+                xaxis_type='category',
+                yaxis=dict(title="Porcentaje (%)", gridcolor="#34495e"),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig_trends, use_container_width=True)
     # -------------------------------------------------------------------------
     # TAB 7: DCF LAB PRO (GIGANTE MATRIX & CONTINUITY CHART)
     # -------------------------------------------------------------------------
