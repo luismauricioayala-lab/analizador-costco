@@ -425,7 +425,7 @@ def main():
             st.plotly_chart(fig_radar, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 3: GANANCIAS & SENTIMIENTO (VERSIÓN ALTO CONTRASTE)
+    # TAB 3: GANANCIAS & SENTIMIENTO (VERSIÓN HÍBRIDA: DARK + HIGH CONTRAST)
     # -------------------------------------------------------------------------
     with tabs[2]:
         st.subheader("Análisis de Sentimiento y Proyecciones de Wall Street")
@@ -433,146 +433,193 @@ def main():
         
         with r_col1:
             # 1. Datos de Consenso
-            score_val = data['analysts'].get('score', 2.0)
-            target_val = data['analysts'].get('target', 1067.59)
-            rec_str = data['analysts'].get('key', 'BUY')
-            count_val = data['analysts'].get('count', 37)
+            score_v = data['analysts'].get('score', 2.0)
+            target_v = data['analysts'].get('target', 1067.59)
+            rec_v = data['analysts'].get('key', 'BUY')
+            count_v = data['analysts'].get('count', 37)
             
-            # 2. CSS de Alto Contraste (Corrigiendo legibilidad)
+            # 2. CSS Híbrido (Estética Dark + Texto Blanco Puro)
             st.markdown("""
                 <style>
-                .st-widget-box {
-                    background-color: #f8f9fa; /* Fondo gris muy tenue para contraste */
-                    border: 1px solid #dee2e6;
+                .terminal-box {
+                    background-color: #1e2b3c; /* Fondo oscuro terminal */
                     border-radius: 12px;
-                    padding: 20px;
+                    padding: 22px;
                     font-family: 'Segoe UI', sans-serif;
+                    border: 1px solid #34495e;
                 }
-                .st-rec-header { text-align: center; border-bottom: 2px solid #1e2b3c; padding-bottom: 15px; }
-                .st-rec-val { font-size: 2.2rem; font-weight: 900; color: #1a7f37; margin: 5px 0; }
+                .term-header { text-align: center; border-bottom: 1px solid #34495e; padding-bottom: 18px; }
+                .term-title { font-size: 0.8rem; color: #bdc3c7; text-transform: uppercase; font-weight: 700; letter-spacing: 1.2px; }
+                .term-main-val { font-size: 2.4rem; font-weight: 900; color: #2ecc71; margin: 8px 0; text-shadow: 0 0 10px rgba(46, 204, 113, 0.2); }
+                .term-sub { font-size: 0.75rem; color: #95a5a6; font-weight: 500; }
                 
-                .st-data-row {
+                .term-row {
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
-                    margin: 10px 0;
+                    margin: 12px 0;
                     height: 25px;
                 }
-                /* Texto en azul oscuro/negro para máxima legibilidad */
-                .st-data-label { 
-                    width: 125px; 
-                    font-size: 0.9rem; 
-                    color: #1e2b3c; 
+                /* Etiquetas en blanco puro para máxima legibilidad */
+                .term-label { 
+                    width: 120px; 
+                    font-size: 0.95rem; 
+                    color: #ffffff; 
                     font-weight: 700; 
                 }
-                .st-data-bar-bg {
+                .term-bar-bg {
                     flex-grow: 1;
                     height: 10px;
-                    background: #e9ecef;
-                    margin: 0 12px;
+                    background: #2c3e50;
+                    margin: 0 15px;
                     border-radius: 5px;
-                    border: 1px solid #ced4da;
+                    overflow: hidden;
                 }
-                .st-data-bar-fill { height: 100%; border-radius: 4px; }
+                .term-bar-fill { height: 100%; border-radius: 5px; }
                 
-                .st-data-info { 
+                /* Datos numéricos en blanco brillante */
+                .term-info { 
                     width: 105px; 
                     text-align: right; 
                     font-family: 'JetBrains Mono', monospace; 
-                    font-size: 0.85rem; 
+                    font-size: 0.9rem; 
                     font-weight: 800;
-                    color: #000000; /* Negro puro */
+                    color: #ffffff; 
                 }
-                .st-data-footer { border-top: 2px solid #1e2b3c; margin-top: 15px; padding-top: 15px; }
-                .st-footer-line { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; }
-                .st-footer-label { color: #495057; font-weight: 600; }
-                .st-footer-val { color: #000000; font-weight: 800; }
+                .term-footer { border-top: 1px solid #34495e; margin-top: 20px; padding-top: 15px; }
+                .term-f-line { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.95rem; }
+                .term-f-lbl { color: #bdc3c7; font-weight: 600; }
+                .term-f-val { color: #ffffff; font-weight: 800; }
                 </style>
             """, unsafe_allow_html=True)
 
             # 3. Widget Header
             st.markdown(f"""
-                <div class="st-widget-box">
-                    <div class="st-rec-header">
-                        <div style="font-size: 0.8rem; color: #1e2b3c; text-transform: uppercase; font-weight: 800; letter-spacing: 1px;">Recomendación de los analistas</div>
-                        <div class="st-rec-val">{rec_str.title()}</div>
-                        <div style="font-size: 0.75rem; color: #495057; font-weight: 600;">Basado en {count_val} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
+                <div class="terminal-box">
+                    <div class="term-header">
+                        <div class="term-title">Recomendación de los analistas</div>
+                        <div class="term-main-val">{rec_v.title()}</div>
+                        <div class="term-sub">Basado en {count_v} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
-            # 4. Gráfico Gauge
-            gauge_pos = 6 - score_val
+            # 4. Gráfico Gauge (Aguja Blanca sobre Fondo Oscuro)
+            gauge_pos = 6 - score_v
             fig_gauge = go.Figure(go.Indicator(
                 mode = "gauge", value = gauge_pos,
                 domain = {'x': [0, 1], 'y': [0, 1]},
                 gauge = {
                     'axis': {'range': [1, 5], 'visible': False},
-                    'bar': {'color': "#1e2b3c", 'thickness': 0.08}, # Aguja más gruesa y oscura
+                    'bar': {'color': "#ffffff", 'thickness': 0.1}, # Aguja blanca gruesa
                     'steps': [
-                        {'range': [1, 1.8], 'color': '#d73a49'}, # Rojo saturado
-                        {'range': [1.8, 2.6], 'color': '#fb8f44'}, # Naranja
-                        {'range': [2.6, 3.4], 'color': '#f6e05e'}, # Amarillo
-                        {'range': [3.4, 4.2], 'color': '#2da44e'}, # Verde
+                        {'range': [1, 1.8], 'color': '#f85149'}, # Rojo vibrante
+                        {'range': [1.8, 2.6], 'color': '#f39c12'}, # Naranja
+                        {'range': [2.6, 3.4], 'color': '#f1c40f'}, # Amarillo
+                        {'range': [3.4, 4.2], 'color': '#2ecc71'}, # Verde
                         {'range': [4.2, 5], 'color': '#1a7f37'}    # Verde fuerte
                     ],
-                    'threshold': {'line': {'color': "black", 'width': 3}, 'thickness': 0.8, 'value': gauge_pos}
+                    'threshold': {'line': {'color': "white", 'width': 4}, 'thickness': 0.8, 'value': gauge_pos}
                 }
             ))
-            fig_gauge.update_layout(height=160, margin=dict(t=10, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)')
+            fig_gauge.update_layout(height=170, margin=dict(t=15, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
 
-            # 5. Cuerpo de Barras (Legibilidad Máxima)
+            # 5. Cuerpo de Barras (Contraste Máximo)
             st.markdown(f"""
-                <div class="st-widget-box" style="background: transparent; padding-top: 0; margin-top: -30px; border: none; box-shadow: none;">
-                    <div class="st-data-row">
-                        <div class="st-data-label">Compra agresiva</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 54%; background: #1a7f37;"></div></div>
-                        <div class="st-data-info">20 (54.1%)</div>
+                <div class="terminal-box" style="background: transparent; border: none; box-shadow: none; margin-top: -35px;">
+                    <div class="term-row">
+                        <div class="term-label">Compra agresiva</div>
+                        <div class="term-bar-bg"><div class="term-bar-fill" style="width: 54%; background: #1a7f37; box-shadow: 0 0 8px #1a7f37;"></div></div>
+                        <div class="term-info">20 (54.1%)</div>
                     </div>
-                    <div class="st-data-row">
-                        <div class="st-data-label">Comprar</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 8%; background: #2da44e;"></div></div>
-                        <div class="st-data-info">3 (8.1%)</div>
+                    <div class="term-row">
+                        <div class="term-label">Comprar</div>
+                        <div class="term-bar-bg"><div class="term-bar-fill" style="width: 8%; background: #2ecc71;"></div></div>
+                        <div class="term-info">3 (8.1%)</div>
                     </div>
-                    <div class="st-data-row">
-                        <div class="st-data-label">Conservar</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 32%; background: #f6e05e;"></div></div>
-                        <div class="st-data-info">12 (32.4%)</div>
+                    <div class="term-row">
+                        <div class="term-label">Conservar</div>
+                        <div class="term-bar-bg"><div class="term-bar-fill" style="width: 32%; background: #f1c40f;"></div></div>
+                        <div class="term-info">12 (32.4%)</div>
                     </div>
-                    <div class="st-data-row">
-                        <div class="st-data-label">Vender</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 0%; background: #fb8f44;"></div></div>
-                        <div class="st-data-info">0 (0.0%)</div>
+                    <div class="term-row">
+                        <div class="term-label">Vender</div>
+                        <div class="term-bar-bg"><div class="term-bar-fill" style="width: 0%; background: #f39c12;"></div></div>
+                        <div class="term-info">0 (0.0%)</div>
                     </div>
-                    <div class="st-data-row">
-                        <div class="st-data-label">Venta fuerte</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 5%; background: #d73a49;"></div></div>
-                        <div class="st-data-info">2 (5.4%)</div>
+                    <div class="term-row">
+                        <div class="term-label">Venta fuerte</div>
+                        <div class="term-bar-bg"><div class="term-bar-fill" style="width: 5%; background: #f85149;"></div></div>
+                        <div class="term-info">2 (5.4%)</div>
                     </div>
-                    <div class="st-data-footer">
-                        <div class="st-footer-line"><span class="st-footer-label">Precio previsto (12m)</span><span class="st-footer-val">USD {target_val:,.2f}</span></div>
-                        <div class="st-footer-line"><span class="st-footer-label">Volatilidad</span><span class="st-footer-val">Promedio</span></div>
-                        <div class="st-footer-line"><span class="st-footer-label">Recomendación sector</span><span class="st-footer-val" style="color:#1a7f37;">Comprar</span></div>
+                    <div class="term-footer">
+                        <div class="term-f-line"><span class="term-f-lbl">Precio previsto (12m)</span><span class="term-f-val">USD {target_v:,.2f}</span></div>
+                        <div class="term-f-line"><span class="term-f-lbl">Volatilidad</span><span class="term-f-val">Promedio</span></div>
+                        <div class="term-f-line"><span class="term-f-lbl">Recomendación sector</span><span class="term-f-val" style="color:#2ecc71;">Comprar</span></div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
-        with r_col2:
-            # Gráfico de Ganancias Pro (Se mantiene con eje X categoría)
+with r_col2:
+            # 1. Preparación de datos (BPA / EPS)
             quarters = ['2025Q3', '2025Q4', '2026Q1', '2026Q2']
-            fig_eps = go.Figure()
-            fig_eps.add_trace(go.Bar(x=quarters, y=[3.80, 5.51, 4.55, 4.55], name="Estimado", marker_color="#495057"))
-            fig_eps.add_trace(go.Bar(x=quarters, y=[3.92, 5.82, 4.58, 4.58], name="Real", marker_color="#005BAA"))
+            est_bpa = [3.80, 5.51, 4.55, 4.55]
+            real_bpa = [3.92, 5.82, 4.58, 4.58]
             
+            fig_eps = go.Figure()
+            
+            # Barras con colores de alto contraste
+            fig_eps.add_trace(go.Bar(
+                x=quarters, 
+                y=est_bpa, 
+                name="Estimado", 
+                marker_color="#34495e",
+                hovertemplate="Estimado: $%{y:.2f}<extra></extra>"
+            ))
+            fig_eps.add_trace(go.Bar(
+                x=quarters, 
+                y=real_bpa, 
+                name="Real", 
+                marker_color="#005BAA",
+                hovertemplate="Real: $%{y:.2f}<extra></extra>"
+            ))
+            
+            # 2. Configuración del Eje Derecho y Título de Escala
             fig_eps.update_layout(
                 title="Sorpresas en Beneficio por Acción (BPA)",
                 barmode='group',
-                template="plotly_white", # Cambiado a blanco para hacer juego con el alto contraste
-                height=450,
-                xaxis_type='category'
+                template="plotly_dark",
+                height=480,
+                xaxis_type='category',
+                # Configuración de Ejes
+                yaxis=dict(
+                    title="BPA ($)",
+                    side="right", # Eje a la derecha
+                    gridcolor='#2c3e50',
+                    tickfont=dict(color='#ffffff', size=13, family="JetBrains Mono"),
+                    titlefont=dict(color='#bdc3c7', size=14),
+                    showgrid=True,
+                    zeroline=True,
+                    zerolinecolor='#555'
+                ),
+                xaxis=dict(
+                    tickfont=dict(color='#ffffff', size=12),
+                    showgrid=False
+                ),
+                # Leyenda y Márgenes
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1,
+                    font=dict(size=12)
+                ),
+                margin=dict(t=80, b=40, l=20, r=60) # Más margen a la derecha para la escala
             )
-            st.plotly_chart(fig_eps, use_container_width=True)
+            
+            st.plotly_chart(fig_eps, use_container_width=True, config={'displayModeBar': False})
             
     # -------------------------------------------------------------------------
     # TAB 4: STRESS TEST PRO (TOTALMENTE AJUSTABLE)
