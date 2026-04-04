@@ -768,12 +768,13 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO - FIX DE TYPEERROR Y ESCALA VISUAL
+    # TAB 7: DCF LAB PRO - ESCALA DE COLORES CALIBRADA (TARGET $1,067)
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # --- 1. AJUSTE DE CALIBRACIÓN ---
+        # --- DEFINICIÓN CRÍTICA (Evita el UnboundLocalError) ---
+        precio_actual = data['price'] 
         fcf_premium_lab = data['fcf_now_b'] * 1.10 
         
         col_mtx, col_flow = st.columns([1.2, 1])
@@ -791,80 +792,48 @@ def main():
                 for w in w_rng
             ]
             
-        fig_giant = px.imshow(
-                pd.DataFrame(
-                    mtx, 
-                    index=[f"{x*100:.1f}%" for x in w_rng], 
-                    columns=[f"{x*100:.1f}%" for x in g_rng]
-                ),
+            # Heatmap con Escala Inteligente
+            fig_giant = px.imshow(
+                pd.DataFrame(mtx, index=[f"{x*100:.1f}%" for x in w_rng], columns=[f"{x*100:.1f}%" for x in g_rng]),
                 text_auto='.0f',
-                # Usamos una escala divergente (Red-Yellow-Green)
-                color_continuous_scale='RdYlGn', 
-                # CRÍTICO: Centramos el punto medio en el precio de mercado actual
-                # Esto asegura que el color verde signifique "Upside" real
-                zmid=float(precio_actual), 
-                aspect="auto", 
-                height=700 
+                color_continuous_scale='RdYlGn', # Rojo-Amarillo-Verde
+                zmid=float(precio_actual),        # El color neutro será el precio de hoy
+                aspect="auto", height=600 
             )
             
-        fig_giant.update_layout(
-                xaxis_title="Crecimiento Perpetuo (g terminal)",
-                yaxis_title="Costo de Capital (WACC)",
-                coloraxis_showscale=True, # La activamos para que el comité vea la escala
+            fig_giant.update_layout(
+                template="plotly_dark", 
+                coloraxis_showscale=True, 
                 coloraxis_colorbar=dict(title="Fair Value ($)"),
-                template="plotly_dark",
                 margin=dict(t=10, b=10, l=10, r=10)
             )
+            st.plotly_chart(fig_giant, use_container_width=True, config={'displayModeBar': False})
 
         with col_flow:
             st.write("**Evolución del Flujo de Caja Anual ($B)**")
             
-            # 2. EXTRACCIÓN SEGURA DE FLUJOS
             res_dcf = ValuationOracle.run_macro_dcf(
                 fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
             )
             
-            # Validamos qué recibimos en la 4ta posición
-            flows_proy = res_dcf[3] if len(res_dcf) > 3 else []
-            
-            # SEGURIDAD: Si flows_proy no es una lista, creamos una progresión lineal simple 
-            # para que el gráfico no se rompa y sea visualmente coherente
+            # Extracción segura de flujos
+            flows_proy = res_dcf[3] if (isinstance(res_dcf, (list, tuple)) and len(res_dcf) > 3) else []
             if not isinstance(flows_proy, list) or len(flows_proy) == 0:
-                base_fcf = fcf_premium_lab
-                flows_proy = [base_fcf * (1 + g1_in)**i for i in range(1, 11)]
+                flows_proy = [fcf_premium_lab * (1 + g1_in)**i for i in range(1, 11)]
 
             h_yrs = data['hist_years'][::-1]
             f_yrs = [str(int(h_yrs[-1]) + i) for i in range(1, 11)]
-            
-            # Calculamos el máximo para el eje Y de forma segura
             y_max = max(flows_proy) if flows_proy else 20
             
             fig_dcf_flow = go.Figure()
-            
-            # Histórico Real
-            fig_dcf_flow.add_trace(go.Scatter(
-                x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], 
-                name="Histórico Real", line=dict(color="#005BAA", width=6), mode='markers+lines'
-            ))
-            
-            # Proyección Anual
-            fig_dcf_flow.add_trace(go.Scatter(
-                x=[h_yrs[-1]] + f_yrs, 
-                y=[data['fcf_hist_b'].values[0]] + flows_proy, 
-                name="Proyección Anual", 
-                line=dict(color="#f85149", dash='dash', width=5), mode='markers+lines'
-            ))
+            fig_dcf_flow.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Histórico", line=dict(color="#005BAA", width=6), mode='markers+lines'))
+            fig_dcf_flow.add_trace(go.Scatter(x=[h_yrs[-1]] + f_yrs, y=[data['fcf_hist_b'].values[0]] + flows_proy, name="Proyección", line=dict(color="#f85149", dash='dash', width=5), mode='markers+lines'))
             
             fig_dcf_flow.update_layout(
                 template="plotly_dark", height=600,
                 xaxis_type='category',
-                yaxis=dict(
-                    title="Free Cash Flow ($B)", 
-                    gridcolor='rgba(255,255,255,0.05)',
-                    range=[0, y_max * 1.3] # Escala automática basada en el máximo real
-                ),
-                legend=dict(orientation="h", y=1.1, x=1),
-                margin=dict(t=50, b=10, l=10, r=10)
+                yaxis=dict(title="Free Cash Flow ($B)", range=[0, y_max * 1.3]),
+                legend=dict(orientation="h", y=1.1, x=1)
             )
             st.plotly_chart(fig_dcf_flow, use_container_width=True)
             
