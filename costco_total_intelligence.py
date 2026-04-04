@@ -87,6 +87,33 @@ st.markdown("""
         box-shadow: 0 30px 70px rgba(0,0,0,0.6);
     }
 
+    /* === NUEVAS TARJETAS DE ESCENARIO (VISUAL IMPACT) === */
+    .scenario-card-detailed {
+        padding: 35px;
+        border-radius: 20px;
+        text-align: center;
+        margin-bottom: 20px;
+        border: 1px solid var(--border-color);
+        transition: transform 0.3s ease;
+    }
+    .scenario-card-detailed:hover { transform: translateY(-5px); }
+
+    .bear-gradient {
+        background: linear-gradient(145deg, rgba(248, 81, 73, 0.12) 0%, rgba(15, 15, 15, 1) 100%);
+        border-top: 5px solid var(--danger-red);
+    }
+    .base-gradient {
+        background: linear-gradient(145deg, rgba(0, 91, 170, 0.12) 0%, rgba(15, 15, 15, 1) 100%);
+        border-top: 5px solid var(--accent-blue);
+    }
+    .bull-gradient {
+        background: linear-gradient(145deg, rgba(63, 185, 80, 0.12) 0%, rgba(15, 15, 15, 1) 100%);
+        border-top: 5px solid var(--success-green);
+    }
+    .price-hero-large { font-size: 58px; font-weight: 900; letter-spacing: -3px; margin: 5px 0; }
+    .scenario-label { font-size: 13px; font-weight: 800; text-transform: uppercase; color: #888; letter-spacing: 1px; }
+    .driver-list { font-size: 12px; color: #999; margin-top: 15px; line-height: 1.5; text-align: left; padding-left: 10px; }
+
     /* Tablas de Auditoría */
     .stTable { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; }
     </style>
