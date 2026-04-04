@@ -967,7 +967,7 @@ def main():
                 
                 # Intentar leer el PDF del repositorio
                 try:
-                    with open("metodologia_costco_2026.pdf", "rb") as f:
+                    with open("Guia_Metodologica_COST.pdf", "rb") as f:
                         pdf_data = f.read()
                     
                     st.download_button(
