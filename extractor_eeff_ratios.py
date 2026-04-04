@@ -2,6 +2,7 @@ import yfinance as yf
 import pandas as pd
 import streamlit as st
 import io
+import plotly.express as px  # Importación necesaria para gráficas
 
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="COST Ratio Intelligence", layout="wide")
@@ -33,7 +34,7 @@ def calculate_advanced_ratios(ticker_symbol):
     rev_growth = is_df.loc['Total Revenue'].pct_change(-1) * 100
     eps_growth = is_df.loc['Basic EPS'].pct_change(-1) * 100
     
-    # Unificar en un DataFrame amigable (Estilo Terminal)
+    # Unificar en un DataFrame amigable
     ratios = pd.DataFrame({
         "Crecimiento Ingresos (%)": rev_growth,
         "Crecimiento EPS (%)": eps_growth,
@@ -49,32 +50,6 @@ def calculate_advanced_ratios(ticker_symbol):
     }).T
     
     return ratios, is_df, bs_df, cf_df
-      
-    # --- NUEVA SECCIÓN DE GRÁFICAS ---
-        st.markdown("---")
-        st.subheader("📈 Análisis de Tendencias Visual")
-        
-        col_g1, col_g2 = st.columns(2)
-        
-        with col_g1:
-            # Gráfica de Ingresos y Utilidad Neta
-            df_plot = is_df.loc[['Total Revenue', 'Net Income']].T
-            fig_rev = px.line(df_plot, title="Ventas vs Utilidad Neta (Evolución)", 
-                              markers=True, template="plotly_white",
-                              color_discrete_map={"Total Revenue": "#005BAA", "Net Income": "#E31837"})
-            st.plotly_chart(fig_rev, use_container_width=True)
-            
-        with col_g2:
-            # Gráfica de Márgenes
-            margins = r_df.loc[['Margen Bruto (%)', 'Margen Operativo (%)', 'Margen Neto (%)']].T
-            fig_marg = px.bar(margins, barmode='group', title="Estructura de Márgenes (%)",
-                              template="plotly_white")
-            st.plotly_chart(fig_marg, use_container_width=True)
-
-
-
-
-
 
 # --- INTERFAZ STREAMLIT ---
 st.title("🏛️ Extractor de Ratios Pro — Estilo Bloomberg")
@@ -87,7 +62,30 @@ if st.button("📥 Ejecutar Análisis de Ratios"):
         st.subheader("🔥 Panel de Ratios Calculados (Últimos 4 años)")
         st.dataframe(r_df.style.format("{:.2f}"))
         
-        # Exportación a Excel
+        # --- SECCIÓN DE GRÁFICAS (Fuera de la función para que funcione correctamente) ---
+        st.markdown("---")
+        st.subheader("📈 Análisis de Tendencias Visual")
+        
+        col_g1, col_g2 = st.columns(2)
+        
+        with col_g1:
+            # Gráfica de Ingresos y Utilidad Neta
+            # Transponemos para que los años estén en el eje X
+            df_plot = is_df.loc[['Total Revenue', 'Net Income']].T
+            fig_rev = px.line(df_plot, title="Ventas vs Utilidad Neta (Evolución)", 
+                              markers=True, template="plotly_white",
+                              color_discrete_map={"Total Revenue": "#005BAA", "Net Income": "#E31837"})
+            st.plotly_chart(fig_rev, use_container_width=True)
+            
+        with col_g2:
+            # Gráfica de Márgenes
+            # Seleccionamos los márgenes del dataframe de ratios
+            margins_plot = r_df.loc[['Margen Bruto (%)', 'Margen Operativo (%)', 'Margen Neto (%)']].T
+            fig_marg = px.bar(margins_plot, barmode='group', title="Estructura de Márgenes (%)",
+                              template="plotly_white")
+            st.plotly_chart(fig_marg, use_container_width=True)
+
+        # --- EXPORTACIÓN ---
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             r_df.to_excel(writer, sheet_name='RATIOS_ANALISIS')
