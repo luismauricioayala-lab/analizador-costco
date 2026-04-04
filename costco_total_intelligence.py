@@ -292,23 +292,70 @@ def main():
     # -------------------------------------------------------------------------
     # TAB 1: RESUMEN EJECUTIVO (WATERFALL)
     # -------------------------------------------------------------------------
+# -------------------------------------------------------------------------
+    # TAB 1: RESUMEN EJECUTIVO (MODIFICADO: IMPACTO VISUAL & DETALLE)
+    # -------------------------------------------------------------------------
     with tabs[0]:
-        sc1, sc2, sc3 = st.columns(3)
-        v_bear, _, _, _ = ValuationOracle.run_macro_dcf(data['fcf_now_b'], g1_in*0.5, 0.02, final_wacc+0.02, macro_adj=-0.15)
-        v_bull, _, _, _ = ValuationOracle.run_macro_dcf(data['fcf_now_b'], g1_in+0.05, 0.12, final_wacc-0.01, macro_adj=0.10)
+        st.subheader("Modelado de Escenarios de Sensibilidad Estratégica")
         
-        sc1.markdown(f'<div class="scenario-card"><small>BEAR CASE</small><div class="price-hero" style="color:var(--danger-red)">${v_bear:.0f}</div></div>', unsafe_allow_html=True)
-        sc2.markdown(f'<div class="scenario-card"><small>BASE CASE</small><div class="price-hero">${f_val:.0f}</div></div>', unsafe_allow_html=True)
-        sc3.markdown(f'<div class="scenario-card"><small>BULL CASE</small><div class="price-hero" style="color:var(--success-green)">${v_bull:.0f}</div></div>', unsafe_allow_html=True)
+        # Definición técnica de escenarios (Cálculos directos)
+        # Bear: Recesión + Inflación | Bull: Expansión China + Eficiencia Digital
+        v_bear, _, _, _ = ValuationOracle.run_macro_dcf(data['fcf_now_b'], 0.045, 0.02, final_wacc+0.02, macro_adj=-0.15)
+        v_bull, _, _, _ = ValuationOracle.run_macro_dcf(data['fcf_now_b'], 0.185, 0.10, final_wacc-0.01, macro_adj=0.12)
         
+        c_sc1, c_sc2, c_sc3 = st.columns(3)
+        
+        with c_sc1:
+            st.markdown(f"""
+                <div class="scenario-card-detailed bear-gradient">
+                    <div class="scenario-label">Bear Case: Macroeconomic Shock</div>
+                    <div class="price-hero-large" style="color:var(--danger-red)">${v_bear:.0f}</div>
+                    <div class="driver-list">
+                        • <b>GDP Stress:</b> Recesión global (Canadá/EE.UU < 0%)<br>
+                        • <b>Consumer Hit:</b> Inflación CPI persistente > 5.5%<br>
+                        • <b>Margins:</b> Erosión de margen operativo por costos logísticos<br>
+                        • <b>WACC:</b> Prima de riesgo país incrementada (+200bps)
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with c_sc2:
+            st.markdown(f"""
+                <div class="scenario-card-detailed base-gradient">
+                    <div class="scenario-label">Base Case: Institutional Consensus</div>
+                    <div class="price-hero-large">${f_val:.0f}</div>
+                    <div class="driver-list">
+                        • <b>Revenue:</b> Crecimiento orgánico proyectado del {g1_in*100:.1f}%<br>
+                        • <b>Loyalty:</b> Retención de membresía estable > 91%<br>
+                        • <b>Mix:</b> Estabilidad en la penetración de Kirkland Signature<br>
+                        • <b>WACC:</b> Costo de capital promedio ponderado de {final_wacc*100:.1f}%
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with c_sc3:
+            st.markdown(f"""
+                <div class="scenario-card-detailed bull-gradient">
+                    <div class="scenario-label">Bull Case: Omnichannel & Asia Scaling</div>
+                    <div class="price-hero-large" style="color:var(--success-green)">${v_bull:.0f}</div>
+                    <div class="driver-list">
+                        • <b>Expansion:</b> Aceleración de aperturas en China y Japón<br>
+                        • <b>Digital:</b> Mejora de 150bps en margen e-commerce<br>
+                        • <b>Membership:</b> Incremento en el mix de Executive Members<br>
+                        • <b>Efficiency:</b> Optimización logística mediante IA generativa
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        # Waterfall Bridge para composición de valor
         st.markdown("---")
         fig_water = go.Figure(go.Waterfall(
             orientation="v", measure=["relative", "relative", "relative", "total"],
-            x=["PV Flows (10Y)", "Terminal Value", "Net Debt", "Equity Value"],
-            y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], f_val * data['shares_m'] / 1000],
+            x=["PV Cash Flows", "Terminal Value", "Net Cash Position", "Equity Value"],
+            y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], (f_val * data['shares_m'] / 1000)],
             textposition="outside", connector={"line":{"color":"#888"}}
         ))
-        fig_water.update_layout(title="Composición del Valor Institucional ($B)", template="plotly_dark", height=500)
+        fig_water.update_layout(title="Bridge de Composición del Valor Intrínseco ($B)", template="plotly_dark", height=450)
         st.plotly_chart(fig_water, use_container_width=True)
 
     # -------------------------------------------------------------------------
