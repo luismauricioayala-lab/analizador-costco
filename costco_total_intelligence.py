@@ -283,9 +283,15 @@ def main():
     p_ref = st.sidebar.number_input("Market Price Ref. ($)", value=float(data['price']))
     
     st.sidebar.markdown("---")
-    st.sidebar.subheader("1. Valuación (DCF)")
-    wacc_base = st.sidebar.slider("Tasa WACC Base (%)", 4.0, 16.0, 8.5) / 100
+st.sidebar.subheader("1. Valuación (DCF)")
+    
+    # Bajamos el WACC inicial al 7.0% para reflejar la calidad AAA de Costco
+    wacc_base = st.sidebar.slider("Tasa WACC Base (%)", 4.0, 16.0, 7.0) / 100
+    
+    # Mantenemos el 12.0% como un crecimiento sólido de 1ra etapa
     g1_in = st.sidebar.slider("Crecimiento 1-5Y (%)", -10.0, 50.0, 12.0) / 100
+    
+    # Un 8.0% para la segunda etapa es un estándar de "calidad" muy realista
     g2_in = st.sidebar.slider("Crecimiento 6-10Y (%)", 0.0, 20.0, 8.0) / 100
 
     st.sidebar.markdown("---")
