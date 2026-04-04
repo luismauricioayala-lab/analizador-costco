@@ -209,7 +209,8 @@ def main():
         with st2:
             sh_c = st.slider("Inflación CPI %", 0, 15, 3)
             sh_w = st.slider("Alza Salarial %", 0, 12, 4)
-        
+
+        st.markdown('<div class="swan-box">', unsafe_allow_html=True)
         st.markdown("### ⚠️ Eventos Cisne Negro (Black Swan)")
         c_swan1, c_swan2, c_swan3 = st.columns(3)
         g_swan = 0.0
