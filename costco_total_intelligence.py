@@ -425,73 +425,72 @@ def main():
             st.plotly_chart(fig_radar, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 3: GANANCIAS & SENTIMIENTO (VERSIÓN DATA-DRIVEN)
+    # TAB 3: GANANCIAS & SENTIMIENTO (DATOS PRECISOS)
     # -------------------------------------------------------------------------
     with tabs[2]:
         st.subheader("Análisis de Sentimiento y Proyecciones de Wall Street")
-        r_col1, r_col2 = st.columns([1.2, 2])
+        r_col1, r_col2 = st.columns([1.3, 2])
         
-with r_col1:
-            # 1. Definición de Datos (Basado en 37 analistas)
-            score = data['analysts'].get('score', 2.0)
-            target = data['analysts'].get('target', 1067.59)
-            rec_key = data['analysts'].get('key', 'BUY')
+        with r_col1:
+            # 1. Extracción de Datos
+            score_val = data['analysts'].get('score', 2.0)
+            target_val = data['analysts'].get('target', 1067.59)
+            rec_str = data['analysts'].get('key', 'BUY')
+            count_val = data['analysts'].get('count', 37)
             
-            # 2. Inyección de Estilos Locales (Garantiza alineación absoluta)
+            # 2. Estilos CSS Locales (Inyectados para evitar desalineación)
             st.markdown("""
                 <style>
-                .widget-container {
+                .st-widget-box {
                     background-color: #1e2b3c;
                     border-radius: 12px;
                     padding: 20px;
                     font-family: 'Segoe UI', sans-serif;
                 }
-                .rec-header { text-align: center; border-bottom: 1px solid #34495e; padding-bottom: 15px; }
-                .rec-val { font-size: 2.2rem; font-weight: 800; color: #2ecc71; margin: 5px 0; }
-                
-                .data-row {
+                .st-rec-header { text-align: center; border-bottom: 1px solid #34495e; padding-bottom: 15px; }
+                .st-rec-val { font-size: 2.2rem; font-weight: 800; color: #2ecc71; margin: 5px 0; }
+                .st-data-row {
                     display: flex;
                     align-items: center;
                     justify-content: space-between;
                     margin: 8px 0;
                     height: 25px;
                 }
-                .data-label { width: 110px; font-size: 0.85rem; color: #bdc3c7; }
-                .data-bar-bg {
+                .st-data-label { width: 110px; font-size: 0.85rem; color: #bdc3c7; }
+                .st-data-bar-bg {
                     flex-grow: 1;
                     height: 8px;
                     background: #2c3e50;
                     margin: 0 12px;
                     border-radius: 4px;
-                    position: relative;
                 }
-                .data-bar-fill { height: 100%; border-radius: 4px; }
-                .data-info { 
-                    width: 90px; 
+                .st-data-bar-fill { height: 100%; border-radius: 4px; }
+                .st-data-info { 
+                    width: 100px; 
                     text-align: right; 
                     font-family: 'JetBrains Mono', monospace; 
                     font-size: 0.8rem; 
                     font-weight: 600;
                     color: #ecf0f1;
                 }
-                .data-footer { border-top: 1px solid #34495e; margin-top: 15px; padding-top: 15px; }
-                .footer-line { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; }
+                .st-data-footer { border-top: 1px solid #34495e; margin-top: 15px; padding-top: 15px; }
+                .st-footer-line { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.85rem; }
                 </style>
             """, unsafe_allow_html=True)
 
-            # 3. Renderizado del Header
+            # 3. Renderizado del Widget (Header)
             st.markdown(f"""
-                <div class="widget-container">
-                    <div class="rec-header">
+                <div class="st-widget-box">
+                    <div class="st-rec-header">
                         <div style="font-size: 0.75rem; color: #bdc3c7; text-transform: uppercase; letter-spacing: 1px;">Recomendación de los analistas</div>
-                        <div class="rec-val">{rec_key.title()}</div>
-                        <div style="font-size: 0.7rem; color: #7f8c8d;">Basado en 37 analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
+                        <div class="st-rec-val">{rec_str.title()}</div>
+                        <div style="font-size: 0.7rem; color: #7f8c8d;">Basado en {count_val} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
             # 4. Gráfico de Arco (Gauge)
-            gauge_pos = 6 - score
+            gauge_pos = 6 - score_val
             fig_gauge = go.Figure(go.Indicator(
                 mode = "gauge", value = gauge_pos,
                 domain = {'x': [0, 1], 'y': [0, 1]},
@@ -511,29 +510,38 @@ with r_col1:
             fig_gauge.update_layout(height=160, margin=dict(t=0, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
 
-            # 5. Cuerpo de Barras con Datos (Sin indentación para evitar errores de Markdown)
+            # 5. Cuerpo de Barras con Datos (Indentación Python normal)
             st.markdown(f"""
-<div class="widget-container" style="background: transparent; padding-top: 0; margin-top: -30px;">
-<div class="data-row"><div class="data-label">Compra agresiva</div><div class="data-bar-bg"><div class="data-bar-fill" style="width: 54%; background: #27ae60;"></div></div><div class="data-info">20 (54.1%)</div></div>
-<div class="data-row"><div class="data-label">Comprar</div><div class="data-bar-bg"><div class="data-bar-fill" style="width: 8%; background: #2ecc71;"></div></div><div class="data-info">3 (8.1%)</div></div>
-<div class="data-row"><div class="data-label">Conservar</div><div class="data-bar-bg"><div class="data-bar-fill" style="width: 32%; background: #f1c40f;"></div></div><div class="data-info">12 (32.4%)</div></div>
-<div class="data-row"><div class="data-label">Vender</div><div class="data-bar-bg"><div class="data-bar-fill" style="width: 0%; background: #e67e22;"></div></div><div class="data-info">0 (0.0%)</div></div>
-<div class="data-row"><div class="data-label">Venta fuerte</div><div class="data-bar-bg"><div class="data-bar-fill" style="width: 5%; background: #e74c3c;"></div></div><div class="data-info">2 (5.4%)</div></div>
-<div class="data-footer">
-<div class="footer-line"><span style="color:#95a5a6;">Precio previsto (12m)</span><span style="font-weight:700;">USD {target:,.2f}</span></div>
-<div class="footer-line"><span style="color:#95a5a6;">Volatilidad</span><span style="font-weight:700;">Promedio</span></div>
-<div class="footer-line"><span style="color:#95a5a6;">Recomendación sector</span><span style="font-weight:700; color:#2ecc71;">Comprar</span></div>
-</div></div>
+                <div class="st-widget-box" style="background: transparent; padding-top: 0; margin-top: -30px; box-shadow: none;">
+                    <div class="st-data-row"><div class="st-data-label">Compra agresiva</div><div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 54%; background: #27ae60;"></div></div><div class="st-data-info">20 (54.1%)</div></div>
+                    <div class="st-data-row"><div class="st-data-label">Comprar</div><div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 8%; background: #2ecc71;"></div></div><div class="st-data-info">3 (8.1%)</div></div>
+                    <div class="st-data-row"><div class="st-data-label">Conservar</div><div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 32%; background: #f1c40f;"></div></div><div class="st-data-info">12 (32.4%)</div></div>
+                    <div class="st-data-row"><div class="st-data-label">Vender</div><div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 0%; background: #e67e22;"></div></div><div class="st-data-info">0 (0.0%)</div></div>
+                    <div class="st-data-row"><div class="st-data-label">Venta fuerte</div><div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 5%; background: #e74c3c;"></div></div><div class="st-data-info">2 (5.4%)</div></div>
+                    <div class="st-data-footer">
+                        <div class="st-footer-line"><span style="color:#95a5a6;">Precio previsto (12m)</span><span style="font-weight:700;">USD {target_val:,.2f}</span></div>
+                        <div class="st-footer-line"><span style="color:#95a5a6;">Volatilidad</span><span style="font-weight:700;">Promedio</span></div>
+                        <div class="st-footer-line"><span style="color:#95a5a6;">Recomendación sector</span><span style="font-weight:700; color:#2ecc71;">Comprar</span></div>
+                    </div>
+                </div>
             """, unsafe_allow_html=True)
+
         with r_col2:
-            # Gráfico de Ganancias
+            # Gráfico de Ganancias Pro
             quarters = ['2025Q3', '2025Q4', '2026Q1', '2026Q2']
             fig_eps = go.Figure()
             fig_eps.add_trace(go.Bar(x=quarters, y=[3.80, 5.51, 4.55, 4.55], name="Estimado", marker_color="#34495e"))
             fig_eps.add_trace(go.Bar(x=quarters, y=[3.92, 5.82, 4.58, 4.58], name="Real", marker_color="#005BAA"))
-            fig_eps.update_layout(title="Sorpresas en Beneficio por Acción (BPA)", barmode='group', template="plotly_dark", height=450)
-            st.plotly_chart(fig_eps, use_container_width=True)
             
+            fig_eps.update_layout(
+                title="Sorpresas en Beneficio por Acción (BPA)",
+                barmode='group',
+                template="plotly_dark",
+                height=450,
+                xaxis_type='category',
+                margin=dict(t=50, b=50, l=50, r=50)
+            )
+            st.plotly_chart(fig_eps, use_container_width=True)
     # -------------------------------------------------------------------------
     # TAB 4: STRESS TEST PRO (TOTALMENTE AJUSTABLE)
     # -------------------------------------------------------------------------
