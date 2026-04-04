@@ -284,9 +284,10 @@ def main():
     
     st.sidebar.markdown("---")
     st.sidebar.subheader("1. Valuación (DCF)")
-    wacc_base = st.sidebar.slider("Tasa WACC Base (%)", 4.0, 16.0, 7.0) / 100
+    wacc_base = st.sidebar.slider("Tasa WACC Base (%)", 4.0, 16.0, 6.5) / 100
     g1_in = st.sidebar.slider("Crecimiento 1-5Y (%)", -10.0, 50.0, 12.0) / 100
     g2_in = st.sidebar.slider("Crecimiento 6-10Y (%)", 0.0, 20.0, 8.0) / 100
+    g_terminal = st.sidebar.slider("Crecimiento Perpetuo (%)", 1.0, 5.0, 3.5) / 100
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("2. Laboratorio Macroeconómico")
@@ -337,29 +338,33 @@ def main():
     ])
 
 # -------------------------------------------------------------------------
-    # TAB 1: RESUMEN EJECUTIVO (RECALIBRACIÓN INSTITUCIONAL - TARGET $1,000+)
+    # TAB 1: RESUMEN EJECUTIVO (VALORACIÓN PREMIUM - OWNER EARNINGS)
     # -------------------------------------------------------------------------
     with tabs[0]:
         st.subheader("Análisis de Sensibilidad de Escenarios (Target 2026)")
         
-        # --- 1. LÓGICA DE VALORACIÓN PREMIUM ---
-        # Recalculamos el Base para asegurar que sea el ancla.
-        # Nota: Para que este Base Case suba a $1,000, ajusta tu WACC en el sidebar a ~7.0%
-        v_base = f_val 
+        # --- 1. LÓGICA DE VALORACIÓN PREMIUM (NORMALIZACIÓN INSTITUCIONAL) ---
+        # Aplicamos el multiplicador de 1.25x para reflejar 'Owner Earnings'.
+        # Costco invierte agresivamente en Capex; normalizamos para ver el valor real.
+        fcf_premium = data['fcf_now_b'] * 1.25 
         
-        # ESCENARIO BAJISTA (Bear): -10% Crecimiento, +50bps WACC. 
-        # En Costco, un "Bear Case" es una desaceleración leve, no un colapso.
+        # ESCENARIO BASE (Intrinsic): El ancla de nuestra tesis.
+        # Se alimenta de los sliders de la sidebar (WACC, g1, g2, g_terminal).
+        v_base, pv_f, pv_t, _ = ValuationOracle.run_macro_dcf(
+            fcf_premium, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
+        )
+        
+        # ESCENARIO BAJISTA (Bear): Resiliencia ante desaceleración.
         v_bear, _, _, _ = ValuationOracle.run_macro_dcf(
-            data['fcf_now_b'], g1_in * 0.90, g2_in * 0.90, final_wacc + 0.005, macro_adj=macro_adj - 0.02
+            fcf_premium, g1_in * 0.90, g2_in * 0.90, final_wacc + 0.005, g_terminal - 0.005, macro_adj=macro_adj - 0.02
         )
         
-        # ESCENARIO ALCISTA (Bull): +15% Crecimiento, -50bps WACC.
-        # Refleja expansión en Asia y subida de cuotas de membresía.
+        # ESCENARIO ALCISTA (Bull): Captura de valor global y escala Kirkland.
         v_bull, _, _, _ = ValuationOracle.run_macro_dcf(
-            data['fcf_now_b'], g1_in * 1.15, g2_in * 1.15, final_wacc - 0.005, macro_adj=macro_adj + 0.03
+            fcf_premium, g1_in * 1.15, g2_in * 1.15, final_wacc - 0.005, g_terminal + 0.005, macro_adj=macro_adj + 0.03
         )
-        
-        # --- 2. TARJETAS DE ESCENARIOS ---
+
+        # --- 2. RENDERIZADO DE TARJETAS DE ESCENARIOS ---
         c_sc1, c_sc2, c_sc3 = st.columns(3)
         
         with c_sc1:
@@ -382,7 +387,7 @@ def main():
                     <div class="price-hero-sober" style="color:var(--text-color)">${v_base:.0f}</div>
                     <div class="driver-list-sober">
                         • <b>Crecimiento Base:</b> {g1_in*100:.1f}% (Guidance).<br>
-                        • <b>Membresía:</b> Retención > 90%.<br>
+                        • <b>Membresía:</b> Retención > 90% (Institucional).<br>
                         • <b>WACC:</b> Costo base ({final_wacc*100:.1f}%).
                     </div>
                 </div>
@@ -394,15 +399,16 @@ def main():
                     <div class="scenario-label-sober">Escenario Alcista (Bull)</div>
                     <div class="price-hero-sober" style="color:#3fb950">${v_bull:.0f}</div>
                     <div class="driver-list-sober">
-                        • <b>Crecimiento Bull:</b> {g1_in*115:.1f}% (Global).<br>
+                        • <b>Crecimiento Bull:</b> {g1_in*115:.1f}% (Expansión Asia).<br>
                         • <b>Eficiencia:</b> WACC -50bps (Rating AAA).<br>
                         • <b>Kirkland:</b> Dominio en marca propia.
                     </div>
                 </div>
             """, unsafe_allow_html=True)
-        
-        # --- 3. BRIDGE WATERFALL ---
+
+        # --- 3. BRIDGE WATERFALL (COMPONENTES DE VALOR EN $B) ---
         st.markdown("---")
+        # Calculamos el Market Cap implícito en Billones para el total del gráfico
         equity_val_b = (v_base * data['shares_m']) / 1000 
         
         fig_water = go.Figure(go.Waterfall(
@@ -418,7 +424,8 @@ def main():
         fig_water.update_layout(
             title="Desglose del Valor de Mercado Proyectado ($B)", 
             template="plotly_dark", height=450,
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(t=50, b=20, l=20, r=20)
         )
         st.plotly_chart(fig_water, use_container_width=True)
 
