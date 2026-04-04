@@ -957,7 +957,7 @@ def main():
                 #### 🧮 Resumen Matemático del Modelo
                 El motor de valoración opera bajo un framework de **Flujo de Caja Descontado (DCF)** dinámico. A continuación se detallan los pilares algorítmicos:
                 
-                **1. Costo del Patrimonio (CAPM):** Calcula la rentabilidad mínima exigida por los accionistas basándose en el riesgo sistémico ($$\beta$$).
+                **1. Costo del Patrimonio (CAPM):** Calcula la rentabilidad mínima exigida por los accionistas basándose en el riesgo sistémico (Beta).
             """)
             st.latex(r"R_e = R_f + \beta \times (E_m - R_f)")
             st.caption("Donde $$R_f$$ es la tasa libre de riesgo (T-Bond 10Y) y $$(E_m - R_f)$$ es la prima de riesgo de mercado.")
