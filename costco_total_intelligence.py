@@ -830,14 +830,105 @@ def main():
 
         st.info("💡 La matriz muestra el Fair Value resultante al variar el WACC (filas) y el crecimiento perpetuo (columnas). El centro representa nuestro escenario base.")
 
-    # -------------------------------------------------------------------------
-    # TAB 8: MONTE CARLO
+# -------------------------------------------------------------------------
+    # TAB 8: MONTE CARLO - SIMULACIÓN DE PROBABILIDADES
     # -------------------------------------------------------------------------
     with tabs[7]:
-        st.subheader("Simulación Estocástica de Valoración (1,000 Iteraciones)")
+        st.subheader("🎲 Simulación Estocástica de Valoración (1,000 Escenarios)")
+        st.markdown("""
+            Esta simulación proyecta 1,000 futuros posibles para Costco variando aleatoriamente el 
+            crecimiento y el costo de capital. Esto nos permite medir el **Margen de Seguridad** real.
+        """)
+        
+        # 1. Configuración de la Simulación
         np.random.seed(42)
-        sim_mc = [ValuationOracle.run_macro_dcf(data['fcf_now_b'], np.random.normal(g1_in, 0.05), 0.08, np.random.normal(final_wacc, 0.005), macro_adj=macro_adj)[0] for _ in range(300)]
-        st.plotly_chart(px.histogram(sim_mc, title="Probabilidad Fair Value", color_discrete_sequence=['#005BAA']), use_container_width=True)
+        iteraciones = 1000
+        
+        # Generamos la distribución de resultados
+        # Variamos g1 (crecimiento) y WACC con una distribución normal
+        sim_mc = [
+            ValuationOracle.run_macro_dcf(
+                data['fcf_now_b'], 
+                np.random.normal(g1_in, 0.02), # Desviación del 2% en crecimiento
+                0.08, 
+                np.random.normal(final_wacc, 0.005), # Desviación de 0.5% en WACC
+                macro_adj=macro_adj
+            )[0] for _ in range(iteraciones)
+        ]
+        
+        sim_series = pd.Series(sim_mc)
+        media_mc = sim_series.mean()
+        
+        # 2. Control de Umbral (La barra ajustable que mencionabas)
+        st.write("---")
+        col_ui1, col_ui2 = st.columns([2, 1])
+        
+        with col_ui1:
+            umbral = st.slider(
+                "Seleccione umbral de Fair Value para medir probabilidad (USD):", 
+                min_value=float(sim_series.min()), 
+                max_value=float(sim_series.max()), 
+                value=float(data['price']),
+                step=10.0,
+                help="Ajuste este valor para ver la probabilidad de que la acción valga más que este precio."
+            )
+        
+        # 3. Cálculo de Probabilidad
+        prob_exito = (sim_series > umbral).mean() * 100
+        
+        with col_ui2:
+            color_prob = "#2ecc71" if prob_exito > 50 else "#f85149"
+            st.metric(
+                label=f"Probabilidad de Valor > ${umbral:.0f}", 
+                value=f"{prob_exito:.1f}%",
+                delta=f"{media_mc - umbral:.2f} spread vs media",
+                delta_color="normal"
+            )
+
+        # 4. Visualización Avanzada
+        fig_hist = px.histogram(
+            sim_series, 
+            nbins=50,
+            title=f"Distribución de Probabilidades: Fair Value",
+            labels={'value': 'Fair Value (USD)', 'count': 'Frecuencia'},
+            color_discrete_sequence=['#005BAA'],
+            opacity=0.7
+        )
+        
+        # Añadimos línea vertical del umbral
+        fig_hist.add_vline(
+            x=umbral, 
+            line_dash="dash", 
+            line_color="#f85149", 
+            annotation_text=f"Umbral: ${umbral:.0f}", 
+            annotation_position="top right"
+        )
+        
+        # Añadimos línea de la media
+        fig_hist.add_vline(
+            x=media_mc, 
+            line_color="#2ecc71", 
+            annotation_text=f"Media: ${media_mc:.0f}", 
+            annotation_position="top left"
+        )
+
+        fig_hist.update_layout(
+            template="plotly_dark",
+            height=500,
+            showlegend=False,
+            margin=dict(t=50, b=50, l=50, r=50),
+            yaxis_title="Escenarios Detectados",
+            xaxis_title="Precio Objetivo Estimado (USD)"
+        )
+        
+        st.plotly_chart(fig_hist, use_container_width=True)
+        
+        # 5. Estadísticas de la Simulación
+        s1, s2, s3, s4 = st.columns(4)
+        s1.write(f"**Mínimo:** ${sim_series.min():.2f}")
+        s2.write(f"**Máximo:** ${sim_series.max():.2f}")
+        s3.write(f"**Percentil 25:** ${sim_series.quantile(0.25):.2f}")
+        s4.write(f"**Percentil 75:** ${sim_series.quantile(0.75):.2f}")
 
     # -------------------------------------------------------------------------
     # TAB 9: METODOLOGÍA (FÓRMULAS LATEX)
