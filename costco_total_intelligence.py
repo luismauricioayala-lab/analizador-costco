@@ -791,12 +791,30 @@ def main():
                 for w in w_rng
             ]
             
-            fig_giant = px.imshow(
-                pd.DataFrame(mtx, index=[f"{x*100:.1f}%" for x in w_rng], columns=[f"{x*100:.1f}%" for x in g_rng]),
-                text_auto='.0f', color_continuous_scale='RdYlGn', aspect="auto", height=600 
+        fig_giant = px.imshow(
+                pd.DataFrame(
+                    mtx, 
+                    index=[f"{x*100:.1f}%" for x in w_rng], 
+                    columns=[f"{x*100:.1f}%" for x in g_rng]
+                ),
+                text_auto='.0f',
+                # Usamos una escala divergente (Red-Yellow-Green)
+                color_continuous_scale='RdYlGn', 
+                # CRÍTICO: Centramos el punto medio en el precio de mercado actual
+                # Esto asegura que el color verde signifique "Upside" real
+                zmid=float(precio_actual), 
+                aspect="auto", 
+                height=700 
             )
-            fig_giant.update_layout(template="plotly_dark", coloraxis_showscale=False, margin=dict(t=10, b=10, l=10, r=10))
-            st.plotly_chart(fig_giant, use_container_width=True, config={'displayModeBar': False})
+            
+        fig_giant.update_layout(
+                xaxis_title="Crecimiento Perpetuo (g terminal)",
+                yaxis_title="Costo de Capital (WACC)",
+                coloraxis_showscale=True, # La activamos para que el comité vea la escala
+                coloraxis_colorbar=dict(title="Fair Value ($)"),
+                template="plotly_dark",
+                margin=dict(t=10, b=10, l=10, r=10)
+            )
 
         with col_flow:
             st.write("**Evolución del Flujo de Caja Anual ($B)**")
