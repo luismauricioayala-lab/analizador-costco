@@ -6,194 +6,190 @@ import plotly.express as px
 from scipy.stats import norm
 import yfinance as yf
 import os
-import io
-import datetime
 
-# --- 1. CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(
-    page_title="COST Institutional Master",
-    page_icon="🏛️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# --- 1. CONFIGURACIÓN E INTERFAZ ---
+st.set_page_config(page_title="COST Institutional Terminal", layout="wide")
 
-# --- 2. UI: CSS ADAPTATIVO (MODO CLARO / OSCURO) ---
+# CSS para estilo Bloomberg/Terminal Profesional
 st.markdown("""
     <style>
-    :root {
-        --text-main: var(--text-color);
-        --bg-card: var(--secondary-background-color);
-        --accent: #005BAA;
-    }
-    .main { padding-top: 1rem; }
-    div[data-testid="stMetric"] {
-        background-color: var(--bg-card);
-        border: 1px solid var(--border-color);
-        padding: 25px !important;
-        border-radius: 12px !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    }
-    div[data-testid="stMetricValue"] > div { color: var(--text-main) !important; font-weight: 800 !important; }
-    .scenario-card {
-        background-color: var(--bg-card);
-        border: 1px solid var(--border-color);
-        border-radius: 15px; padding: 30px; text-align: center; margin-bottom: 20px;
-    }
-    .price-hero { font-size: 42px; font-weight: 900; color: var(--text-main); letter-spacing: -1.5px; }
-    .badge { padding: 5px 15px; border-radius: 20px; font-weight: 700; font-size: 11px; text-transform: uppercase; border: 1px solid; display: inline-block; }
-    .bull { color: #3fb950; background: rgba(63, 185, 80, 0.1); border-color: #3fb950; }
-    .bear { color: #f85149; background: rgba(248, 81, 73, 0.1); border-color: #f85149; }
-    .neutral { color: #dbab09; background: rgba(219, 171, 9, 0.1); border-color: #dbab09; }
-    .stTabs [data-baseweb="tab"] { height: 55px; background-color: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); padding: 0 25px; }
-    .stTabs [aria-selected="true"] { background-color: var(--accent) !important; color: white !important; }
+    .stMetric { background-color: rgba(128, 128, 128, 0.05); padding: 15px; border-radius: 10px; border: 1px solid rgba(128, 128, 128, 0.1); }
+    .scenario-card { background-color: white; border-radius: 15px; padding: 20px; border: 1px solid #e0e0e0; text-align: center; color: #1c1c1c; box-shadow: 2px 2px 5px rgba(0,0,0,0.05); }
+    .metric-costco { color: #1c1c1c; font-size: 32px; font-weight: bold; margin: 5px 0; }
+    .label-bajista { color: #d93025; background-color: #fce8e6; padding: 2px 10px; border-radius: 10px; font-weight: bold; font-size: 14px; }
+    .label-base { color: #f29900; background-color: #fff4e5; padding: 2px 10px; border-radius: 10px; font-weight: bold; font-size: 14px; }
+    .label-alcista { color: #188038; background-color: #e6f4ea; padding: 2px 10px; border-radius: 10px; font-weight: bold; font-size: 14px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. MOTORES DE CÁLCULO ---
-
-def secure_clamp(val, min_v, max_v):
-    return float(max(min(val, max_v), min_v))
+# --- 2. MOTORES FINANCIEROS Y DE DATOS ---
 
 @st.cache_data(ttl=3600)
-def load_institutional_data(ticker_symbol):
+def load_live_data(ticker_symbol):
     try:
-        asset = yf.Ticker(ticker_symbol)
-        inf, cf_raw = asset.info, asset.cashflow
-        fcf_series = (cf_raw.loc['Operating Cash Flow'] + cf_raw.loc['Capital Expenditure']) / 1e9
-        v_h = fcf_series.values[::-1]
-        cagr = (v_h[-1]/v_h[0])**(1/(len(v_h)-1)) - 1 if len(v_h) > 1 and v_h[0] > 0 else 0.12
-        return {
-            "name": inf.get('longName', 'Costco Wholesale'),
-            "price": inf.get('currentPrice', 950.0),
-            "beta": inf.get('beta', 0.79),
-            "fcf_now": fcf_series.iloc[0],
-            "fcf_hist": fcf_series,
-            "cagr_real": cagr,
-            "pe": inf.get('trailingPE', 51.8),
-            "mkt_cap": inf.get('marketCap', 450e9) / 1e9,
-            "is": asset.financials, "bs": asset.balance_sheet, "cf": cf_raw
-        }
-    except: return None
+        t = yf.Ticker(ticker_symbol)
+        info = t.info
+        # Extracción dinámica
+        price = info.get('currentPrice', 950.0)
+        beta = info.get('beta', 0.79)
+        # Cálculo de FCF aproximado (Op Cash Flow + CapEx)
+        cf = t.cashflow
+        last_fcf = (cf.loc['Operating Cash Flow'].iloc[0] + cf.loc['Capital Expenditure'].iloc[0]) / 1e9
+        return {"precio": price, "beta": beta, "fcf": last_fcf, "name": info.get('longName', 'Costco Wholesale')}
+    except:
+        return {"precio": 950.0, "beta": 0.79, "fcf": 9.5, "name": "Costco Wholesale"}
 
-def dcf_engine(fcf, g1, g2, wacc, gt=0.025, shares=0.4436, cash=22.0):
-    projs = []
-    val = fcf
+def dcf_engine(fcf, g1, g2, wacc, gt, shares=0.44365, cash=22.0):
+    flows = []
+    curr = fcf
     for i in range(1, 11):
-        val *= (1 + g1) if i <= 5 else (1 + g2)
-        projs.append(val)
-    pv_f = sum([f / (1 + wacc)**i for i, f in enumerate(projs, 1)])
-    tv = (projs[-1] * (1 + gt)) / (wacc - gt)
+        curr *= (1 + g1) if i <= 5 else (1 + g2)
+        flows.append(curr)
+    pv_f = sum([f / (1 + wacc)**i for i, f in enumerate(flows, 1)])
+    tv = (flows[-1] * (1 + gt)) / (wacc - gt)
     pv_t = tv / (1 + wacc)**10
-    return ((pv_f + pv_t) / shares) + cash, projs, pv_f, pv_t
+    fair_v = ((pv_f + pv_t) / shares) + cash
+    return fair_v, flows, pv_f, pv_t
 
-# --- 4. LÓGICA PRINCIPAL ---
+def calculate_full_greeks(S, K, T, r, sigma, type='call'):
+    T = max(T, 0.0001) 
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    if type == 'call':
+        price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+        delta = norm.cdf(d1)
+        rho = K * T * np.exp(-r * T) * norm.cdf(d2)
+    else:
+        price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+        delta = norm.cdf(d1) - 1
+        rho = -K * T * np.exp(-r * T) * norm.cdf(-d2)
+    gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))
+    vega = (S * np.sqrt(T) * norm.pdf(d1)) / 100
+    theta = (-(S * norm.pdf(d1) * sigma / (2 * np.sqrt(T))) - r * K * np.exp(-r * T) * norm.cdf(d2 if type=='call' else -d2)) / 365
+    return {"price": price, "delta": delta, "gamma": gamma, "vega": vega, "theta": theta, "rho": rho / 100}
 
+# --- 3. DATOS DE MERCADO ---
+PEERS_DATA = pd.DataFrame({
+    'Ticker': ['COST', 'WMT', 'TGT', 'BJ', 'AMZN', 'S&P 500', 'NASDAQ'],
+    'PE': [51.8, 31.2, 17.5, 21.1, 45.0, 22.5, 29.2],
+    'Rev_Growth': [9.5, 6.2, 4.5, 8.2, 12.5, 7.0, 11.0],
+    'Margin': [2.6, 2.4, 3.8, 1.9, 5.1, 11.0, 15.0]
+})
+
+# --- 4. INTERFAZ PRINCIPAL ---
 def main():
-    data = load_institutional_data("COST")
-    if not data: return
+    # Cargar datos en vivo al inicio
+    live = load_live_data("COST")
+    
+    st.title(f"🏛️ {live['name']} — Master Intelligence Terminal")
+    st.caption("Terminal Conectada en Tiempo Real • Datos via Yahoo Finance & SEC")
+    
+    # --- SIDEBAR: SUPUESTOS DINÁMICOS ---
+    st.sidebar.header("🎯 Supuestos del Analista")
+    p_actual = st.sidebar.number_input("Precio Mercado ($)", value=float(live['precio']))
+    fcf_in = st.sidebar.slider("FCF Base ($B)", 5.0, 20.0, value=float(live['fcf']))
+    g1_base = st.sidebar.slider("Crecimiento Años 1-5 (%)", 1, 25, 12) / 100
+    g2_base = st.sidebar.slider("Crecimiento Años 6-10 (%)", 1, 20, 8) / 100
+    wacc_base = st.sidebar.slider("WACC Base (%)", 5.0, 15.0, 8.5) / 100
+    gt = 0.025 
 
-    # SIDEBAR
-    st.sidebar.markdown("## 📟 Panel de Control")
-    MIN_FCF, MAX_FCF = 0.0, 100.0
-    MIN_G, MAX_G = -30.0, 150.0
-    
-    p_mkt = st.sidebar.number_input("Precio Spot de Mercado ($)", value=float(data['price']))
-    f_init = secure_clamp(data['fcf_now'], MIN_FCF, MAX_FCF)
-    fcf_in = st.sidebar.slider("FCF Base ($B)", MIN_FCF, MAX_FCF, f_init)
-    g_init = secure_clamp(data['cagr_real'] * 100, MIN_G, MAX_G)
-    g1 = st.sidebar.slider("Crecimiento Años 1-5 (%)", MIN_G, MAX_G, float(round(g_init, 1))) / 100
-    g2 = st.sidebar.slider("Crecimiento Años 6-10 (%)", 0.0, 30.0, 8.0) / 100
-    wacc = st.sidebar.slider("Tasa WACC (%)", 3.0, 18.0, 8.5) / 100
-    
-    # CÁLCULOS
-    v_fair, flows, pv_c, pv_t = dcf_engine(fcf_in, g1, g2, wacc)
-    upside = (v_fair / p_mkt - 1) * 100
+    # Descarga de Guía
+    if os.path.exists("Guia_Metodologica_COST.pdf"):
+        with open("Guia_Metodologica_COST.pdf", "rb") as file:
+            st.sidebar.download_button(
+                label="📄 Descargar Guía Metodológica",
+                data=file,
+                file_name="Guia_Metodologica_COST.pdf",
+                mime="application/pdf"
+            )
 
-    # DASHBOARD
-    st.title(f"🏛️ {data['name']} Intelligence")
-    st.caption(f"Terminal ID: COST-MASTER-v9.5 | Adaptive UI Active")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("PRECIO SPOT", f"${p_mkt:.2f}")
-    col2.metric("FAIR VALUE (DCF)", f"${v_fair:.2f}", f"{upside:.1f}% Upside", delta_color="normal" if upside > 0 else "inverse")
-    col3.metric("RIESGO BETA", f"{data['beta']}", "Neutral" if data['beta'] > 0.9 else "Defensivo")
-    col4.metric("MARKET CAP", f"${data['mkt_cap']:.1f}B")
+    # CÁLCULO CASO BASE
+    v_base_ref, flows_base, pv_f_base, pv_t_base = dcf_engine(fcf_in, g1_base, g2_base, wacc_base, gt)
+
+    # HEADER METRICS
+    h1, h2, h3, h4 = st.columns(4)
+    h1.metric("P/E TTM", "51.8x", "Premium")
+    h2.metric("Market Cap", "$450.2B", "COST-NASDAQ")
+    h3.metric("Beta (Live)", f"{live['beta']}", "Defensivo")
+    h4.metric("Retention", "92.4%", "Gold Standard")
 
     st.markdown("---")
-    
-    tabs = st.tabs(["📋 Resumen", "💎 Valoración Pro", "📊 Benchmarking", "🎲 Monte Carlo", "🌪️ Stress Test", "📉 Opciones Lab", "📚 Metodología", "📥 Exportar"])
+    tabs = st.tabs(["📋 Resumen", "💎 Valoración", "📊 Benchmarking", "🎲 Monte Carlo", "🌪️ Stress Test", "📉 Opciones", "📚 Metodología"])
 
-    with tabs[0]: # SUMMARY
-        sc1, sc2, sc3 = st.columns(3)
-        v_baj, _, _, _ = dcf_engine(fcf_in, g1*0.6, g2*0.5, wacc+0.02)
-        v_alc, _, _, _ = dcf_engine(fcf_in, g1+0.04, g2+0.02, wacc-0.01)
-        sc1.markdown(f'<div class="scenario-card"><span class="badge bear">BEAR CASE</span><div class="price-hero">${v_baj:.0f}</div><small>Shock Consumo / Tasas +200bps</small></div>', unsafe_allow_html=True)
-        sc2.markdown(f'<div class="scenario-card"><span class="badge neutral">BASE CASE</span><div class="price-hero">${v_fair:.0f}</div><small>Proyección Orgánica</small></div>', unsafe_allow_html=True)
-        sc3.markdown(f'<div class="scenario-card"><span class="badge bull">BULL CASE</span><div class="price-hero">${v_alc:.0f}</div><small>Expansión Asia / Membresía</small></div>', unsafe_allow_html=True)
-        fig_donut = go.Figure(data=[go.Pie(labels=['Cash Flow 10Y', 'Valor Perpetuo'], values=[pv_c, pv_t], hole=.6, marker_colors=['#005BAA', '#C1D82F'])])
+    # --- TAB 0: ESCENARIOS ---
+    with tabs[0]:
+        c_esc1, c_esc2, c_esc3 = st.columns(3)
+        v_baj, _, _, _ = dcf_engine(fcf_in, g1_base*0.5, g2_base*0.4, wacc_base+0.02, 0.02)
+        v_alc, _, _, _ = dcf_engine(fcf_in, g1_base+0.03, g2_base+0.02, wacc_base-0.015, 0.03)
+
+        c_esc1.markdown(f'<div class="scenario-card"><span class="label-bajista">Bajista</span><div class="metric-costco">${v_baj:.0f}</div><div style="color:red">{(v_baj/p_actual-1)*100:.1f}% vs actual</div></div>', unsafe_allow_html=True)
+        c_esc2.markdown(f'<div class="scenario-card"><span class="label-base">Caso Base</span><div class="metric-costco">${v_base_ref:.0f}</div><div style="color:orange">{(v_base_ref/p_actual-1)*100:.1f}% vs actual</div></div>', unsafe_allow_html=True)
+        c_esc3.markdown(f'<div class="scenario-card"><span class="label-alcista">Alcista</span><div class="metric-costco">${v_alc:.0f}</div><div style="color:green">{(v_alc/p_actual-1)*100:.1f}% vs actual</div></div>', unsafe_allow_html=True)
+        
+        fig_donut = go.Figure(data=[go.Pie(labels=['PV Flujos 10Y', 'Valor Terminal'], values=[pv_f_base, pv_t_base], hole=.6, marker_colors=['#005BAA', '#E31837'])])
+        fig_donut.update_layout(title="Composición del Valor Intrínseco", height=400, template="plotly_white")
         st.plotly_chart(fig_donut, use_container_width=True)
 
-    with tabs[1]: # VALORACIÓN
-        st.subheader("Puente de Flujos: Pasado Auditado vs Forecast")
-        h_x = [c.strftime('%Y') for c in data['fcf_hist'].index[::-1]]
-        h_y = data['fcf_hist'].values[::-1]
-        p_x = [str(int(h_x[-1]) + i) for i in range(1, 11)]
-        fig_bridge = go.Figure()
-        fig_bridge.add_trace(go.Scatter(x=h_x, y=h_y, name="Real (10-K)", line=dict(color='#005BAA', width=5), mode='lines+markers'))
-        fig_bridge.add_trace(go.Scatter(x=[h_x[-1]]+p_x, y=[h_y[-1]]+flows, name="Forecast", line=dict(color='#f85149', dash='dash', width=4), mode='lines+markers'))
-        st.plotly_chart(fig_bridge, use_container_width=True)
-        
+    # --- TAB 1: VALORACIÓN ---
+    with tabs[1]:
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            st.subheader("Matriz de Sensibilidad: WACC vs G Terminal")
+            w_range = np.linspace(wacc_base-0.02, wacc_base+0.02, 5)
+            g_range = np.linspace(0.015, 0.035, 5)
+            matrix = [[dcf_engine(fcf_in, g1_base, g2_base, w, g)[0] for g in g_range] for w in w_range]
+            df_sens = pd.DataFrame(matrix, index=[f"W:{x*100:.1f}%" for x in w_range], columns=[f"g:{x*100:.1f}%" for x in g_range])
+            st.plotly_chart(px.imshow(df_sens, text_auto='.0f', color_continuous_scale='RdYlGn', template="plotly_white"), use_container_width=True)
+        with c2:
+            st.subheader("FCF Proyectado ($B)")
+            st.bar_chart(flows_base)
 
-    with tabs[2]: # BENCHMARKING (RECUPERADO)
-        st.subheader("Análisis de Pares e Índices de Mercado")
-        peers_full = pd.DataFrame({
-            'Ticker': ['COST', 'WMT', 'TGT', 'BJ', 'AMZN', 'S&P 500', 'Nasdaq'],
-            'PE': [data['pe'], 31.2, 17.5, 21.1, 45.0, 22.5, 29.8],
-            'Margin': [2.6, 2.4, 3.8, 1.9, 5.1, 11.2, 14.5]
-        })
-        b1, b2 = st.columns(2)
-        with b1: st.plotly_chart(px.bar(peers_full, x='Ticker', y='PE', color='Ticker', title="Múltiplo P/E Comparativo"), use_container_width=True)
-        with b2: st.plotly_chart(px.scatter(peers_full, x='Margin', y='PE', text='Ticker', size='PE', title="Rentabilidad vs Valuación"), use_container_width=True)
+    # --- TAB 2: BENCHMARKING ---
+    with tabs[2]:
+        col_b1, col_b2 = st.columns(2)
+        with col_b1:
+            st.plotly_chart(px.bar(PEERS_DATA, x='Ticker', y='PE', color='Ticker', title="P/E Ratio Comparativo"), use_container_width=True)
+        with col_b2:
+            st.plotly_chart(px.scatter(PEERS_DATA, x='Rev_Growth', y='PE', text='Ticker', size='PE', color='Ticker', title="Crecimiento vs Valuación"), use_container_width=True)
 
-    with tabs[3]: # MONTE CARLO
-        v_mc = st.slider("Incertidumbre (%)", 1, 10, 3) / 100
-        sims = [dcf_engine(fcf_in, np.random.normal(g1, v_mc), g2, np.random.normal(wacc, 0.005), 0.025)[0] for _ in range(1000)]
-        fig_mc = px.histogram(sims, nbins=60, title=f"Probabilidad de Upside: {(np.array(sims) > p_mkt).mean()*100:.1f}%", color_discrete_sequence=['#3fb950'])
+    # --- TAB 3: MONTE CARLO ---
+    with tabs[3]:
+        vol_mc = st.slider("Volatilidad de Pronóstico", 0.01, 0.05, 0.02)
+        sims = [dcf_engine(fcf_in, np.random.normal(g1_base, vol_mc), g2_base, np.random.normal(wacc_base, 0.005), 0.025)[0] for _ in range(1000)]
+        prob_success = (np.array(sims) > p_actual).mean() * 100
+        fig_mc = px.histogram(sims, nbins=40, title=f"Probabilidad de Éxito: {prob_success:.1f}%", template="plotly_white", color_discrete_sequence=['#005BAA'])
+        fig_mc.add_vline(x=p_actual, line_color="red", line_dash="dash")
         st.plotly_chart(fig_mc, use_container_width=True)
 
-    with tabs[4]: # STRESS TEST
-        s1, s2 = st.columns(2)
-        with s1: sh_i = st.slider("Shock Ingreso Real %", -25, 10, 0); sh_u = st.slider("Alza Desempleo %", 3, 20, 4)
-        with s2: sh_c = st.slider("Inflación CPI %", 0, 15, 3); sh_w = st.slider("Alza Salarial %", 0, 12, 4)
-        v_s, _, _, _ = dcf_engine(fcf_in, g1+(sh_i/200)-(sh_u/500), g2, wacc+(sh_c/500)+(sh_w/1000))
-        st.metric("Fair Value Post-Stress", f"${v_s:.2f}", f"{(v_s/v_fair-1)*100:.1f}% vs BASE")
-
-    with tabs[5]: # OPCIONES
-        k_s = st.number_input("Strike Price Ref.", value=float(round(p_mkt*1.05, 0)))
-        iv = st.slider("IV %", 10, 100, 25) / 100
-        # Simplificación de griegas para UI limpia
-        st.info(f"Análisis para Strike ${k_s} con IV {iv*100}%")
-
-    with tabs[6]: # METODOLOGÍA (RECUPERADA)
-        st.header("📚 Marco Metodológico Institucional")
-        st.write("El modelo utiliza un sistema de **Descuento de Flujos de Caja (DCF) de dos etapas** con rampa de convergencia.")
+    # --- TAB 4: STRESS TEST ---
+    with tabs[4]:
+        st.header("🌪️ Stress Test Lab")
+        cs1, cs2 = st.columns(2)
+        with cs1:
+            s_inc = st.slider("Ingreso Disponible %", -10, 5, 0)
+            s_unem = st.slider("Desempleo %", 3, 15, 4)
+        with cs2:
+            s_cpi = st.slider("Inflación %", 0, 10, 3)
+            s_wage = st.slider("Alza Salarial %", 0, 8, 4)
         
-        st.subheader("1. Cálculo del Coste de Capital (WACC)")
-        st.latex(r"WACC = \frac{E}{V} \cdot K_e + \frac{D}{V} \cdot K_d \cdot (1 - T_c)")
-        st.latex(r"K_e = R_f + \beta \cdot (R_m - R_f)")
+        adj_g = g1_base + (s_inc/200) - (s_unem/500)
+        adj_w = wacc_base + (s_cpi/500) + (s_wage/1000)
+        v_stress, _, _, _ = dcf_engine(fcf_in, adj_g, g2_base, adj_w, 0.025)
         
+        st.metric("Valor Post-Estrés", f"${v_stress:.2f}", f"{(v_stress/v_base_ref-1)*100:.1f}%")
 
-        st.subheader("2. Proyección de Flujos y Valor Terminal")
-        st.write("Se proyectan los flujos de los próximos 10 años y se aplica el Modelo de Gordon para el valor perpetuo.")
-        st.latex(r"TV = \frac{FCF_{10} \cdot (1 + g_{terminal})}{WACC - g_{terminal}}")
-        st.latex(r"Intrinsic Value = \sum_{t=1}^{10} \frac{FCF_t}{(1+WACC)^t} + \frac{TV}{(1+WACC)^{10}}")
-        
+    # --- TAB 5: OPCIONES ---
+    with tabs[5]:
+        k = st.number_input("Strike Price", value=float(round(p_actual*1.05, 0)))
+        iv = st.slider("Volatilidad %", 5, 100, 25) / 100
+        res = calculate_full_greeks(p_actual, k, 30/365, 0.045, iv, 'call')
+        st.metric("Prima Call (30D)", f"${res['price']:.2f}")
+        st.write(f"**Delta:** {res['delta']:.3f} | **Vega:** {res['vega']:.3f}")
 
-    with tabs[7]: # EXPORTAR
-        buf = io.BytesIO()
-        with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
-            data['is'].to_excel(wr, sheet_name='Income'); data['bs'].to_excel(wr, sheet_name='Balance'); data['cf'].to_excel(wr, sheet_name='CashFlow')
-        st.download_button("💾 Descargar Master Excel (3-Statement)", buf.getvalue(), f"COST_Institutional_Model.xlsx")
+    # --- TAB 6: MASTERCLASS ---
+    with tabs[6]:
+        st.latex(r"K_e = R_f + \beta (R_m - R_f)")
+        st.info("Este modelo utiliza un DCF de 2 etapas con una rampa de transición del año 6 al 10.")
 
 if __name__ == "__main__":
     main()
