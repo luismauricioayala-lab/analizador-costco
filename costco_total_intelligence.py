@@ -614,16 +614,66 @@ def main():
         st.plotly_chart(px.line(df_fwd, x="Año", y="Rev ($B)", markers=True, title="Trayectoria Proyectada de Ingresos"), use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 6: FINANZAS PRO (DATOS REALES + ORDEN CONTABLE + BPA CORREGIDO)
+    # TAB 6: FINANZAS & RATIOS PRO (BLOOMBERG TERMINAL STYLE)
     # -------------------------------------------------------------------------
     with tabs[5]:
-        st.subheader("Análisis de Estados Financieros (Gestión Institucional 2022-2025)")
+        st.subheader("🏛️ Terminal de Inteligencia Financiera: Costco Wholesale")
+        st.info("Visualización integrada de Estados Financieros Auditados y Ratios de Eficiencia Proyectados (2022-2025).")
         
-        # 1. Procesamiento de Datos
-        df_is_raw = data['is'].copy()
+        # 1. Extracción y Limpieza de Datos (IS, BS, CF)
+        # Usamos los datos ya cargados en el diccionario 'data' de tu app principal
+        is_raw = data['is'].copy()
+        bs_raw = data['bs'].copy()
+        cf_raw = data['cf'].copy()
+
+        # Función de limpieza para asegurar orden cronológico y quitar 2021
+        def prepare_financials(df):
+            df = df[df.columns[::-1]] # Invertir a orden antiguo -> reciente
+            valid_cols = [c for c in df.columns if str(c).split('-')[0] != '2021']
+            return df[valid_cols]
+
+        is_f = prepare_financials(is_raw)
+        bs_f = prepare_financials(bs_raw)
+        cf_f = prepare_financials(cf_raw)
+        años_finales = [str(c).split('-')[0] for c in is_f.columns]
+
+        # 2. CÁLCULO DE RATIOS (Lógica de la App Secundaria)
+        # Calculamos directamente sobre los DataFrames filtrados
+        try:
+            # Rentabilidad
+            roe = (is_f.loc['Net Income Common Stockholders'] / bs_f.loc['Stockholders Equity']) * 100
+            roa = (is_f.loc['Net Income Common Stockholders'] / bs_f.loc['Total Assets']) * 100
+            
+            # Eficiencia y Rotación
+            asset_turnover = is_f.loc['Total Revenue'] / bs_f.loc['Total Assets']
+            inv_turnover = is_f.loc['Cost Of Revenue'] / bs_f.loc['Inventory']
+            
+            # Solvencia
+            debt_ebitda = bs_f.loc['Total Debt'] / is_f.loc['EBITDA']
+            current_ratio = bs_f.loc['Current Assets'] / bs_f.loc['Current Liabilities']
+            
+            # Crecimiento Interanual
+            rev_growth = is_f.loc['Total Revenue'].pct_change() * 100
+            eps_growth = is_f.loc['Basic EPS'].pct_change() * 100
+
+            df_ratios_pro = pd.DataFrame({
+                "Crecimiento Ingresos (%)": rev_growth,
+                "Crecimiento BPA (%)": eps_growth,
+                "ROE (%)": roe,
+                "ROA (%)": roa,
+                "Rotación Activos (x)": asset_turnover,
+                "Rotación Inventario (x)": inv_turnover,
+                "Deuda / EBITDA (x)": debt_ebitda,
+                "Ratio Liquidez (Current)": current_ratio
+            }).T
+            df_ratios_pro.columns = años_finales
+        except Exception as e:
+            st.error(f"Error en el cálculo de ratios: {e}")
+
+        # 3. DISEÑO DE INTERFAZ: ESTADO DE RESULTADOS (TOP)
+        st.markdown("### 📊 I. Estado de Resultados de Gestión")
         
-        # Definimos la estructura profesional de un P&L (Estado de Resultados)
-        orden_contable = [
+        orden_p_l = [
             ('Total Revenue', 'Ingresos Totales'),
             ('Cost Of Revenue', 'Coste de Ventas (COGS)'),
             ('Gross Profit', 'Utilidad Bruta'),
@@ -634,108 +684,68 @@ def main():
             ('Basic EPS', 'BPA (Beneficio por Acción)')
         ]
         
-        # Extraemos y renombramos
-        keys_sec = [item[0] for item in orden_contable]
-        nombres_amigables = [item[1] for item in orden_contable]
+        df_pl_viz = is_f.reindex([x[0] for x in orden_p_l])
+        df_pl_viz.index = [x[1] for x in orden_p_l]
         
-        df_mgmt = df_is_raw.reindex(keys_sec)
-        df_mgmt.index = nombres_amigables
+        # Unidades: Billones para todo menos BPA
+        for row in df_pl_viz.index:
+            if row != 'BPA (Beneficio por Acción)':
+                df_pl_viz.loc[row] = df_pl_viz.loc[row] / 1e9
         
-        # Orden cronológico y Filtro de exclusión 2021
-        df_mgmt = df_mgmt[df_mgmt.columns[::-1]]
-        cols_validas = [c for c in df_mgmt.columns if str(c).split('-')[0] != '2021']
-        df_mgmt = df_mgmt[cols_validas]
-        
-        # 2. Gestión de Unidades (Billones vs Unitario)
-        # Creamos una copia para visualización
-        df_viz = df_mgmt.copy()
-        
-        # Todas las filas excepto BPA se dividen por 1 Billón
-        filas_billones = [n for n in nombres_amigables if n != 'BPA (Beneficio por Acción)']
-        df_viz.loc[filas_billones] = df_viz.loc[filas_billones] / 1e9
-        
-        # El BPA se queda como valor real (USD por acción)
-        # Ya viene correcto de yfinance, no se toca.
+        df_pl_viz.columns = años_finales
 
-        # Limpieza de nombres de columnas (Años)
-        años_clean = [str(c).split('-')[0] for c in df_viz.columns]
-        df_viz.columns = años_clean
-
-        c_fin1, c_fin2 = st.columns([1, 1.2], gap="large")
+        c1, c2 = st.columns([1, 1.2], gap="large")
+        with c1:
+            st.table(df_pl_viz.style.format("{:.2f}"))
         
-        with c_fin1:
-            st.write("**Estado de Resultados de Gestión (Valores en $B / BPA en $)**")
-            # Mostramos la tabla con el orden tradicional y valores REALES
-            st.table(df_viz.style.format("{:.2f}"))
+        with c2:
+            # Gráfico Dual: Revenue vs Margen Neto
+            m_neto = (is_f.loc['Net Income Common Stockholders'] / is_f.loc['Total Revenue']) * 100
+            fig_dual = make_subplots(specs=[[{"secondary_y": True}]])
+            fig_dual.add_trace(go.Bar(x=años_finales, y=df_pl_viz.loc['Ingresos Totales'], name="Revenue ($B)", marker_color="#005BAA"), secondary_y=False)
+            fig_dual.add_trace(go.Scatter(x=años_clean, y=m_neto.values, name="Net Margin %", line=dict(color="#f85149", width=4)), secondary_y=True)
+            fig_dual.update_layout(template="plotly_dark", height=400, margin=dict(t=30, b=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_dual, use_container_width=True)
+
+        st.markdown("---")
+
+        # 4. DISEÑO DE INTERFAZ: RATIOS AVANZADOS (BOTTOM)
+        st.markdown("### 📈 II. Análisis de Ratios y Eficiencia")
+        
+        c3, c4 = st.columns([1, 1.2], gap="large")
+        with c3:
+            st.write("**Panel de Métricas Clave**")
+            st.dataframe(df_ratios_pro.style.format("{:.2f}").background_gradient(cmap='RdYlGn', axis=1), use_container_width=True)
             
-            # --- GENERACIÓN DE EXCEL AMIGABLE ---
+            # EXPORTACIÓN MAESTRA
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df_viz.to_excel(writer, sheet_name='Management_View')
-                df_is_raw.to_excel(writer, sheet_name='Audit_SEC_Data')
-                
-                workbook = writer.book
-                ws = writer.sheets['Management_View']
-                fmt_header = workbook.add_format({'bold': True, 'bg_color': '#1e2b3c', 'font_color': 'white', 'border': 1})
-                fmt_num = workbook.add_format({'num_format': '#,##0.00'})
-                
-                for col_num, value in enumerate(df_viz.columns.values):
-                    ws.write(0, col_num + 1, value, fmt_header)
-                ws.set_column('A:A', 35)
-                ws.set_column('B:F', 15, fmt_num)
-
+                df_pl_viz.to_excel(writer, sheet_name='P_and_L_Summary')
+                df_ratios_pro.to_excel(writer, sheet_name='Advanced_Ratios')
+                is_raw.to_excel(writer, sheet_name='Audit_IS')
+                bs_raw.to_excel(writer, sheet_name='Audit_BS')
+            
             st.download_button(
-                label="📥 Descargar Reporte Completo (Excel)",
+                label="💾 Descargar Suite de Ratios y Finanzas (Excel)",
                 data=output.getvalue(),
-                file_name=f"COST_Financial_Report_Management.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                file_name=f"COST_Pro_Analysis_{datetime.date.today()}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
             )
 
-        with c_fin2:
-            st.write("**Rentabilidad: Evolución de Ingresos y Márgenes**")
+        with c4:
+            st.write("**Estructura Comparativa de Márgenes (%)**")
+            # Datos para el gráfico de barras agrupadas
+            m_bruto = (is_f.loc['Gross Profit'] / is_f.loc['Total Revenue']) * 100
+            m_op = (is_f.loc['Operating Income'] / is_f.loc['Total Revenue']) * 100
             
-            # Cálculo de Margen Neto % (Utilidad Neta / Ingresos Totales)
-            m_neto_vals = (df_mgmt.loc['Utilidad Neta'] / df_mgmt.loc['Ingresos Totales']) * 100
+            fig_marg = go.Figure()
+            fig_marg.add_trace(go.Bar(x=años_finales, y=m_bruto, name="M. Bruto", marker_color="#27ae60"))
+            fig_marg.add_trace(go.Bar(x=años_finales, y=m_op, name="M. Operativo", marker_color="#f1c40f"))
+            fig_marg.add_trace(go.Bar(x=años_finales, y=m_neto, name="M. Neto", marker_color="#e74c3c"))
             
-            fig_fin = make_subplots(specs=[[{"secondary_y": True}]])
-            
-            # Barras: Revenue ($B)
-            fig_fin.add_trace(
-                go.Bar(
-                    x=años_clean, 
-                    y=df_viz.loc['Ingresos Totales'], 
-                    name="Revenue", 
-                    marker_color="#005BAA",
-                    hovertemplate="Rev: $%{y:.1f}B<extra></extra>"
-                ),
-                secondary_y=False
-            )
-            
-            # Línea: Margen Neto (%)
-            fig_fin.add_trace(
-                go.Scatter(
-                    x=años_clean, 
-                    y=m_neto_vals.values, 
-                    name="Net Margin %", 
-                    line=dict(color="#f85149", width=5),
-                    marker=dict(size=10, symbol="diamond"),
-                    hovertemplate="Margin: %{y:.2f}%<extra></extra>"
-                ),
-                secondary_y=True
-            )
-            
-            fig_fin.update_layout(
-                template="plotly_dark",
-                height=480,
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                xaxis_type='category',
-                margin=dict(t=20, b=20, l=10, r=10),
-                legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
-                yaxis=dict(title="Revenue ($B)", gridcolor='rgba(255,255,255,0.05)'),
-                yaxis2=dict(title="Net Margin (%)", showgrid=False, tickfont=dict(color="#f85149"), side="right")
-            )
-            st.plotly_chart(fig_fin, use_container_width=True, config={'displayModeBar': False})
+            fig_marg.update_layout(template="plotly_dark", barmode='group', height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
     # TAB 7: DCF LAB PRO (SENSIBILIDAD Y FLUJOS LADO A LADO)
