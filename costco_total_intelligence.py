@@ -952,7 +952,8 @@ def main():
             e1.link_button("📂 SEC EDGAR: Archivos COST", "https://www.sec.gov/cgi-bin/browse-edgar?CIK=COST&action=getcompany", use_container_width=True)
             e2.link_button("🌐 Costco Investor Relations", "https://investor.costco.com/financials/sec-filings/default.aspx", use_container_width=True)
             
-st.markdown("""
+with m_col1:
+            st.markdown("""
                 ---
                 #### 🧮 Resumen Matemático del Modelo
                 El motor de valoración opera bajo un framework de **Flujo de Caja Descontado (DCF)** dinámico. A continuación se detallan los pilares algorítmicos:
