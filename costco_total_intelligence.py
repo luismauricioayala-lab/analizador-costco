@@ -614,7 +614,7 @@ def main():
         st.plotly_chart(px.line(df_fwd, x="Año", y="Rev ($B)", markers=True, title="Trayectoria Proyectada de Ingresos"), use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 6: FINANZAS PRO (COMPARATIVO 4 AÑOS + EXCEL DE GESTIÓN)
+    # TAB 6: FINANZAS PRO (COMPARATIVO HISTÓRICO - EXCLUYENDO 2021)
     # -------------------------------------------------------------------------
     with tabs[5]:
         st.subheader("Análisis de Estados Financieros (Gestión Institucional 2022-2025)")
@@ -638,12 +638,18 @@ def main():
         df_mgmt = df_is_raw.loc[df_is_raw.index.intersection(map_gest.keys())].copy()
         df_mgmt.index = [map_gest[idx] for idx in df_mgmt.index]
         
-        # Ordenamos años cronológicamente y pasamos a Billones ($B)
-        # Yahoo Finance entrega [2025, 2024, 2023, 2022]. Invertimos a [2022...2025]
+        # Invertimos para orden cronológico [Antiguo -> Reciente]
         df_mgmt = df_mgmt[df_mgmt.columns[::-1]]
+
+        # --- FILTRO CRÍTICO: Eliminamos el año 2021 ---
+        # Filtramos las columnas comprobando que el año no sea '2021'
+        cols_validas = [c for c in df_mgmt.columns if str(c).split('-')[0] != '2021']
+        df_mgmt = df_mgmt[cols_validas]
+        
+        # Pasamos a Billones ($B)
         df_mgmt_billions = df_mgmt / 1e9
         
-        # Limpiamos los nombres de las columnas (años) para evitar errores en Excel y Gráficos
+        # Limpiamos los nombres de las columnas para visualización (solo el año)
         años_clean = [str(c).split('-')[0] for c in df_mgmt_billions.columns]
         df_mgmt_billions.columns = años_clean
 
@@ -651,68 +657,65 @@ def main():
         
         with c_fin1:
             st.write("**Principales Magnitudes de Gestión ($B)**")
-            # Mostramos la tabla formateada
+            # Mostramos la tabla con el filtro aplicado
             st.table(df_mgmt_billions.style.format("{:.2f}"))
             
             # --- GENERACIÓN DE EXCEL AMIGABLE ---
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                # Pestaña 1: Resumen de Gestión (Limpio)
+                # Pestaña 1: Resumen de Gestión (Sin 2021)
                 df_mgmt_billions.to_excel(writer, sheet_name='Management_View')
                 
-                # Pestaña 2: Datos Auditados Completos (SEC)
+                # Pestaña 2: Datos Auditados Completos
                 df_is_raw.to_excel(writer, sheet_name='Audit_SEC_Data')
                 
-                # Formateo estético del Excel
                 workbook = writer.book
                 ws = writer.sheets['Management_View']
                 fmt_header = workbook.add_format({'bold': True, 'bg_color': '#1e2b3c', 'font_color': 'white', 'border': 1})
                 fmt_num = workbook.add_format({'num_format': '#,##0.00'})
                 
-                # Aplicamos formato a los encabezados de año
                 for col_num, value in enumerate(df_mgmt_billions.columns.values):
                     ws.write(0, col_num + 1, value, fmt_header)
-                ws.set_column('A:A', 30) # Ancho para etiquetas
-                ws.set_column('B:F', 15, fmt_num) # Ancho para números
+                ws.set_column('A:A', 30)
+                ws.set_column('B:F', 15, fmt_num)
 
             st.download_button(
                 label="📥 Descargar Reporte en Excel",
                 data=output.getvalue(),
-                file_name=f"COST_Financial_Report_5Y.xlsx",
+                file_name=f"COST_Financial_Report_Filtered.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                help="Exporta la visión de gestión y los datos auditados de la SEC en un solo archivo."
+                help="Exporta la visión de gestión (2022-2025) y los datos auditados."
             )
 
         with c_fin2:
             st.write("**Evolución de Ingresos y Márgenes**")
             
-            # Cálculo de Margen Neto % para la línea roja
-            # (Utilidad Neta / Ingresos Totales) * 100
+            # Cálculo de Margen Neto % basado en los datos filtrados
             m_neto_vals = (df_mgmt.loc['Utilidad Neta'] / df_mgmt.loc['Ingresos Totales']) * 100
             
-            # Crear gráfico de doble eje
+            # Crear gráfico de doble eje idéntico al solicitado
             fig_fin = make_subplots(specs=[[{"secondary_y": True}]])
             
-            # Barras: Ingresos (Azul)
+            # Barras: Revenue
             fig_fin.add_trace(
                 go.Bar(
                     x=años_clean, 
                     y=df_mgmt_billions.loc['Ingresos Totales'], 
                     name="Revenue", 
-                    marker_color="#005BAA", # Azul solicitado
+                    marker_color="#005BAA",
                     hovertemplate="Rev: $%{y:.1f}B<extra></extra>"
                 ),
                 secondary_y=False
             )
             
-            # Línea: Margen Neto (Rojo)
+            # Línea: Margen Neto
             fig_fin.add_trace(
                 go.Scatter(
                     x=años_clean, 
                     y=m_neto_vals.values, 
                     name="Net Margin %", 
-                    line=dict(color="#f85149", width=5), # Rojo solicitado
-                    marker=dict(size=10, symbol="circle"),
+                    line=dict(color="#f85149", width=5),
+                    marker=dict(size=10),
                     hovertemplate="Margin: %{y:.2f}%<extra></extra>"
                 ),
                 secondary_y=True
@@ -726,20 +729,9 @@ def main():
                 xaxis_type='category',
                 margin=dict(t=20, b=20, l=10, r=10),
                 legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
-                yaxis=dict(
-                    title="Revenue ($B)", 
-                    showgrid=True, 
-                    gridcolor='rgba(255,255,255,0.05)',
-                    tickfont=dict(color="#bdc3c7")
-                ),
-                yaxis2=dict(
-                    title="Net Margin (%)", 
-                    showgrid=False, 
-                    tickfont=dict(color="#f85149"),
-                    side="right"
-                )
+                yaxis=dict(title="Revenue ($B)", gridcolor='rgba(255,255,255,0.05)'),
+                yaxis2=dict(title="Net Margin (%)", showgrid=False, tickfont=dict(color="#f85149"), side="right")
             )
-            
             st.plotly_chart(fig_fin, use_container_width=True, config={'displayModeBar': False})
 
     # -------------------------------------------------------------------------
