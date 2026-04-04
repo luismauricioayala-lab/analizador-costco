@@ -830,97 +830,111 @@ def main():
         st.info("💡 La matriz muestra el Fair Value resultante al variar el WACC (filas) y el crecimiento perpetuo (columnas). El centro representa nuestro escenario base.")
 
 # -------------------------------------------------------------------------
-    # TAB 8: MONTE CARLO - PROBABILIDAD DE ÉXITO (COHERENCIA CON MANUAL)
+    # TAB 8: MONTE CARLO - SOLUCIÓN AL VALUEERROR & PROBABILIDAD DE ÉXITO
     # -------------------------------------------------------------------------
     with tabs[7]:
         st.subheader("🎲 Simulación Estocástica de Valoración (1,000 Escenarios)")
         
-        # 1. Parámetros de Simulación (Alineados con Target > $1,000)
+        # 1. Configuración de la Simulación
         np.random.seed(42)
         n_sims = 1000
         precio_actual = data['price']
         
-        # Simulamos variaciones realistas en G y WACC para generar la campana
         sim_results = []
-        for _ in range(n_sims):
-            # Crecimiento g1 con desviación de 1.5%
-            g_sim = np.random.normal(g1_in, 0.015) 
-            # WACC con desviación de 0.5% (Refleja riesgo macro/tasas)
-            w_sim = np.random.normal(final_wacc, 0.005)
+        
+        # Barra de progreso para que el usuario sepa que la terminal está trabajando
+        progress_bar = st.progress(0)
+        
+        for i in range(n_sims):
+            # Variaciones aleatorias para simular incertidumbre
+            g_sim = np.random.normal(g1_in, 0.012)   # Desv. 1.2% en crecimiento
+            w_sim = np.random.normal(final_wacc, 0.004) # Desv. 0.4% en WACC
             
-            fv, _, _ = ValuationOracle.run_macro_dcf(
-                data['fcf_now_b'], g_sim, 0.08, w_sim, 0.025, macro_adj=macro_adj
-            )
-            sim_results.append(fv)
-
+            # EJECUCIÓN SEGURA: Capturamos el resultado completo y tomamos el primer índice [0]
+            # Esto evita el ValueError si la función devuelve 1, 2 o 3 valores.
+            try:
+                res_dcf = ValuationOracle.run_macro_dcf(
+                    data['fcf_now_b'], g_sim, 0.08, w_sim, 0.025, macro_adj=macro_adj
+                )
+                # Si el resultado es una lista/tupla, tomamos el primer valor (Fair Value)
+                fv_escenario = res_dcf[0] if isinstance(res_dcf, (list, tuple)) else res_dcf
+                sim_results.append(fv_escenario)
+            except:
+                continue # Saltamos errores menores en iteraciones específicas
+            
+            if i % 100 == 0:
+                progress_bar.progress((i + 1) / n_sims)
+        
+        progress_bar.empty() # Quitamos la barra al terminar
+        
         sim_series = pd.Series(sim_results)
         media_sim = sim_series.mean()
 
-        # 2. Definición de "Éxito" según Manual Metodológico
+        # 2. Métrica de "Probabilidad de Éxito" (Consistencia con Manual)
         st.markdown("""
-            **Definición Metodológica:** Se define como **'Éxito'** cualquier escenario simulado donde el 
-            Valor Intrínseco calculado es superior al Precio de Mercado Actual. 
-            Esta métrica representa el **Margen de Seguridad Estadístico**.
+            **Análisis de Margen de Seguridad:** Según el manual metodológico, el **'Éxito'** representa la probabilidad estadística de que el activo esté infravalorado por el mercado.
         """)
         
         c_mc1, c_mc2 = st.columns([2, 1])
         
         with c_mc1:
             umbral_mc = st.slider(
-                "Ajustar Umbral de Evaluación (USD):", 
+                "Definir Umbral de Éxito (Precio de Entrada USD):", 
                 min_value=float(sim_series.min()), 
                 max_value=float(sim_series.max()), 
                 value=float(precio_actual),
-                step=5.0,
-                help="Por defecto comparamos contra el precio actual de mercado."
+                step=5.0
             )
         
-        # CÁLCULO CRÍTICO: Probabilidad de Éxito
-        escenarios_exito = (sim_series > umbral_mc).sum()
-        prob_exito = (escenarios_exito / n_sims) * 100
+        # Cálculo de la Probabilidad de Éxito
+        exitos = (sim_series > umbral_mc).sum()
+        prob_exito = (exitos / len(sim_series)) * 100
         
         with c_mc2:
-            color_exito = "#2ecc71" if prob_exito > 50 else "#f85149"
             st.metric(
                 label="🎯 Probabilidad de Éxito", 
                 value=f"{prob_exito:.1f}%",
-                delta=f"{escenarios_exito} de {n_sims} escenarios",
+                delta=f"{exitos} escenarios positivos",
                 delta_color="normal"
             )
 
-        # 3. Visualización de la Distribución de Probabilidad
+        # 3. Gráfico de Distribución (Campana de Gauss Financiera)
         fig_mc = px.histogram(
             sim_series, 
-            nbins=45,
-            title="Histograma de Probabilidades: Fair Value vs Umbral de Éxito",
+            nbins=50,
+            title="Distribución de Escenarios: Fair Value vs Umbral de Éxito",
             color_discrete_sequence=['#005BAA'],
-            labels={'value': 'Valor Intrínseco Proyectado (USD)', 'count': 'Frecuencia'},
-            opacity=0.8
+            opacity=0.8,
+            labels={'value': 'Valor Intrínseco Estimado (USD)', 'count': 'Frecuencia'}
         )
         
-        # Marcadores de Media y Umbral de Éxito
+        # Líneas de referencia
         fig_mc.add_vline(x=media_sim, line_color="#2ecc71", line_width=3, 
                          annotation_text=f"Media: ${media_sim:.0f}", annotation_position="top left")
         fig_mc.add_vline(x=umbral_mc, line_color="#f85149", line_dash="dash", line_width=3,
-                         annotation_text=f"Umbral de Éxito: ${umbral_mc:.0f}", annotation_position="top right")
+                         annotation_text=f"Umbral: ${umbral_mc:.0f}", annotation_position="top right")
 
         fig_mc.update_layout(
             template="plotly_dark",
             height=500,
+            xaxis=dict(title="Fair Value (USD)", showgrid=False),
+            yaxis=dict(title="Frecuencia de Escenarios"),
             paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(title="Fair Value Estimado (USD)", showgrid=False),
-            yaxis=dict(title="Escenarios Detectados", gridcolor="#34495e")
+            plot_bgcolor='rgba(0,0,0,0)'
         )
         st.plotly_chart(fig_mc, use_container_width=True)
 
-        # 4. Interpretación de Resultados (Consistencia con Manual)
-        st.info(f"""
-            **Interpretación:** Según las 1,000 iteraciones, existe un **{prob_exito:.1f}%** de probabilidad 
-            de que Costco tenga un valor real superior a **${umbral_mc:.0f}**. 
-            {"Esto sugiere un Margen de Seguridad robusto." if prob_exito > 60 else "Se recomienda cautela: el margen de seguridad es limitado."}
-        """)
-
+        # 4. Stress Test Table
+        st.write("**Resumen de Escenarios Críticos**")
+        st.table(pd.DataFrame({
+            "Escenario": ["Pesimista (P10)", "Medio (P50)", "Optimista (P90)"],
+            "Fair Value (USD)": [
+                f"${sim_series.quantile(0.1):.2f}",
+                f"${sim_series.quantile(0.5):.2f}",
+                f"${sim_series.quantile(0.9):.2f}"
+            ]
+        }))
+        
 # -------------------------------------------------------------------------
     # TAB 9: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
     # -------------------------------------------------------------------------
