@@ -42,6 +42,22 @@ st.markdown("""
     .bear { color: #f85149; background: rgba(248, 81, 73, 0.15); border-color: #f85149; }
     .neutral { color: #dbab09; background: rgba(219, 171, 9, 0.15); border-color: #dbab09; }
     .swan-box { border: 2px dashed #f85149; padding: 15px; border-radius: 10px; background: rgba(248, 81, 73, 0.05); margin-top: 15px; }
+    
+    /* ESTILOS PARA EL SCORECARD (BALDOSAS) */
+    .scorecard-tile {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        height: 100%;
+    }
+    .tile-title { font-weight: 800; font-size: 1.1rem; color: #005BAA; margin-bottom: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
+    .tile-value { font-size: 1.4rem; font-weight: 900; margin-top: 5px; color: var(--text-main); }
+    .recommendation-hero {
+        background: linear-gradient(135deg, #005BAA 0%, #003a70 100%);
+        color: white !important; padding: 25px; border-radius: 15px; text-align: center;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -68,7 +84,14 @@ def load_institutional_data(ticker_symbol):
             "cagr_real": cagr,
             "pe": inf.get('trailingPE', 51.8),
             "mkt_cap": inf.get('marketCap', 450e9) / 1e9,
-            "is": asset.financials, "bs": asset.balance_sheet, "cf": cf_raw
+            "is": asset.financials, "bs": asset.balance_sheet, "cf": cf_raw,
+            "info": inf, # Mantenemos el diccionario completo para ratios
+            "recommendations": {
+                "target": inf.get('targetMeanPrice', 0),
+                "key": inf.get('recommendationKey', 'N/A').replace('_', ' ').title(),
+                "score": inf.get('recommendationMean', 0),
+                "analysts": inf.get('numberOfAnalystOpinions', 0)
+            }
         }
     except: return None
 
@@ -104,13 +127,11 @@ def main():
     st.sidebar.markdown("### 📊 Supuestos del Analista")
     p_mkt = st.sidebar.number_input("Precio Mercado ($)", value=float(data['price']))
     
-    # LIMITES DINÁMICOS FORZADOS A FLOAT PARA EVITAR StreamlitAPIException
     MIN_G, MAX_G = -50.0, 150.0
     MIN_FCF, MAX_FCF = 0.0, 150.0
     
     fcf_in = st.sidebar.slider("FCF Base ($B)", MIN_FCF, MAX_FCF, secure_clamp(data['fcf_now'], MIN_FCF, MAX_FCF))
     
-    # EL FIX: Forzamos el valor inicial a float para que coincida con MIN_G y MAX_G
     g_init_val = float(secure_clamp(data['cagr_real'] * 100, MIN_G, MAX_G))
     g1 = st.sidebar.slider("Crecimiento Años 1-5 (%)", MIN_G, MAX_G, g_init_val) / 100
     
@@ -138,7 +159,8 @@ def main():
 
     st.markdown("---")
     
-    tabs = st.tabs(["📋 Resumen", "💎 Valoración", "📊 Benchmarking", "🎲 Monte Carlo", "🌪️ Stress Test", "📉 Opciones", "📚 Metodología", "📥 Exportar"])
+    # AGREGADA PESTAÑA SCORECARD
+    tabs = st.tabs(["📋 Resumen", "🛡️ Fundamental Scorecard", "💎 Valoración", "📊 Benchmarking", "🎲 Monte Carlo", "🌪️ Stress Test", "📉 Opciones", "📚 Metodología", "📥 Exportar"])
 
     with tabs[0]: # RESUMEN
         sc1, sc2, sc3 = st.columns(3)
@@ -149,7 +171,72 @@ def main():
         sc3.markdown(f'<div class="scenario-card"><span class="badge bull">Alcista</span><div class="price-hero">${v_alc:.0f}</div><small style="color:green">{((v_alc/p_mkt)-1)*100:.1f}% vs actual</small></div>', unsafe_allow_html=True)
         st.plotly_chart(go.Figure(data=[go.Pie(labels=['Caja 10Y', 'Terminal'], values=[pv_c, pv_t], hole=.6, marker_colors=['#005BAA', '#E31837'])]), use_container_width=True)
 
-    with tabs[1]: # VALORACIÓN + MATRIZ
+    with tabs[1]: # PESTAÑA SCORECARD (NUEVA)
+        st.subheader("Tablero de Salud Fundamental y Consenso")
+        
+        # Fila de Recomendación
+        rec = data['recommendations']
+        col_rec1, col_rec2 = st.columns([1, 2])
+        
+        with col_rec1:
+            st.markdown(f"""
+                <div class="recommendation-hero">
+                    <small style="opacity:0.8;">CONSENSO DE {rec['analysts']} ANALISTAS</small>
+                    <h1 style="margin:10px 0; color:white;">{rec['key']}</h1>
+                    <div style="font-size:1.2rem;">Score: {rec['score']} / 5.0</div>
+                    <hr style="opacity:0.3;">
+                    <small style="opacity:0.8;">Precio Objetivo Medio</small>
+                    <h2 style="margin:0; color:white;">${rec['target']:.2f}</h2>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with col_rec2:
+            fig_gauge = go.Figure(go.Indicator(
+                mode = "gauge+number", value = rec['score'],
+                title = {'text': "Sentimiento (1: Compra Fuerte - 5: Venta)"},
+                gauge = {
+                    'axis': {'range': [1, 5], 'tickwidth': 1},
+                    'bar': {'color': "white"},
+                    'steps': [
+                        {'range': [1, 2], 'color': "#3fb950"},
+                        {'range': [2, 3], 'color': "#dbab09"},
+                        {'range': [3, 5], 'color': "#f85149"}]
+                }
+            ))
+            fig_gauge.update_layout(height=300, margin=dict(t=50, b=0, l=20, r=20))
+            st.plotly_chart(fig_gauge, use_container_width=True)
+
+        st.markdown("---")
+        
+        # Cuadrícula de Ratios (Baldosas)
+        c1, c2, c3, c4 = st.columns(4)
+        inf = data['info']
+        
+        with c1:
+            st.markdown(f"""<div class="scorecard-tile"><div class="tile-title">📈 CRECIMIENTO</div>
+                <small>Rev. Growth (YoY)</small><div class="tile-value">{inf.get('revenueGrowth', 0)*100:.1f}%</div><br>
+                <small>EPS Growth (Q)</small><div class="tile-value">{inf.get('earningsQuarterlyGrowth', 0)*100:.1f}%</div>
+                </div>""", unsafe_allow_html=True)
+        
+        with c2:
+            st.markdown(f"""<div class="scorecard-tile"><div class="tile-title">💰 RENTABILIDAD</div>
+                <small>ROE</small><div class="tile-value">{inf.get('returnOnEquity', 0)*100:.1f}%</div><br>
+                <small>Margen Neto</small><div class="tile-value">{inf.get('profitMargins', 0)*100:.1f}%</div>
+                </div>""", unsafe_allow_html=True)
+
+        with c3:
+            st.markdown(f"""<div class="scorecard-tile"><div class="tile-title">🏥 SALUD FIN.</div>
+                <small>Current Ratio</small><div class="tile-value">{inf.get('currentRatio', 0):.2f}x</div><br>
+                <small>Deuda / Equity</small><div class="tile-value">{inf.get('debtToEquity', 0):.1f}%</div>
+                </div>""", unsafe_allow_html=True)
+        
+        with c4:
+            st.markdown(f"""<div class="scorecard-tile"><div class="tile-title">⚙️ EFICIENCIA</div>
+                <small>Asset Turnover</small><div class="tile-value">{inf.get('assetTurnover', 0.8):.2f}x</div><br>
+                <small>Payout Ratio</small><div class="tile-value">{inf.get('payoutRatio', 0)*100:.1f}%</div>
+                </div>""", unsafe_allow_html=True)
+
+    with tabs[2]: # VALORACIÓN + MATRIZ
         st.subheader("Sensibilidad y Trayectoria de Flujos")
         h_x = [c.strftime('%Y') for c in data['fcf_hist'].index[::-1]]
         fig_bridge = go.Figure()
@@ -157,13 +244,12 @@ def main():
         fig_bridge.add_trace(go.Scatter(x=[h_x[-1]]+[str(int(h_x[-1])+i) for i in range(1,11)], y=[data['fcf_hist'].values[0]]+flows, name="Forecast", line=dict(color='#f85149', dash='dash', width=4), mode='lines+markers'))
         st.plotly_chart(fig_bridge, use_container_width=True)
         
-
         wr, gr = np.linspace(wacc-0.02, wacc+0.02, 5), np.linspace(0.015, 0.035, 5)
         mtx = [[dcf_engine(fcf_in, g1, g2, w, g)[0] for g in gr] for w in wr]
         df_m = pd.DataFrame(mtx, index=[f"W:{x*100:.1f}%" for x in wr], columns=[f"g:{x*100:.1f}%" for x in gr])
         st.plotly_chart(px.imshow(df_m, text_auto='.0f', color_continuous_scale='RdYlGn', title="WACC vs G Perpetuo"), use_container_width=True)
 
-    with tabs[2]: # BENCHMARKING (100% DINÁMICO)
+    with tabs[3]: # BENCHMARKING
         st.subheader("Competidores e Índices en Tiempo Real")
         peer_list = ['COST', 'WMT', 'TGT', 'BJ', 'AMZN', '^GSPC', '^IXIC']
         
@@ -175,7 +261,6 @@ def main():
                     obj = yf.Ticker(t); inf = obj.info
                     name = "S&P 500" if t == '^GSPC' else "Nasdaq" if t == '^IXIC' else t
                     pe = inf.get('trailingPE', 22.5 if t=='^GSPC' else 30.0 if t=='^IXIC' else 20.0)
-                    # Buscamos crecimiento real, si no hay, variamos según el ticker para que no sea todo 8%
                     growth = inf.get('earningsQuarterlyGrowth', inf.get('revenueGrowth', 0.07)) * 100
                     if growth == 0 or growth is None: growth = 7.5 if 'WMT' in t else 11.5 if 'AMZN' in t else 8.0
                     rows.append({'Ticker': name, 'PE': pe, 'Growth': growth})
@@ -189,18 +274,16 @@ def main():
         fig_sc = px.scatter(df_p, x='Growth', y='PE', color='Ticker', text='Ticker', size='PE', title="Crecimiento vs Valuación", color_discrete_sequence=pal)
         fig_sc.update_traces(textposition='top center')
         b2.plotly_chart(fig_sc, use_container_width=True)
-        
 
-    with tabs[3]: # MONTE CARLO
+    with tabs[4]: # MONTE CARLO
         st.subheader("Simulación de Riesgo Estocástico")
         v_mc = st.slider("Volatilidad Supuestos (%)", 1, 10, 3) / 100
         sims = [dcf_engine(fcf_in, np.random.normal(g1, v_mc), g2, np.random.normal(wacc, 0.005), 0.025)[0] for _ in range(1000)]
         fig_mc = px.histogram(sims, nbins=50, title=f"Probabilidad Upside: {(np.array(sims) > p_mkt).mean()*100:.1f}%", color_discrete_sequence=['#3fb950'])
         fig_mc.add_vline(x=p_mkt, line_color="red", line_dash="dash")
         st.plotly_chart(fig_mc, use_container_width=True)
-        
-# TAB 4: STRESS TEST (NUEVA SECCIÓN CISNE NEGRO)
-    with tabs[4]:
+
+    with tabs[5]: # STRESS TEST
         st.subheader("🌪️ Laboratorio de Resiliencia Macroeconómica")
         st1, st2 = st.columns(2)
         with st1:
@@ -217,7 +300,6 @@ def main():
             </div>
         ''', unsafe_allow_html=True)
         
-        # Columnas para los selectores de impacto
         c_swan1, c_swan2, c_swan3 = st.columns(3)
         g_swan, w_swan = 0.0, 0.0
         
@@ -234,7 +316,7 @@ def main():
         v_s, _, _, _ = dcf_engine(fcf_in, g1+(sh_i/200)-(sh_u/500)+g_swan, g2, wacc+(sh_c/500)+(sh_w/1000)+w_swan)
         st.metric("Fair Value Post-Stress Test", f"${v_s:.2f}", f"{(v_s/v_fair-1)*100:.1f}% vs BASE")
 
-    with tabs[5]: # OPCIONES + GRIEGOS
+    with tabs[6]: # OPCIONES
         st.subheader("Griegas Black-Scholes")
         ko1, ko2 = st.columns(2)
         with ko1: k_s = st.number_input("Strike Price", value=float(round(p_mkt*1.05, 0)))
@@ -242,14 +324,12 @@ def main():
         gr = calculate_full_greeks(p_mkt, k_s, 45/365, 0.045, vol_o)
         go1, go2, go3, go4, go5 = st.columns(5)
         go1.metric("Precio Call", f"${gr['price']:.2f}"); go2.metric("Delta Δ", f"{gr['delta']:.3f}"); go3.metric("Gamma γ", f"{gr['gamma']:.4f}"); go4.metric("Vega ν", f"{gr['vega']:.3f}"); go5.metric("Theta θ", f"{gr['theta']:.2f}")
-        
 
-    with tabs[6]: # METODOLOGÍA
+    with tabs[7]: # METODOLOGÍA
         st.header("Metodología Institucional")
         st.latex(r"WACC = \frac{E}{V} K_e + \frac{D}{V} K_d (1-T)"); st.latex(r"K_e = R_f + \beta(R_m - R_f)")
-        
 
-    with tabs[7]: # EXPORTAR
+    with tabs[8]: # EXPORTAR
         buf = io.BytesIO()
         with pd.ExcelWriter(buf, engine='xlsxwriter') as wr:
             data['is'].to_excel(wr, sheet_name='Income'); data['bs'].to_excel(wr, sheet_name='Balance'); data['cf'].to_excel(wr, sheet_name='CashFlow')
