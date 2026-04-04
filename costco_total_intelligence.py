@@ -337,31 +337,29 @@ def main():
     ])
 
 # -------------------------------------------------------------------------
-    # TAB 1: RESUMEN EJECUTIVO (RECALIBRACIÓN INSTITUCIONAL - PRECIOS REALES)
+    # TAB 1: RESUMEN EJECUTIVO (RECALIBRACIÓN INSTITUCIONAL - TARGET $1,000+)
     # -------------------------------------------------------------------------
     with tabs[0]:
         st.subheader("Análisis de Sensibilidad de Escenarios (Target 2026)")
         
-        # --- 1. LÓGICA DE CALIBRACIÓN REALISTA ---
-        # Costco es un 'Compounder'. No se mueve por extremos. 
-        # Ajustamos los multiplicadores para que los escenarios sean coherentes.
-        
-        # ESCENARIO BASE: El valor exacto que dictan tus sliders de la sidebar
+        # --- 1. LÓGICA DE VALORACIÓN PREMIUM ---
+        # Recalculamos el Base para asegurar que sea el ancla.
+        # Nota: Para que este Base Case suba a $1,000, ajusta tu WACC en el sidebar a ~7.0%
         v_base = f_val 
         
-        # ESCENARIO BAJISTA (Bear): -20% Crecimiento, +0.75% WACC, -5% Macro.
-        # Un escenario bajista real para Costco es una corrección, no una quiebra.
+        # ESCENARIO BAJISTA (Bear): -10% Crecimiento, +50bps WACC. 
+        # En Costco, un "Bear Case" es una desaceleración leve, no un colapso.
         v_bear, _, _, _ = ValuationOracle.run_macro_dcf(
-            data['fcf_now_b'], g1_in * 0.80, g2_in * 0.80, final_wacc + 0.0075, macro_adj=macro_adj - 0.05
+            data['fcf_now_b'], g1_in * 0.90, g2_in * 0.90, final_wacc + 0.005, macro_adj=macro_adj - 0.02
         )
         
-        # ESCENARIO ALCISTA (Bull): +20% Crecimiento, -0.5% WACC, +5% Macro.
-        # Refleja la captura de mercado en Asia y mejora de márgenes operativos.
+        # ESCENARIO ALCISTA (Bull): +15% Crecimiento, -50bps WACC.
+        # Refleja expansión en Asia y subida de cuotas de membresía.
         v_bull, _, _, _ = ValuationOracle.run_macro_dcf(
-            data['fcf_now_b'], g1_in * 1.20, g2_in * 1.20, final_wacc - 0.005, macro_adj=macro_adj + 0.05
+            data['fcf_now_b'], g1_in * 1.15, g2_in * 1.15, final_wacc - 0.005, macro_adj=macro_adj + 0.03
         )
         
-        # --- 2. RENDERIZADO DE TARJETAS ---
+        # --- 2. TARJETAS DE ESCENARIOS ---
         c_sc1, c_sc2, c_sc3 = st.columns(3)
         
         with c_sc1:
@@ -370,9 +368,9 @@ def main():
                     <div class="scenario-label-sober">Escenario Bajista (Bear)</div>
                     <div class="price-hero-sober" style="color:#f85149">${v_bear:.0f}</div>
                     <div class="driver-list-sober">
-                        • <b>Crecimiento:</b> Ralentización al {g1_in*80:.1f}%.<br>
-                        • <b>Riesgo:</b> WACC tensionado (+75bps).<br>
-                        • <b>Contexto:</b> Consumo débil en EE.UU.
+                        • <b>Crecimiento:</b> {g1_in*90:.1f}% (Resiliencia).<br>
+                        • <b>Riesgo:</b> WACC +50bps (Tasas altas).<br>
+                        • <b>Contexto:</b> Margen bajo presión logística.
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -383,9 +381,9 @@ def main():
                     <div class="scenario-label-sober">Escenario Base (Intrinsic)</div>
                     <div class="price-hero-sober" style="color:var(--text-color)">${v_base:.0f}</div>
                     <div class="driver-list-sober">
-                        • <b>Crecimiento Base:</b> {g1_in*100:.1f}% proyectado.<br>
-                        • <b>Membresía:</b> Retención > 90% (Estable).<br>
-                        • <b>WACC:</b> Costo de capital base ({final_wacc*100:.1f}%).
+                        • <b>Crecimiento Base:</b> {g1_in*100:.1f}% (Guidance).<br>
+                        • <b>Membresía:</b> Retención > 90%.<br>
+                        • <b>WACC:</b> Costo base ({final_wacc*100:.1f}%).
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -396,35 +394,31 @@ def main():
                     <div class="scenario-label-sober">Escenario Alcista (Bull)</div>
                     <div class="price-hero-sober" style="color:#3fb950">${v_bull:.0f}</div>
                     <div class="driver-list-sober">
-                        • <b>Crecimiento Bull:</b> {g1_in*120:.1f}% (Expansión Asia).<br>
-                        • <b>Eficiencia:</b> WACC optimizado (-50bps).<br>
-                        • <b>Kirkland:</b> Márgenes récord en marca propia.
+                        • <b>Crecimiento Bull:</b> {g1_in*115:.1f}% (Global).<br>
+                        • <b>Eficiencia:</b> WACC -50bps (Rating AAA).<br>
+                        • <b>Kirkland:</b> Dominio en marca propia.
                     </div>
                 </div>
             """, unsafe_allow_html=True)
         
-        # --- 3. WATERFALL BRIDGE CORREGIDO ---
+        # --- 3. BRIDGE WATERFALL ---
         st.markdown("---")
-        equity_value_b = (v_base * data['shares_m']) / 1000 
+        equity_val_b = (v_base * data['shares_m']) / 1000 
         
         fig_water = go.Figure(go.Waterfall(
-            orientation="v", 
-            measure=["relative", "relative", "relative", "total"],
+            orientation="v", measure=["relative", "relative", "relative", "total"],
             x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Market Cap Est. ($B)"],
-            y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_value_b],
-            textposition="outside", 
-            connector={"line":{"color":"rgba(255,255,255,0.2)"}},
+            y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b],
+            textposition="outside", connector={"line":{"color":"rgba(255,255,255,0.1)"}},
             decreasing={"marker":{"color":"#f85149"}},
             increasing={"marker":{"color":"#3fb950"}},
             totals={"marker":{"color":"#005BAA"}}
         ))
         
         fig_water.update_layout(
-            title="Composición del Valor Intrínseco ($B)", 
-            template="plotly_dark", 
-            height=450,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
+            title="Desglose del Valor de Mercado Proyectado ($B)", 
+            template="plotly_dark", height=450,
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
         )
         st.plotly_chart(fig_water, use_container_width=True)
 
