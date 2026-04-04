@@ -129,57 +129,62 @@ st.markdown("""
         padding-top: 15px;
     }
 
-/* Widget de Recomendación v2 - Corrección de solapamiento */
-    .analyst-card-v2 {
+/* Widget de Recomendación v3 - Alineación Absoluta */
+    .analyst-card-v3 {
         background-color: #1e2b3c;
         border-radius: 12px;
-        padding: 25px;
+        padding: 20px;
         color: white;
-        font-family: 'Segoe UI', sans-serif;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
-    .recommendation-header-v2 {
+    .rec-header-v3 {
         text-align: center;
+        padding-bottom: 10px;
         border-bottom: 1px solid rgba(255,255,255,0.1);
-        padding-bottom: 15px;
-        margin-bottom: 10px;
+        margin-bottom: 15px;
     }
-    .breakdown-row-v2 {
+    .row-v3 {
         display: flex;
         align-items: center;
-        height: 28px; /* Altura fija para evitar encimado */
-        margin-bottom: 4px;
+        margin-bottom: 6px;
+        font-size: 0.85rem;
+        height: 24px;
     }
-    .breakdown-label-v2 { 
-        width: 110px; 
-        font-size: 0.8rem; 
-        color: #bdc3c7; 
-        white-space: nowrap;
+    .lbl-v3 {
+        width: 120px; /* Ancho fijo para que nada se encime */
+        color: #bdc3c7;
+        font-weight: 500;
     }
-    .breakdown-bar-container-v2 {
+    .bar-bg-v3 {
         flex-grow: 1;
         background-color: #2c3e50;
         height: 6px;
-        margin: 0 12px;
+        margin: 0 15px;
         border-radius: 3px;
-        overflow: hidden;
+        position: relative;
     }
-    .breakdown-bar-fill-v2 { height: 100%; border-radius: 3px; }
-    .breakdown-count-v2 { width: 20px; text-align: right; font-size: 0.85rem; font-weight: 600; }
-    
-    .analyst-footer-v2 {
-        margin-top: 20px;
+    .bar-fill-v3 { height: 100%; border-radius: 3px; }
+    .val-v3 {
+        width: 25px;
+        text-align: right;
+        font-weight: 600;
+        color: #ecf0f1;
+    }
+    .footer-v3 {
+        margin-top: 15px;
         padding-top: 15px;
         border-top: 1px solid rgba(255,255,255,0.1);
     }
-    .footer-item-v2 {
+    .f-item-v3 {
         display: flex;
         justify-content: space-between;
         margin-bottom: 8px;
-        font-size: 0.85rem;
+        font-size: 0.9rem;
     }
-    .footer-label-v2 { color: #95a5a6; }
-    .footer-value-v2 { font-weight: 700; color: #ecf0f1; }
+    .f-lbl-v3 { color: #95a5a6; }
+    .f-val-v3 { font-weight: 700; color: #ffffff; }
+    
     /* Tablas de Auditoría */
     .stTable { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; }
     </style>
@@ -444,10 +449,10 @@ def main():
             st.plotly_chart(fig_radar, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 3: GANANCIAS & SENTIMIENTO (CORRECCIÓN VISUAL TOTAL)
+    # TAB 3: GANANCIAS & SENTIMIENTO (VERSIÓN FINAL SIN ERRORES)
     # -------------------------------------------------------------------------
     with tabs[2]:
-        st.subheader("Análisis de Sentimiento de Analistas y Sorpresas BPA")
+        st.subheader("Análisis de Sentimiento y Proyecciones de Wall Street")
         r_col1, r_col2 = st.columns([1.1, 2])
         
         with r_col1:
@@ -457,28 +462,23 @@ def main():
             target = data['analysts'].get('target', 1067.59)
             rec_key = data['analysts'].get('key', 'BUY')
             
-            # 1. Cabecera del Widget
-            st.markdown(f"""
-                <div class="analyst-card-v2">
-                    <div class="recommendation-header-v2">
-                        <div style="font-size: 0.75rem; font-weight: 700; color: #bdc3c7; letter-spacing: 1px; margin-bottom:10px;">RECOMENDACIÓN DE LOS ANALISTAS</div>
-                        <div style="font-size: 2rem; font-weight: 800; color: #2ecc71;">{rec_key.title()}</div>
-                        <div style="font-size: 0.7rem; color: #7f8c8d;">Se basa en {count} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-            # 2. Gráfico de Arco (Gauge) - Estilo Minimalista con Aguja
-            # Invertimos el score: 1 es Strong Buy (Derecha), 5 es Sell (Izquierda)
-            gauge_pos = 6 - score 
+            # Formateamos el HTML primero para evitar problemas de indentación de Streamlit
+            header_html = f"""<div class="analyst-card-v3"><div class="rec-header-v3">
+                <div style="font-size: 0.8rem; font-weight: 700; color: #bdc3c7; letter-spacing: 1px; margin-bottom:10px; text-transform: uppercase;">Recomendación de los analistas</div>
+                <div style="font-size: 2.2rem; font-weight: 800; color: #2ecc71;">{rec_key.title()}</div>
+                <div style="font-size: 0.75rem; color: #7f8c8d; margin-top:5px;">Se basa en {count} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
+            </div></div>"""
             
+            st.markdown(header_html, unsafe_allow_html=True)
+
+            # Gauge Chart
+            gauge_pos = 6 - score 
             fig_gauge = go.Figure(go.Indicator(
-                mode = "gauge",
-                value = gauge_pos,
+                mode = "gauge", value = gauge_pos,
                 domain = {'x': [0, 1], 'y': [0, 1]},
                 gauge = {
                     'axis': {'range': [1, 5], 'visible': False},
-                    'bar': {'color': "white", 'thickness': 0.05}, # Aguja blanca ultra fina
+                    'bar': {'color': "white", 'thickness': 0.05},
                     'steps': [
                         {'range': [1, 1.8], 'color': '#e74c3c'},
                         {'range': [1.8, 2.6], 'color': '#e67e22'},
@@ -486,61 +486,26 @@ def main():
                         {'range': [3.4, 4.2], 'color': '#2ecc71'},
                         {'range': [4.2, 5], 'color': '#27ae60'}
                     ],
-                    'threshold': {
-                        'line': {'color': "white", 'width': 4},
-                        'thickness': 0.8,
-                        'value': gauge_pos
-                    }
+                    'threshold': {'line': {'color': "white", 'width': 4}, 'thickness': 0.8, 'value': gauge_pos}
                 }
             ))
-            fig_gauge.update_layout(height=150, margin=dict(t=0, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)')
+            fig_gauge.update_layout(height=160, margin=dict(t=0, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
 
-            # 3. Desglose y Footer (Todo en un solo bloque para evitar errores de renderizado)
-            st.markdown(f"""
-                <div class="analyst-card-v2" style="background: transparent; box-shadow: none; margin-top: -30px;">
-                    <div class="breakdown-row-v2">
-                        <div class="breakdown-label-v2">Compra agresiva</div>
-                        <div class="breakdown-bar-container-v2"><div class="breakdown-bar-fill-v2" style="width: 65%; background-color:#27ae60;"></div></div>
-                        <div class="breakdown-count-v2">20</div>
-                    </div>
-                    <div class="breakdown-row-v2">
-                        <div class="breakdown-label-v2">Comprar</div>
-                        <div class="breakdown-bar-container-v2"><div class="breakdown-bar-fill-v2" style="width: 15%; background-color:#2ecc71;"></div></div>
-                        <div class="breakdown-count-v2">3</div>
-                    </div>
-                    <div class="breakdown-row-v2">
-                        <div class="breakdown-label-v2">Conservar</div>
-                        <div class="breakdown-bar-container-v2"><div class="breakdown-bar-fill-v2" style="width: 35%; background-color:#f1c40f;"></div></div>
-                        <div class="breakdown-count-v2">12</div>
-                    </div>
-                    <div class="breakdown-row-v2">
-                        <div class="breakdown-label-v2">Vender</div>
-                        <div class="breakdown-bar-container-v2"><div class="breakdown-bar-fill-v2" style="width: 2%; background-color:#e67e22;"></div></div>
-                        <div class="breakdown-count-v2">0</div>
-                    </div>
-                    <div class="breakdown-row-v2">
-                        <div class="breakdown-label-v2">Venta fuerte</div>
-                        <div class="breakdown-bar-container-v2"><div class="breakdown-bar-fill-v2" style="width: 5%; background-color:#e74c3c;"></div></div>
-                        <div class="breakdown-count-v2">2</div>
-                    </div>
-                    
-                    <div class="analyst-footer-v2">
-                        <div class="footer-item-v2">
-                            <span class="footer-label-v2">Precio previsto a 12 meses</span>
-                            <span class="footer-value-v2">USD {target:,.2f}</span>
-                        </div>
-                        <div class="footer-item-v2">
-                            <span class="footer-label-v2">Volatilidad del precio</span>
-                            <span class="footer-value-v2">Promedio</span>
-                        </div>
-                        <div class="footer-item-v2">
-                            <span class="footer-label-v2">Recomendación sector</span>
-                            <span class="footer-value-v2" style="color:#2ecc71">Comprar</span>
-                        </div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
+            # Cuerpo del Widget (Sin indentación para evitar que Streamlit crea que es código)
+            body_html = f"""
+<div class="analyst-card-v3" style="background: transparent; box-shadow: none; margin-top: -35px;">
+<div class="row-v3"><div class="lbl-v3">Compra agresiva</div><div class="bar-bg-v3"><div class="bar-fill-v3" style="width: 60%; background-color:#27ae60;"></div></div><div class="val-v3">20</div></div>
+<div class="row-v3"><div class="lbl-v3">Comprar</div><div class="bar-bg-v3"><div class="bar-fill-v3" style="width: 10%; background-color:#2ecc71;"></div></div><div class="val-v3">3</div></div>
+<div class="row-v3"><div class="lbl-v3">Conservar</div><div class="bar-bg-v3"><div class="bar-fill-v3" style="width: 35%; background-color:#f1c40f;"></div></div><div class="val-v3">12</div></div>
+<div class="row-v3"><div class="lbl-v3">Vender</div><div class="bar-bg-v3"><div class="bar-fill-v3" style="width: 2%; background-color:#e67e22;"></div></div><div class="val-v3">0</div></div>
+<div class="row-v3"><div class="lbl-v3">Venta fuerte</div><div class="bar-bg-v3"><div class="bar-fill-v3" style="width: 5%; background-color:#e74c3c;"></div></div><div class="val-v3">2</div></div>
+<div class="footer-v3">
+<div class="f-item-v3"><span class="f-lbl-v3">Precio previsto a 12 meses</span><span class="f-val-v3">USD {target:,.2f}</span></div>
+<div class="f-item-v3"><span class="f-lbl-v3">Volatilidad del precio</span><span class="f-val-v3">Promedio</span></div>
+<div class="f-item-v3"><span class="f-lbl-v3">Recomendación sector</span><span class="f-val-v3" style="color:#2ecc71">Comprar</span></div>
+</div></div>"""
+            st.markdown(body_html, unsafe_allow_html=True)
 
         with r_col2:
             # Gráfico de Ganancias
