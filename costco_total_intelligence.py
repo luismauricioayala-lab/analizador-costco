@@ -210,11 +210,16 @@ def main():
             sh_c = st.slider("Inflación CPI %", 0, 15, 3)
             sh_w = st.slider("Alza Salarial %", 0, 12, 4)
 
-        st.markdown('<div class="swan-box">', unsafe_allow_html=True)
-        st.markdown("### ⚠️ Eventos Cisne Negro (Black Swan)")
+        st.markdown('''
+            <div class="swan-box">
+                <h3 style="color: #f85149; margin: 0;">⚠️ Eventos Cisne Negro (Black Swan)</h3>
+                <p style="margin-bottom: 10px;">Simulación de eventos de baja probabilidad pero impacto extremo en la valoración y operativa global.</p>
+            </div>
+        ''', unsafe_allow_html=True)
+        
+        # Columnas para los selectores de impacto
         c_swan1, c_swan2, c_swan3 = st.columns(3)
-        g_swan = 0.0
-        w_swan = 0.0
+        g_swan, w_swan = 0.0, 0.0
         
         if c_swan1.checkbox("Conflicto Geopolítico / Guerra"):
             g_swan -= 0.06; w_swan += 0.025
@@ -225,7 +230,6 @@ def main():
         if c_swan3.checkbox("Ciberataque Masivo / Cierre"):
             g_swan -= 0.04; w_swan += 0.012
             st.warning("Impacto: -4% G | +120bps WACC")
-        st.markdown('</div>', unsafe_allow_html=True)
             
         v_s, _, _, _ = dcf_engine(fcf_in, g1+(sh_i/200)-(sh_u/500)+g_swan, g2, wacc+(sh_c/500)+(sh_w/1000)+w_swan)
         st.metric("Fair Value Post-Stress Test", f"${v_s:.2f}", f"{(v_s/v_fair-1)*100:.1f}% vs BASE")
