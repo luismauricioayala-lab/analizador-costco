@@ -613,36 +613,134 @@ def main():
         st.table(df_fwd.style.format("{:.2f}"))
         st.plotly_chart(px.line(df_fwd, x="Año", y="Rev ($B)", markers=True, title="Trayectoria Proyectada de Ingresos"), use_container_width=True)
 
-    # -------------------------------------------------------------------------
-    # TAB 6: FINANZAS PRO (CUADRO 3 AÑOS + FECHAS LÍMPIAS + EXCEL)
+# -------------------------------------------------------------------------
+    # TAB 6: FINANZAS PRO (COMPARATIVO 4 AÑOS + EXCEL DE GESTIÓN)
     # -------------------------------------------------------------------------
     with tabs[5]:
-        st.subheader("Análisis de Estados Financieros (Comparativo Auditado 2023-2025)")
-        c_acc1, c_acc2 = st.columns([1, 1.4])
-        with c_acc1:
-            st.write("**Principales Magnitudes Financieras ($B)**")
-            # Cuadro comparativo de 3 años solicitado (Reverse para orden cronológico)
-            df_3y_table = pd.DataFrame({
-                "Año": data['hist_years'][::-1],
-                "Ingresos ($B)": data['rev_vals'][::-1],
-                "EBITDA ($B)": data['ebitda_vals'][::-1],
-                "Utilidad ($B)": data['ni_vals'][::-1]
-            }).set_index("Año").T
-            st.table(df_3y_table.style.format("{:.2f}"))
-            
-            buf = io.BytesIO()
-            with pd.ExcelWriter(buf, engine='xlsxwriter') as writer:
-                data['is'].to_excel(writer, sheet_name='Audit')
-            st.download_button("📥 Exportar a Excel", buf.getvalue(), "COST_Audit.xlsx")
+        st.subheader("Análisis de Estados Financieros (Gestión Institucional 2022-2025)")
+        
+        # 1. Procesamiento de Datos Amigables (No US GAAP)
+        df_is_raw = data['is'].copy()
+        
+        # Diccionario de traducción para reporte de gestión
+        map_gest = {
+            'Total Revenue': 'Ingresos Totales',
+            'Cost Of Revenue': 'Coste de Ventas (COGS)',
+            'Gross Profit': 'Utilidad Bruta',
+            'Operating Expense': 'Gastos Operativos (OPEX)',
+            'Operating Income': 'Utilidad Operativa (EBIT)',
+            'EBITDA': 'EBITDA',
+            'Net Income Common Stockholders': 'Utilidad Neta',
+            'Basic EPS': 'BPA (Beneficio por Acción)'
+        }
+        
+        # Filtramos y renombramos las filas
+        df_mgmt = df_is_raw.loc[df_is_raw.index.intersection(map_gest.keys())].copy()
+        df_mgmt.index = [map_gest[idx] for idx in df_mgmt.index]
+        
+        # Ordenamos años cronológicamente y pasamos a Billones ($B)
+        # Yahoo Finance entrega [2025, 2024, 2023, 2022]. Invertimos a [2022...2025]
+        df_mgmt = df_mgmt[df_mgmt.columns[::-1]]
+        df_mgmt_billions = df_mgmt / 1e9
+        
+        # Limpiamos los nombres de las columnas (años) para evitar errores en Excel y Gráficos
+        años_clean = [str(c).split('-')[0] for c in df_mgmt_billions.columns]
+        df_mgmt_billions.columns = años_clean
 
-        with c_acc2:
+        c_fin1, c_fin2 = st.columns([1, 1.2], gap="large")
+        
+        with c_fin1:
+            st.write("**Principales Magnitudes de Gestión ($B)**")
+            # Mostramos la tabla formateada
+            st.table(df_mgmt_billions.style.format("{:.2f}"))
+            
+            # --- GENERACIÓN DE EXCEL AMIGABLE ---
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                # Pestaña 1: Resumen de Gestión (Limpio)
+                df_mgmt_billions.to_excel(writer, sheet_name='Management_View')
+                
+                # Pestaña 2: Datos Auditados Completos (SEC)
+                df_is_raw.to_excel(writer, sheet_name='Audit_SEC_Data')
+                
+                # Formateo estético del Excel
+                workbook = writer.book
+                ws = writer.sheets['Management_View']
+                fmt_header = workbook.add_format({'bold': True, 'bg_color': '#1e2b3c', 'font_color': 'white', 'border': 1})
+                fmt_num = workbook.add_format({'num_format': '#,##0.00'})
+                
+                # Aplicamos formato a los encabezados de año
+                for col_num, value in enumerate(df_mgmt_billions.columns.values):
+                    ws.write(0, col_num + 1, value, fmt_header)
+                ws.set_column('A:A', 30) # Ancho para etiquetas
+                ws.set_column('B:F', 15, fmt_num) # Ancho para números
+
+            st.download_button(
+                label="📥 Descargar Reporte en Excel",
+                data=output.getvalue(),
+                file_name=f"COST_Financial_Report_5Y.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                help="Exporta la visión de gestión y los datos auditados de la SEC en un solo archivo."
+            )
+
+        with c_fin2:
             st.write("**Evolución de Ingresos y Márgenes**")
-            fig_fin_trend = make_subplots(specs=[[{"secondary_y": True}]])
-            # CORRECCIÓN DE FECHAS: Eje X forzado como categoría
-            fig_fin_trend.add_trace(go.Bar(x=data['hist_years'][::-1], y=data['rev_vals'][::-1], name="Revenue", marker_color="#005BAA"))
-            fig_fin_trend.add_trace(go.Scatter(x=data['hist_years'][::-1], y=(np.array(data['ni_vals'][::-1])/np.array(data['rev_vals'][::-1]))*100, name="Net Margin %", line=dict(color="#f85149", width=5)), secondary_y=True)
-            fig_fin_trend.update_layout(template="plotly_dark", height=450, xaxis_type='category')
-            st.plotly_chart(fig_fin_trend, use_container_width=True)
+            
+            # Cálculo de Margen Neto % para la línea roja
+            # (Utilidad Neta / Ingresos Totales) * 100
+            m_neto_vals = (df_mgmt.loc['Utilidad Neta'] / df_mgmt.loc['Ingresos Totales']) * 100
+            
+            # Crear gráfico de doble eje
+            fig_fin = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            # Barras: Ingresos (Azul)
+            fig_fin.add_trace(
+                go.Bar(
+                    x=años_clean, 
+                    y=df_mgmt_billions.loc['Ingresos Totales'], 
+                    name="Revenue", 
+                    marker_color="#005BAA", # Azul solicitado
+                    hovertemplate="Rev: $%{y:.1f}B<extra></extra>"
+                ),
+                secondary_y=False
+            )
+            
+            # Línea: Margen Neto (Rojo)
+            fig_fin.add_trace(
+                go.Scatter(
+                    x=años_clean, 
+                    y=m_neto_vals.values, 
+                    name="Net Margin %", 
+                    line=dict(color="#f85149", width=5), # Rojo solicitado
+                    marker=dict(size=10, symbol="circle"),
+                    hovertemplate="Margin: %{y:.2f}%<extra></extra>"
+                ),
+                secondary_y=True
+            )
+            
+            fig_fin.update_layout(
+                template="plotly_dark",
+                height=480,
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                xaxis_type='category',
+                margin=dict(t=20, b=20, l=10, r=10),
+                legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
+                yaxis=dict(
+                    title="Revenue ($B)", 
+                    showgrid=True, 
+                    gridcolor='rgba(255,255,255,0.05)',
+                    tickfont=dict(color="#bdc3c7")
+                ),
+                yaxis2=dict(
+                    title="Net Margin (%)", 
+                    showgrid=False, 
+                    tickfont=dict(color="#f85149"),
+                    side="right"
+                )
+            )
+            
+            st.plotly_chart(fig_fin, use_container_width=True, config={'displayModeBar': False})
 
     # -------------------------------------------------------------------------
     # TAB 7: DCF LAB PRO (GIGANTE MATRIX & CONTINUITY CHART)
