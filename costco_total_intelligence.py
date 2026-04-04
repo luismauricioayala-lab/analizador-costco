@@ -425,124 +425,130 @@ def main():
             st.plotly_chart(fig_radar, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 3: GANANCIAS & SENTIMIENTO - VERSIÓN FINAL "PIXEL PERFECT"
+    # TAB 3: GANANCIAS & SENTIMIENTO - VERSIÓN "ULTRA-VISIBLE"
     # -------------------------------------------------------------------------
     with tabs[2]:
         st.subheader("Análisis de Sentimiento y Proyecciones de Wall Street")
         
-        # Inyección de CSS para eliminar los espacios que Streamlit pone entre widgets
-        st.markdown("""
-            <style>
-            /* Contenedor principal de la tarjeta izquierda */
-            .card-wrapper {
-                background-color: #1e2b3c;
-                border: 1px solid #34495e;
-                border-radius: 10px;
-                padding: 0px; /* Quitamos padding interno para que el gauge toque los bordes si es necesario */
-                color: white;
-                overflow: hidden;
-            }
-            .card-section { padding: 20px; }
-            .header-section { border-bottom: 1px solid #34495e; text-align: center; }
-            .rec-text { font-size: 2.8rem; font-weight: 900; color: #2ecc71; margin: 10px 0; }
-            
-            /* Filas de la tabla de analistas */
-            .stat-row { display: flex; align-items: center; margin-bottom: 8px; padding: 0 20px; }
-            .stat-label { width: 140px; font-size: 0.85rem; font-weight: 600; color: #bdc3c7; }
-            .stat-bar-bg { flex-grow: 1; height: 8px; background: #2c3e50; border-radius: 4px; margin: 0 15px; position: relative; }
-            .stat-bar-fill { height: 100%; border-radius: 4px; }
-            .stat-val { width: 100px; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; font-weight: 700; }
-            
-            /* Footer */
-            .footer-section { border-top: 1px solid #34495e; padding: 20px; margin-top: 10px; }
-            .footer-line { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem; }
-            </style>
-        """, unsafe_allow_html=True)
-
+        # 1. Datos para el bloque
+        score_val = data['analysts'].get('score', 2.0)
+        rec_key = data['analysts'].get('key', 'BUY').title()
+        target_val = data['analysts'].get('target', 0)
+        
         col_left, col_spacer, col_right = st.columns([1.2, 0.1, 2])
 
         with col_left:
-            # PARTE 1: Header de la tarjeta
+            # TODO EL WIDGET IZQUIERDO EN UN SOLO BLOQUE HTML/CSS
+            # Esto evita que Streamlit separe el header del gauge y las barras.
             st.markdown(f"""
-                <div class="card-wrapper">
-                    <div class="card-section header-section">
-                        <div style="font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 1px;">Recomendación Consenso</div>
-                        <div class="rec-text">{data['analysts'].get('key', 'BUY').title()}</div>
+                <style>
+                .terminal-container {{
+                    background-color: #1e2b3c;
+                    border: 1px solid #34495e;
+                    border-radius: 10px;
+                    padding: 20px;
+                    color: white;
+                    font-family: 'Segoe UI', sans-serif;
+                }}
+                .header-box {{ text-align: center; border-bottom: 1px solid #34495e; padding-bottom: 15px; margin-bottom: 15px; }}
+                .rec-title {{ font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 1.5px; }}
+                .rec-main {{ font-size: 2.8rem; font-weight: 900; color: #2ecc71; margin: 5px 0; }}
+                
+                .stat-line {{ display: flex; align-items: center; margin-bottom: 10px; height: 24px; }}
+                .stat-label {{ width: 140px; font-size: 0.85rem; font-weight: 700; color: #bdc3c7; white-space: nowrap; }}
+                .stat-bar-bg {{ flex-grow: 1; height: 8px; background: #2c3e50; border-radius: 4px; margin: 0 12px; }}
+                .stat-bar-fill {{ height: 100%; border-radius: 4px; }}
+                .stat-val {{ width: 100px; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: 700; }}
+                
+                .footer-box {{ border-top: 1px solid #34495e; margin-top: 15px; padding-top: 15px; }}
+                .f-line {{ display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.9rem; }}
+                </style>
+                
+                <div class="terminal-container">
+                    <div class="header-box">
+                        <div class="rec-title">Recomendación Consenso</div>
+                        <div class="rec-main">{rec_key}</div>
                         <div style="font-size: 0.7rem; color: #666;">Basado en 37 analistas | {datetime.date.today().strftime('%d/%m/%Y')}</div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
-            # PARTE 2: El Gauge (Plotly) - Lo pegamos visualmente con margen negativo
-            gauge_val = 6 - data['analysts'].get('score', 2.0)
+            # Gauge (Plotly) - Forzamos el mismo fondo para que parezca integrado
+            g_val = 6 - score_val
             fig_g = go.Figure(go.Indicator(
-                mode="gauge", value=gauge_val,
+                mode="gauge", value=g_val,
                 domain={'x': [0, 1], 'y': [0, 1]},
                 gauge={
                     'axis': {'range': [1, 5], 'visible': False},
-                    'bar': {'color': "white", 'thickness': 0.1},
+                    'bar': {'color': "white", 'thickness': 0.12},
                     'steps': [
                         {'range': [1, 1.8], 'color': '#e74c3c'},
                         {'range': [1.8, 2.6], 'color': '#e67e22'},
                         {'range': [2.6, 3.4], 'color': '#f1c40f'},
                         {'range': [3.4, 4.2], 'color': '#2ecc71'},
                         {'range': [4.2, 5], 'color': '#27ae60'}
-                    ],
+                    ]
                 }
             ))
-            fig_g.update_layout(height=140, margin=dict(t=0, b=0, l=20, r=20), paper_bgcolor='#1e2b3c')
+            fig_g.update_layout(height=150, margin=dict(t=10, b=10, l=40, r=40), paper_bgcolor='#1e2b3c')
             st.plotly_chart(fig_g, use_container_width=True, config={'displayModeBar': False})
 
-            # PARTE 3: Barras y Footer
+            # Barras y Footer inferiores
             st.markdown(f"""
-                <div class="card-wrapper" style="margin-top: -10px; border-top: none; border-top-left-radius: 0; border-top-right-radius: 0;">
-                    <div class="stat-row"><div class="stat-label">Compra Agresiva</div><div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 54%; background: #27ae60;"></div></div><div class="stat-val">20 (54.1%)</div></div>
-                    <div class="stat-row"><div class="stat-label">Comprar</div><div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 8%; background: #2ecc71;"></div></div><div class="stat-val">3 (8.1%)</div></div>
-                    <div class="stat-row"><div class="stat-label">Conservar</div><div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 32%; background: #f1c40f;"></div></div><div class="stat-val">12 (32.4%)</div></div>
-                    <div class="stat-row"><div class="stat-label">Vender</div><div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 0%; background: #e67e22;"></div></div><div class="stat-val">0 (0.0%)</div></div>
-                    <div class="stat-row" style="margin-bottom: 20px;"><div class="stat-label">Venta Fuerte</div><div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 5%; background: #e74c3c;"></div></div><div class="stat-val">2 (5.4%)</div></div>
-                    <div class="footer-section">
-                        <div class="footer-line"><span style="color:#888;">Precio Objetivo</span><span style="font-weight:700;">USD {data['analysts'].get('target', 0):,.2f}</span></div>
-                        <div class="footer-line"><span style="color:#888;">Volatilidad</span><span style="font-weight:700;">Promedio</span></div>
-                        <div class="footer-line"><span style="color:#888;">Consenso Sector</span><span style="font-weight:700; color:#2ecc71;">Compra</span></div>
+                <div class="terminal-container" style="margin-top: -15px; border-top: none; border-top-left-radius: 0; border-top-right-radius: 0;">
+                    <div class="stat-line"><div class="stat-label">Compra Agresiva</div><div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 54%; background: #27ae60;"></div></div><div class="stat-val">20 (54.1%)</div></div>
+                    <div class="stat-line"><div class="stat-label">Comprar</div><div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 8%; background: #2ecc71;"></div></div><div class="stat-val">3 (8.1%)</div></div>
+                    <div class="stat-line"><div class="stat-label">Conservar</div><div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 32%; background: #f1c40f;"></div></div><div class="stat-val">12 (32.4%)</div></div>
+                    <div class="stat-line"><div class="stat-label">Vender</div><div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 0%; background: #e67e22;"></div></div><div class="stat-val">0 (0.0%)</div></div>
+                    <div class="stat-line"><div class="stat-label">Venta Fuerte</div><div class="stat-bar-bg"><div class="stat-bar-fill" style="width: 5%; background: #e74c3c;"></div></div><div class="stat-val">2 (5.4%)</div></div>
+                    
+                    <div class="footer-box">
+                        <div class="f-line"><span style="color:#888;">Precio Objetivo</span><span style="font-weight:700;">USD {target_val:,.2f}</span></div>
+                        <div class="f-line"><span style="color:#888;">Volatilidad</span><span style="font-weight:700;">Promedio</span></div>
+                        <div class="f-line"><span style="color:#888;">Consenso Sector</span><span style="font-weight:700; color:#2ecc71;">Compra</span></div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
 
         with col_right:
-            # PARTE 4: Gráfico de BPA - FORZANDO EJES Y ETIQUETAS
+            # GRÁFICO DE BPA - FORZANDO VISIBILIDAD DE EJES
             quarters = ['2025Q3', '2025Q4', '2026Q1', '2026Q2']
             fig_eps = go.Figure()
             fig_eps.add_trace(go.Bar(x=quarters, y=[3.80, 5.51, 4.55, 4.55], name="Estimado", marker_color="#34495e", width=0.3))
             fig_eps.add_trace(go.Bar(x=quarters, y=[3.92, 5.82, 4.58, 4.58], name="Real", marker_color="#005BAA", width=0.3))
             
             fig_eps.update_layout(
-                title=dict(text="Sorpresas en Beneficio por Acción (BPA)", font=dict(size=18, color="white")),
-                template="plotly_dark",
+                title=dict(text="Sorpresas en Beneficio por Acción (BPA)", font=dict(color="white", size=20)),
                 barmode='group',
-                height=500,
+                template="plotly_dark",
+                height=550,
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
+                # FORZAMOS MARGEN IZQUIERDO PARA LOS NÚMEROS
+                margin=dict(t=80, b=60, l=100, r=40),
                 yaxis=dict(
                     title="BPA ($)",
                     side="left",
-                    showgrid=True,
+                    showticklabels=True,
+                    tickmode='linear',
+                    tick0=0,
+                    dtick=1,
+                    tickfont=dict(color='white', size=14),
                     gridcolor='#34495e',
-                    showticklabels=True, # FORZADO
-                    tickfont=dict(color='white', size=12),
+                    showgrid=True,
                     zeroline=True,
                     zerolinecolor='white'
                 ),
                 xaxis=dict(
-                    type='category', # FORZADO para que no trate los Qs como fechas
-                    showticklabels=True, # FORZADO
-                    tickfont=dict(color='white', size=12),
+                    type='category',
+                    showticklabels=True,
+                    tickfont=dict(color='white', size=14),
                     tickangle=0
                 ),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                margin=dict(t=80, b=50, l=50, r=20)
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
             )
-            st.plotly_chart(fig_eps, use_container_width=True, config={'displayModeBar': False})
+            # Desactivamos el modo responsivo de Plotly para que no oculte etiquetas
+            st.plotly_chart(fig_eps, use_container_width=True, config={'responsive': False, 'displayModeBar': False})
             
     # -------------------------------------------------------------------------
     # TAB 4: STRESS TEST PRO (TOTALMENTE AJUSTABLE)
