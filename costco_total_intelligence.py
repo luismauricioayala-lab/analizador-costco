@@ -87,32 +87,47 @@ st.markdown("""
         box-shadow: 0 30px 70px rgba(0,0,0,0.6);
     }
 
-    /* === NUEVAS TARJETAS DE ESCENARIO (VISUAL IMPACT) === */
+/* === TARJETAS DE ESCENARIO REFINADAS (SOBER IMPACT) === */
     .scenario-card-detailed {
-        padding: 35px;
-        border-radius: 20px;
+        padding: 30px;
+        border-radius: 12px;
         text-align: center;
         margin-bottom: 20px;
         border: 1px solid var(--border-color);
-        transition: transform 0.3s ease;
+        background-color: var(--bg-card); /* Fondo neutro */
+        transition: all 0.2s ease;
     }
-    .scenario-card-detailed:hover { transform: translateY(-5px); }
+    .scenario-card-detailed:hover { border-color: var(--accent-blue); }
 
-    .bear-gradient {
-        background: linear-gradient(145deg, rgba(248, 81, 73, 0.12) 0%, rgba(15, 15, 15, 1) 100%);
-        border-top: 5px solid var(--danger-red);
+    /* Indicadores sutiles en la parte superior */
+    .bear-pro { border-top: 4px solid #f85149; background: rgba(248, 81, 73, 0.03); }
+    .base-pro { border-top: 4px solid #005BAA; background: rgba(0, 91, 170, 0.03); }
+    .bull-pro { border-top: 4px solid #3fb950; background: rgba(63, 185, 80, 0.03); }
+
+    .price-hero-sober { 
+        font-size: 48px; 
+        font-weight: 800; 
+        margin: 10px 0; 
+        letter-spacing: -1px;
     }
-    .base-gradient {
-        background: linear-gradient(145deg, rgba(0, 91, 170, 0.12) 0%, rgba(15, 15, 15, 1) 100%);
-        border-top: 5px solid var(--accent-blue);
+    .scenario-label-sober { 
+        font-size: 12px; 
+        font-weight: 700; 
+        text-transform: uppercase; 
+        color: var(--text-color); 
+        opacity: 0.7;
+        letter-spacing: 1.2px; 
     }
-    .bull-gradient {
-        background: linear-gradient(145deg, rgba(63, 185, 80, 0.12) 0%, rgba(15, 15, 15, 1) 100%);
-        border-top: 5px solid var(--success-green);
+    .driver-list-sober { 
+        font-size: 13px; 
+        color: var(--text-color); 
+        opacity: 0.8;
+        margin-top: 15px; 
+        line-height: 1.6; 
+        text-align: left; 
+        border-top: 1px solid var(--border-color);
+        padding-top: 15px;
     }
-    .price-hero-large { font-size: 58px; font-weight: 900; letter-spacing: -3px; margin: 5px 0; }
-    .scenario-label { font-size: 13px; font-weight: 800; text-transform: uppercase; color: #888; letter-spacing: 1px; }
-    .driver-list { font-size: 12px; color: #999; margin-top: 15px; line-height: 1.5; text-align: left; padding-left: 10px; }
 
     /* Tablas de Auditoría */
     .stTable { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; }
@@ -295,11 +310,13 @@ def main():
 # -------------------------------------------------------------------------
     # TAB 1: RESUMEN EJECUTIVO (MODIFICADO: IMPACTO VISUAL & DETALLE)
     # -------------------------------------------------------------------------
+# -------------------------------------------------------------------------
+    # TAB 1: RESUMEN EJECUTIVO (MODIFICADO: DISEÑO SOBRIO)
+    # -------------------------------------------------------------------------
     with tabs[0]:
-        st.subheader("Modelado de Escenarios de Sensibilidad Estratégica")
+        st.subheader("Análisis de Sensibilidad de Escenarios")
         
-        # Definición técnica de escenarios (Cálculos directos)
-        # Bear: Recesión + Inflación | Bull: Expansión China + Eficiencia Digital
+        # Cálculos de Escenarios
         v_bear, _, _, _ = ValuationOracle.run_macro_dcf(data['fcf_now_b'], 0.045, 0.02, final_wacc+0.02, macro_adj=-0.15)
         v_bull, _, _, _ = ValuationOracle.run_macro_dcf(data['fcf_now_b'], 0.185, 0.10, final_wacc-0.01, macro_adj=0.12)
         
@@ -307,55 +324,52 @@ def main():
         
         with c_sc1:
             st.markdown(f"""
-                <div class="scenario-card-detailed bear-gradient">
-                    <div class="scenario-label">Bear Case: Macroeconomic Shock</div>
-                    <div class="price-hero-large" style="color:var(--danger-red)">${v_bear:.0f}</div>
-                    <div class="driver-list">
-                        • <b>GDP Stress:</b> Recesión global (Canadá/EE.UU < 0%)<br>
-                        • <b>Consumer Hit:</b> Inflación CPI persistente > 5.5%<br>
-                        • <b>Margins:</b> Erosión de margen operativo por costos logísticos<br>
-                        • <b>WACC:</b> Prima de riesgo país incrementada (+200bps)
+                <div class="scenario-card-detailed bear-pro">
+                    <div class="scenario-label-sober">Escenario Bajista (Bear)</div>
+                    <div class="price-hero-sober" style="color:#f85149">${v_bear:.0f}</div>
+                    <div class="driver-list-sober">
+                        • <b>Macro:</b> Recesión profunda en Norteamérica.<br>
+                        • <b>CPI:</b> Inflación persistente erosiona poder de compra.<br>
+                        • <b>WACC:</b> Incremento en primas de riesgo (+200bps).
                     </div>
                 </div>
             """, unsafe_allow_html=True)
             
         with c_sc2:
             st.markdown(f"""
-                <div class="scenario-card-detailed base-gradient">
-                    <div class="scenario-label">Base Case: Institutional Consensus</div>
-                    <div class="price-hero-large">${f_val:.0f}</div>
-                    <div class="driver-list">
-                        • <b>Revenue:</b> Crecimiento orgánico proyectado del {g1_in*100:.1f}%<br>
-                        • <b>Loyalty:</b> Retención de membresía estable > 91%<br>
-                        • <b>Mix:</b> Estabilidad en la penetración de Kirkland Signature<br>
-                        • <b>WACC:</b> Costo de capital promedio ponderado de {final_wacc*100:.1f}%
+                <div class="scenario-card-detailed base-pro">
+                    <div class="scenario-label-sober">Escenario Base (Base)</div>
+                    <div class="price-hero-sober" style="color:var(--text-color)">${f_val:.0f}</div>
+                    <div class="driver-list-sober">
+                        • <b>Crecimiento:</b> Expansión orgánica según guidance.<br>
+                        • <b>Membresía:</b> Retención estable por encima del 90%.<br>
+                        • <b>WACC:</b> Costo de capital institucional ({final_wacc*100:.1f}%).
                     </div>
                 </div>
             """, unsafe_allow_html=True)
             
         with c_sc3:
             st.markdown(f"""
-                <div class="scenario-card-detailed bull-gradient">
-                    <div class="scenario-label">Bull Case: Omnichannel & Asia Scaling</div>
-                    <div class="price-hero-large" style="color:var(--success-green)">${v_bull:.0f}</div>
-                    <div class="driver-list">
-                        • <b>Expansion:</b> Aceleración de aperturas en China y Japón<br>
-                        • <b>Digital:</b> Mejora de 150bps en margen e-commerce<br>
-                        • <b>Membership:</b> Incremento en el mix de Executive Members<br>
-                        • <b>Efficiency:</b> Optimización logística mediante IA generativa
+                <div class="scenario-card-detailed bull-pro">
+                    <div class="scenario-label-sober">Escenario Alcista (Bull)</div>
+                    <div class="price-hero-sober" style="color:#3fb950">${v_bull:.0f}</div>
+                    <div class="driver-list-sober">
+                        • <b>Asia:</b> Escalamiento acelerado de Costco China.<br>
+                        • <b>Márgenes:</b> Eficiencia digital mejora el Op. Margin.<br>
+                        • <b>Kirkland:</b> Mayor penetración de marca propia.
                     </div>
                 </div>
             """, unsafe_allow_html=True)
         
-        # Waterfall Bridge para composición de valor
+        # Bridge Waterfall (se mantiene por su alto valor analítico)
         st.markdown("---")
         fig_water = go.Figure(go.Waterfall(
             orientation="v", measure=["relative", "relative", "relative", "total"],
-            x=["PV Cash Flows", "Terminal Value", "Net Cash Position", "Equity Value"],
+            x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Valor de Capital"],
             y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], (f_val * data['shares_m'] / 1000)],
             textposition="outside", connector={"line":{"color":"#888"}}
         ))
-        fig_water.update_layout(title="Bridge de Composición del Valor Intrínseco ($B)", template="plotly_dark", height=450)
+        fig_water.update_layout(title="Bridge de Composición de Valor ($B)", template="plotly_dark", height=400)
         st.plotly_chart(fig_water, use_container_width=True)
 
     # -------------------------------------------------------------------------
