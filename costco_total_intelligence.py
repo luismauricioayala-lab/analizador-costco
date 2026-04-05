@@ -402,12 +402,12 @@ def main():
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("P/E TTM", f"{data['info'].get('trailingPE', 52.9):.1f}x", "Premium Valuation")
-    m2.metric("Mkt Cap", f"${data['mkt_cap_b']:.1f}B", "NASDAQ: COST")
+    m2.metric("Mkt Cap", f"${data['mkt_cap_b']:,.1f}B", "NASDAQ: COST"))
     
     b_val = data['beta']
     b_label, b_color = ("Market Neutral", "off") if 0.95 <= b_val <= 1.05 else (("Low Vol", "normal") if b_val < 0.95 else ("High Vol", "inverse"))
     m3.metric("Riesgo Beta", f"{b_val:.3f}", b_label, delta_color=b_color)
-    m4.metric("Intrinsic Value", f"${f_val:.2f}", f"{upside:+.1f}%", delta_color="normal" if upside > 0 else "inverse")
+    m4.metric("Intrinsic Value", f"${f_val:,.2f}", f"{upside:+.1f}%", delta_color="normal" if upside > 0 else "inverse")
 
     st.markdown("---")
 
