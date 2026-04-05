@@ -1184,8 +1184,8 @@ with c4:
                 yaxis=dict(title="FCF ($B)", range=[0, max(flows_dcf)*1.3])
             )
             st.plotly_chart(fig_f, use_container_width=True)
-            
-# -------------------------------------------------------------------------
+
+    # -------------------------------------------------------------------------
     # TAB 8: MONTE CARLO - RECALIBRACIÓN INSTITUCIONAL ($1,067 TARGET)
     # -------------------------------------------------------------------------
     with tabs[7]:
