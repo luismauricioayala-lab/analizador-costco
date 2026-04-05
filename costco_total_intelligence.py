@@ -645,7 +645,7 @@ def main():
             st.plotly_chart(fig_eps, use_container_width=True)
             
 # -------------------------------------------------------------------------
-    # TAB 4: STRESS TEST PRO (VISUALIZACIÓN DE IMPACTOS POR ELEMENTO)
+    # TAB 4: STRESS TEST PRO (VERSIÓN FINAL SIN ERRORES)
     # -------------------------------------------------------------------------
     with tabs[3]:
         st.subheader("🌪️ Simulador de Cisnes Negros & Shocks de Mercado")
@@ -709,15 +709,22 @@ def main():
             shares=data['shares_m'], cash=data['cash_b'], debt=data['debt_b'], macro_adj=total_macro_stress
         )
 
-        # 4. Panel de Resultados
+        # 4. Panel de Resultados (CORREGIDO PARA EVITAR DELTAGENERATOR)
         st.markdown("---")
         res_col1, res_col2 = st.columns([1, 2])
         
         with res_col1:
             diff_pct = (v_stress / f_val - 1) * 100
             st.metric("Fair Value en Crisis", f"${v_stress:.2f}", f"{diff_pct:.1f}% vs Base", delta_color="inverse")
+            
+            # Determinamos el nivel de riesgo
             risk_level = "CRÍTICO" if diff_pct < -30 else ("ALTO" if diff_pct < -15 else "MODERADO")
-            st.error(f"Estatus del Portfolio: **{risk_level}**") if diff_pct < -15 else st.success(f"Estatus: **{risk_level}**")
+            
+            # Usamos un bloque if/else estándar para que Streamlit no imprima el objeto devuelto
+            if diff_pct < -15:
+                st.error(f"Estatus del Portfolio: **{risk_level}**")
+            else:
+                st.success(f"Estatus: **{risk_level}**")
 
         with res_col2:
             st.write("**Resumen de Drivers Resultantes:**")
