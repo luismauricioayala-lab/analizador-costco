@@ -424,6 +424,40 @@ def main():
     # TAB 1: RESUMEN EJECUTIVO (VERSIÓN INSTITUCIONAL BLINDADA)
     # -------------------------------------------------------------------------
     with tabs[0]:
+        # === NUEVO MÓDULO: CONTEXTO DE MERCADO 52 SEMANAS ===
+        low52 = data['info'].get('fiftyTwoWeekLow', 1.0)
+        high52 = data['info'].get('fiftyTwoWeekHigh', 1.0)
+        curr_p = data['price']
+        
+        # Cálculo de la posición del precio actual en el rango (0% a 100%)
+        pos_52 = ((curr_p - low52) / (high52 - low52)) * 100 if high52 > low52 else 0
+        
+        st.subheader("Contexto de Mercado: Rango 52 Semanas")
+        c_r1, c_r2 = st.columns([1, 2.5])
+        
+        with c_r1:
+            st.metric("Cotización Actual", f"${curr_p:,.2f}")
+            
+        with c_r2:
+            # Barra visual de 52 semanas (estilo Bloomberg)
+            st.markdown(f"""
+                <div style="margin-top:10px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: 600; opacity: 0.9;">
+                        <span>Mín. 52W: <b>${low52:,.2f}</b></span>
+                        <span>Máx. 52W: <b>${high52:,.2f}</b></span>
+                    </div>
+                    <div style="background: #333; height: 14px; border-radius: 7px; margin-top: 8px; position: relative; border: 1px solid var(--border-color);">
+                        <div style="background: linear-gradient(90deg, #005BAA, #00A3E0); width: {pos_52}%; height: 100%; border-radius: 7px;"></div>
+                        <div style="position: absolute; left: {pos_52}%; top: -5px; height: 24px; width: 4px; background: white; border-radius: 2px; box-shadow: 0 0 10px rgba(255,255,255,0.5);"></div>
+                    </div>
+                    <p style="font-size: 0.75rem; text-align: center; margin-top: 10px; opacity: 0.7;">
+                        La acción se encuentra al <b>{pos_52:.1f}%</b> de su rango anual.
+                    </p>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("---") # Separador visual
+        
         st.subheader("Análisis de Sensibilidad de Escenarios (Target 2026)")
         
         # 1. Normalización de Flujos (Owner Earnings)
