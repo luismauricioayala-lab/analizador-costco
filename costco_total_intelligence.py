@@ -351,7 +351,7 @@ def main():
     st.sidebar.title("🏛️ Master Control")
     
     # Referencia de precio base
-    p_ref = st.sidebar.number_input("Market Price Ref. ($)", value=float(data['price']), format="%.2f")
+    p_ref = st.sidebar.number_input("Market Price Ref. ($)", value=float(data['price'])
 
     st.sidebar.divider()
     
