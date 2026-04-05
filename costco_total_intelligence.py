@@ -572,102 +572,102 @@ def main():
             """, unsafe_allow_html=True)
 
 # 4. Gráfico Gauge de Analistas (Escala Calibrada y Etiquetada)
+        score_val = data['info'].get('recommendationMean', 3.0)
+        target_val = data['info'].get('targetMeanPrice', 0.0) # Aseguramos que target_val existe
 
-    # Obtenemos el score (1=Strong Buy, 5=Strong Sell)
-    score_val = data['info'].get('recommendationMean', 3.0)
+        # Inversión lógica para que 5 sea lo mejor y 1 lo peor
+        gauge_pos = 6 - score_val
 
-    # Inversión lógica para que 5 sea lo mejor y 1 lo peor
-    gauge_pos = 6 - score_val
+        fig_gauge = go.Figure(go.Indicator(
+            mode = "gauge+number", 
+            value = gauge_pos,
+            domain = {'x': [0, 1], 'y': [0, 1]},
+            number = {'font': {'size': 18}, 'valueformat': ".1f", 'suffix': "/5"},
+            gauge = {
+                'axis': {
+                    'range': [1, 5], 
+                    'visible': True, 
+                    'tickvals': [1, 2, 3, 4, 5],
+                    'ticktext': ['Sell', '', 'Hold', '', 'Buy'],
+                    'tickfont': {'size': 10, 'color': '#808495'}
+                },
+                'bar': {'color': "#1e2b3c", 'thickness': 0.15},
+                'steps': [
+                    {'range': [1, 1.8], 'color': '#d73a49'},    # Venta Fuerte
+                    {'range': [1.8, 2.6], 'color': '#fb8f44'},  # Venta
+                    {'range': [2.6, 3.4], 'color': '#f6e05e'},  # Mantener
+                    {'range': [3.4, 4.2], 'color': '#2da44e'},  # Compra
+                    {'range': [4.2, 5], 'color': '#1a7f37'}     # Compra Fuerte
+                ],
+                'threshold': {
+                    'line': {'color': "white", 'width': 2}, 
+                    'thickness': 0.75, 
+                    'value': gauge_pos
+                }
+            }
+        ))
 
-    fig_gauge = go.Figure(go.Indicator(
-    mode = "gauge+number", 
-    value = gauge_pos,
-    domain = {'x': [0, 1], 'y': [0, 1]},
-    number = {'font': {'size': 18}, 'valueformat': ".1f", 'suffix': "/5"},
-    gauge = {
-        'axis': {
-            'range': [1, 5], 
-            'visible': True, 
-            'tickvals': [1, 2, 3, 4, 5],
-            'ticktext': ['Sell', '', 'Hold', '', 'Buy'], # Etiquetas claras en los puntos clave
-            'tickfont': {'size': 10, 'color': '#808495'}
-        },
-        'bar': {'color': "#1e2b3c", 'thickness': 0.15}, # Aguja visible y profesional
-        'steps': [
-            {'range': [1, 1.8], 'color': '#d73a49'},    # Venta Fuerte
-            {'range': [1.8, 2.6], 'color': '#fb8f44'},  # Venta
-            {'range': [2.6, 3.4], 'color': '#f6e05e'},  # Mantener
-            {'range': [3.4, 4.2], 'color': '#2da44e'},  # Compra
-            {'range': [4.2, 5], 'color': '#1a7f37'}     # Compra Fuerte
-        ],
-        'threshold': {
-            'line': {'color': "white", 'width': 2}, 
-            'thickness': 0.75, 
-            'value': gauge_pos
-        }
-    }
-))
+        fig_gauge.update_layout(
+            height=160, 
+            margin=dict(t=30, b=0, l=35, r=35), 
+            paper_bgcolor='rgba(0,0,0,0)',
+            font={'family': "Inter, sans-serif"}
+        )
 
-    fig_gauge.update_layout(
-    height=160, 
-    margin=dict(t=30, b=0, l=35, r=35), 
-    paper_bgcolor='rgba(0,0,0,0)',
-    font={'family': "Inter, sans-serif"}
-)
+        st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
 
-    st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
-
-            # 5. Cuerpo de Barras (Legibilidad Máxima)
-    st.markdown(f"""
-                <div class="st-widget-box" style="background: transparent; padding-top: 0; margin-top: -30px; border: none; box-shadow: none;">
-                    <div class="st-data-row">
-                        <div class="st-data-label">Compra agresiva</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 54%; background: #1a7f37;"></div></div>
-                        <div class="st-data-info">20 (54.1%)</div>
-                    </div>
-                    <div class="st-data-row">
-                        <div class="st-data-label">Comprar</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 8%; background: #2da44e;"></div></div>
-                        <div class="st-data-info">3 (8.1%)</div>
-                    </div>
-                    <div class="st-data-row">
-                        <div class="st-data-label">Conservar</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 32%; background: #f6e05e;"></div></div>
-                        <div class="st-data-info">12 (32.4%)</div>
-                    </div>
-                    <div class="st-data-row">
-                        <div class="st-data-label">Vender</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 0%; background: #fb8f44;"></div></div>
-                        <div class="st-data-info">0 (0.0%)</div>
-                    </div>
-                    <div class="st-data-row">
-                        <div class="st-data-label">Venta fuerte</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 5%; background: #d73a49;"></div></div>
-                        <div class="st-data-info">2 (5.4%)</div>
-                    </div>
-                    <div class="st-data-footer">
-                        <div class="st-footer-line"><span class="st-footer-label">Precio previsto (12m)</span><span class="st-footer-val">USD {target_val:,.2f}</span></div>
-                        <div class="st-footer-line"><span class="st-footer-label">Volatilidad</span><span class="st-footer-val">Promedio</span></div>
-                        <div class="st-footer-line"><span class="st-footer-label">Recomendación sector</span><span class="st-footer-val" style="color:#1a7f37;">Comprar</span></div>
-                    </div>
+        # 5. Cuerpo de Barras (Legibilidad Máxima)
+        st.markdown(f"""
+            <div class="st-widget-box" style="background: transparent; padding-top: 0; margin-top: -30px; border: none; box-shadow: none;">
+                <div class="st-data-row">
+                    <div class="st-data-label">Compra agresiva</div>
+                    <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 54%; background: #1a7f37;"></div></div>
+                    <div class="st-data-info">20 (54.1%)</div>
                 </div>
+                <div class="st-data-row">
+                    <div class="st-data-label">Comprar</div>
+                    <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 8%; background: #2da44e;"></div></div>
+                    <div class="st-data-info">3 (8.1%)</div>
+                </div>
+                <div class="st-data-row">
+                    <div class="st-data-label">Conservar</div>
+                    <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 32%; background: #f6e05e;"></div></div>
+                    <div class="st-data-info">12 (32.4%)</div>
+                </div>
+                <div class="st-data-row">
+                    <div class="st-data-label">Vender</div>
+                    <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 0%; background: #fb8f44;"></div></div>
+                    <div class="st-data-info">0 (0.0%)</div>
+                </div>
+                <div class="st-data-row">
+                    <div class="st-data-label">Venta fuerte</div>
+                    <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 5%; background: #d73a49;"></div></div>
+                    <div class="st-data-info">2 (5.4%)</div>
+                </div>
+                <div class="st-data-footer">
+                    <div class="st-footer-line"><span class="st-footer-label">Precio previsto (12m)</span><span class="st-footer-val">USD {target_val:,.2f}</span></div>
+                    <div class="st-footer-line"><span class="st-footer-label">Volatilidad</span><span class="st-footer-val">Promedio</span></div>
+                    <div class="st-footer-line"><span class="st-footer-label">Recomendación sector</span><span class="st-footer-val" style="color:#1a7f37;">Comprar</span></div>
+                </div>
+            </div>
             """, unsafe_allow_html=True)
 
-        with r_col2:
-            # Gráfico de Ganancias Pro (Se mantiene con eje X categoría)
-            quarters = ['2025Q3', '2025Q4', '2026Q1', '2026Q2']
-            fig_eps = go.Figure()
-            fig_eps.add_trace(go.Bar(x=quarters, y=[3.80, 5.51, 4.55, 4.55], name="Estimado", marker_color="#495057"))
-            fig_eps.add_trace(go.Bar(x=quarters, y=[3.92, 5.82, 4.58, 4.58], name="Real", marker_color="#005BAA"))
-            
-            fig_eps.update_layout(
-                title="Sorpresas en Beneficio por Acción (BPA)",
-                barmode='group',
-                template="plotly_white", # Cambiado a blanco para hacer juego con el alto contraste
-                height=450,
-                xaxis_type='category'
-            )
-            st.plotly_chart(fig_eps, use_container_width=True)
+    # Nota: Asegúrate de que r_col2 esté al mismo nivel que la columna donde pusiste lo anterior
+    with r_col2:
+        # Gráfico de Ganancias Pro
+        quarters = ['2025Q3', '2025Q4', '2026Q1', '2026Q2']
+        fig_eps = go.Figure()
+        fig_eps.add_trace(go.Bar(x=quarters, y=[3.80, 5.51, 4.55, 4.55], name="Estimado", marker_color="#495057"))
+        fig_eps.add_trace(go.Bar(x=quarters, y=[3.92, 5.82, 4.58, 4.58], name="Real", marker_color="#005BAA"))
+        
+        fig_eps.update_layout(
+            title="Sorpresas en Beneficio por Acción (BPA)",
+            barmode='group',
+            template="plotly_dark", # Cambiado a dark para mantener la estética de terminal
+            height=450,
+            xaxis_type='category'
+        )
+        st.plotly_chart(fig_eps, use_container_width=True)
             
 # -------------------------------------------------------------------------
     # TAB 4: STRESS TEST PRO (VERSIÓN FINAL SIN ERRORES)
