@@ -768,19 +768,20 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO - VERSIÓN FINAL ESTABLE
+    # TAB 7: DCF LAB PRO - VERSIÓN DE COMPATIBILIDAD TOTAL
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # 1. Obtención segura del precio actual
+        # 1. Limpieza absoluta del Precio (Garantizamos FLOAT puro)
         try:
-            p_raw = data.get('price', 0)
-            precio_actual = float(p_raw.iloc[0] if hasattr(p_raw, 'iloc') else p_raw)
+            p_val = data.get('price', 1000.0)
+            # Extraemos el valor si es una Serie, si no lo convertimos a float
+            precio_mercado = float(p_val.iloc[0]) if hasattr(p_val, 'iloc') else float(p_val)
         except:
-            precio_actual = 1000.0
+            precio_mercado = 1000.0
 
-        # Mantenemos el multiplicador para acercarnos al target de $1,067
+        # Multiplicador para alinear con el Target Institucional ($1,067)
         fcf_premium_lab = data['fcf_now_b'] * 1.15 
         
         col_mtx, col_flow = st.columns([1.2, 1])
@@ -788,41 +789,42 @@ def main():
         with col_mtx:
             st.write("**Matriz de Sensibilidad: Fair Value vs. WACC & g Perpetuo**")
             
-            # Rangos de WACC y G (9x9 para buena resolución)
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            # Construcción de la matriz numérica
-            mtx_list = []
+            # Construcción de matriz numérica pura
+            mtx_raw = []
             for w in w_rng:
                 fila = []
                 for g in g_rng:
-                    val = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj)[0]
-                    fila.append(float(val) if np.isfinite(val) else 0.0)
-                mtx_list.append(fila)
+                    # Obtenemos el valor del DCF
+                    v = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj)[0]
+                    # Limpieza: Convertimos a float y eliminamos NaNs/Infs
+                    fila.append(float(v) if np.isfinite(v) else 0.0)
+                mtx_raw.append(fila)
             
-            # Creamos el DataFrame (Forma más estable para Plotly)
-            df_mtx = pd.DataFrame(
-                mtx_list, 
-                index=[f"{x*100:.1f}%" for x in w_rng], 
-                columns=[f"{x*100:.1f}%" for x in g_rng]
-            )
+            # Convertimos a Array de NumPy (Lo más estable para Plotly)
+            z_data = np.array(mtx_raw)
+            x_labels = [f"{x*100:.1f}%" for x in g_rng]
+            y_labels = [f"{x*100:.1f}%" for x in w_rng]
 
-            # LLAMADA ESTÁNDAR: Pasamos el DataFrame como primer argumento posicional
+            # LLAMADA DE BAJO NIVEL: Máxima compatibilidad
             fig_giant = px.imshow(
-                df_mtx,
+                z_data,
+                labels=dict(x="Crecimiento Perpetuo", y="WACC", color="Fair Value"),
+                x=x_labels,
+                y=y_labels,
                 text_auto='.0f',
                 color_continuous_scale='RdYlGn',
-                zmid=precio_actual, # Centra el color en el precio de mercado
+                # Centramos el color en el precio actual de mercado
+                zmid=precio_mercado, 
                 aspect="auto",
                 height=600
             )
             
             fig_giant.update_layout(
-                xaxis_title="Crecimiento Perpetuo (g terminal)",
-                yaxis_title="Costo de Capital (WACC)",
                 template="plotly_dark",
-                coloraxis_colorbar=dict(title="Fair Value ($)"),
+                coloraxis_colorbar=dict(title="USD"),
                 margin=dict(t=10, b=10, l=10, r=10)
             )
             st.plotly_chart(fig_giant, use_container_width=True)
@@ -830,14 +832,14 @@ def main():
         with col_flow:
             st.write("**Evolución del Flujo de Caja Anual ($B)**")
             
-            # Obtenemos los flujos de la función
+            # Ejecución del modelo para obtener la lista de flujos
             res_dcf = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj)
             
-            # Aseguramos que flows_proy sea una lista válida
+            # Extraemos la lista de flujos (está en la 4ta posición del return)
             if isinstance(res_dcf, (list, tuple)) and len(res_dcf) > 3:
                 flows_proy = res_dcf[3]
             else:
-                # Fallback: Generación manual si la función no devuelve la lista
+                # Generación de emergencia si la función falla
                 flows_proy = [fcf_premium_lab * (1 + g1_in)**i for i in range(1, 11)]
 
             h_yrs = data['hist_years'][::-1]
@@ -848,23 +850,26 @@ def main():
             # Histórico
             fig_dcf_flow.add_trace(go.Scatter(
                 x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], 
-                name="Histórico", line=dict(color="#005BAA", width=6), mode='markers+lines'
+                name="Histórico Real", line=dict(color="#005BAA", width=6), mode='markers+lines'
             ))
             
             # Proyección
             fig_dcf_flow.add_trace(go.Scatter(
                 x=[h_yrs[-1]] + f_yrs, 
                 y=[data['fcf_hist_b'].values[0]] + list(flows_proy), 
-                name="Proyección", 
+                name="Proyección (Owner Earnings)", 
                 line=dict(color="#f85149", dash='dash', width=5), mode='markers+lines'
             ))
+            
+            # Ajuste de escala para que no se vea desproporcionado
+            y_limit = max(flows_proy) * 1.3 if len(flows_proy) > 0 else 30
             
             fig_dcf_flow.update_layout(
                 template="plotly_dark", height=600,
                 xaxis_type='category',
-                yaxis=dict(title="Free Cash Flow ($B)", range=[0, max(flows_proy)*1.3 if flows_proy else 30]),
+                yaxis=dict(title="FCF ($B)", range=[0, y_limit]),
                 legend=dict(orientation="h", y=1.1, x=1),
-                margin=dict(t=50, b=10, l=10, r=20)
+                margin=dict(t=50, b=10, l=10, r=10)
             )
             st.plotly_chart(fig_dcf_flow, use_container_width=True)
             
