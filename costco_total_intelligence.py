@@ -199,6 +199,29 @@ class InstitutionalDataService:
             if cf.empty or is_stmt.empty:
                 st.error("Error Crítico: No se pudieron recuperar estados financieros auditados.")
                 return None
+
+    @staticmethod
+    @st.cache_data(ttl=3600)
+    def fetch_peer_group_data(ticker_list):
+        """ NUEVO: Descarga métricas clave para una lista de competidores en tiempo real. Ideal para la TAB 3: Peer Analysis. """
+        peer_results = []
+        for t in ticker_list:
+            try:
+                asset = yf.Ticker(t)
+                info = asset.info
+                peer_results.append({
+                    "Ticker": t,
+                    "Nombre": info.get('shortName', t),
+                    "Mkt Cap ($B)": info.get('marketCap', 0) / 1e9,
+                    "P/E Ratio": info.get('trailingPE', 0),
+                    "EV/EBITDA": info.get('enterpriseToEbitda', 0),
+                    "ROE (%)": info.get('returnOnEquity', 0) * 100,
+                    "Net Margin (%)": info.get('profitMargins', 0) * 100,
+                    "Rev Growth (%)": info.get('revenueGrowth', 0) * 100
+                })
+            except:
+                continue
+        return pd.DataFrame(peer_results)
             
             # Cálculo de FCF Real (Billones $)
             fcf_raw = (cf.loc['Operating Cash Flow'] + cf.loc['Capital Expenditure'])
@@ -413,7 +436,7 @@ def main():
 
     # 5. ARQUITECTURA DE PESTAÑAS
     tabs = st.tabs([
-        "📋 Resumen", "🛡️ Scorecard & Radar", "💰 Ganancias", "🌪️ Stress Test Pro", 
+        "📋 Resumen", "🛡️ Scorecard & Radar", "🔬 Peer Analysis", "💰 Ganancias", "🌪️ Stress Test Pro", 
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "🔬 Comparativa APT", "📜 Metodología", "📈 Opciones Lab"
     ])
 
@@ -601,10 +624,81 @@ def main():
             fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=450, template="plotly_dark")
             st.plotly_chart(fig_radar, use_container_width=True)
 
-# -------------------------------------------------------------------------
-    # TAB 3: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
+    # -------------------------------------------------------------------------
+    # TAB 3: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE DINÁMICO)
     # -------------------------------------------------------------------------
     with tabs[2]:
+        st.subheader("🔬 Peer Analysis & Market Benchmarking (Real-Time)")
+        
+        # 1. Definimos los competidores y los índices
+        peer_tickers = ["COST", "WMT", "TGT", "BJ", "KR"] # Agregamos Kroger (KR) para más profundidad
+        benchmark_tickers = {"S&P 500": "SPY", "Nasdaq 100": "QQQ"}
+
+        with st.spinner("Sincronizando datos de mercado..."):
+            # 2. Descargamos datos de competidores
+            df_peers = InstitutionalDataService.fetch_peer_group_data(peer_tickers)
+            
+            # 3. Descargamos datos de Benchmarks (Solo métricas básicas para comparar)
+            df_benchs = InstitutionalDataService.fetch_peer_group_data(list(benchmark_tickers.values()))
+            # Renombramos tickers de benchmarks para que en el gráfico digan "S&P 500" etc.
+            df_benchs['Nombre'] = list(benchmark_tickers.keys())
+            
+            # Unimos todo para la comparativa final
+            df_full_comparison = pd.concat([df_peers, df_benchs], ignore_index=True)
+
+        # --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO ---
+        st.write("**Rendimiento Normalizado 1Y (COST vs Benchmarks)**")
+        # Reutilizamos la lógica de descarga de precios 1Y
+        perf_df = yf.download(["COST", "SPY", "QQQ"], period="1y")['Close']
+        perf_norm = (perf_df / perf_df.iloc[0]) * 100
+        perf_norm.columns = ["Costco", "Nasdaq 100", "S&P 500"]
+        
+        fig_perf = px.line(perf_norm, template="plotly_dark", 
+                           color_discrete_map={"Costco": "#005BAA", "S&P 500": "#3fb950", "Nasdaq 100": "#f6e05e"})
+        fig_perf.update_layout(height=400, hovermode="x unified")
+        st.plotly_chart(fig_perf, use_container_width=True)
+
+        # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
+        c_p1, c_p2 = st.columns(2)
+        
+        with c_p1:
+            st.write("**P/E Ratio vs ROE (%)**")
+            fig_scat = px.scatter(
+                df_full_comparison, x="P/E Ratio", y="ROE (%)", 
+                size="Mkt Cap ($B)", color="Nombre", text="Ticker",
+                template="plotly_dark", size_max=40
+            )
+            st.plotly_chart(fig_scat, use_container_width=True)
+            
+        with c_p2:
+            st.write("**EV/EBITDA vs Rev Growth (%)**")
+            fig_ev = px.bar(
+                df_peers, x="Ticker", y="EV/EBITDA", 
+                color="Ticker", text_auto='.1f', template="plotly_dark"
+            )
+            st.plotly_chart(fig_ev, use_container_width=True)
+
+        # --- TABLA MAESTRA CON FORMATO BLOOMBERG ---
+        st.write("**Matriz Competitiva Dinámica (Sync 2026)**")
+        
+        # Formateamos para que use el punto decimal que pediste (1014.96)
+        st.dataframe(
+            df_full_comparison.style.format({
+                "Mkt Cap ($B)": "{:.1f}",
+                "P/E Ratio": "{:.2f}",
+                "EV/EBITDA": "{:.2f}",
+                "ROE (%)": "{:.1f}%",
+                "Net Margin (%)": "{:.2f}%",
+                "Rev Growth (%)": "{:.2f}%"
+            }).background_gradient(cmap='RdYlGn', subset=['ROE (%)', 'Rev Growth (%)'])
+        )
+
+        st.caption("Nota: Los datos de índices (S&P 500 / Nasdaq) se obtienen a través de sus ETFs representativos (SPY/QQQ).")
+
+# -------------------------------------------------------------------------
+    # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
+    # -------------------------------------------------------------------------
+    with tabs[3]:
         st.subheader("Análisis de Sentimiento y Proyecciones de Wall Street")
         r_col1, r_col2 = st.columns([1.3, 2])
         
@@ -781,9 +875,9 @@ def main():
             st.plotly_chart(fig_eps, use_container_width=True)
             
 # -------------------------------------------------------------------------
-    # TAB 4: STRESS TEST PRO (VERSIÓN FINAL SIN ERRORES)
+    # TAB 5: STRESS TEST PRO (VERSIÓN FINAL SIN ERRORES)
     # -------------------------------------------------------------------------
-    with tabs[3]:
+    with tabs[4]:
         st.subheader("🌪️ Simulador de Cisnes Negros & Shocks de Mercado")
         st.markdown("""<div style="background-color:rgba(248, 81, 73, 0.1); padding:15px; border-radius:10px; border-left: 5px solid #f85149; margin-bottom:20px;">
             <b>Protocolo de Stress Test:</b> Estos escenarios simulan eventos de baja probabilidad pero alto impacto (Fat Tails). 
@@ -870,9 +964,9 @@ def main():
             d3.metric("FCF Adjustment", f"{total_macro_stress*100:.1f}%", "Impacto Neto")
 
 # -------------------------------------------------------------------------
-    # TAB 5: FORWARD LOOKING (VARIABLES AJUSTABLES)
+    # TAB 6: FORWARD LOOKING (VARIABLES AJUSTABLES)
     # -------------------------------------------------------------------------
-    with tabs[4]:
+    with tabs[5]:
         st.subheader("Laboratorio de Resultados Proyectados (Forward Looking)")
         f1, f2, f3, f4 = st.columns(4)
         rf_g = f1.slider("Crec. Ventas (%)", 0.0, 25.0, 8.5) / 100
@@ -912,9 +1006,9 @@ def main():
         st.plotly_chart(fig_fwd, use_container_width=True)
         
 # -------------------------------------------------------------------------
-    # TAB 6: FINANZAS & RATIOS PRO (BLOOMBERG TERMINAL INTEGRATED - ANTI-CRASH)
+    # TAB 7: FINANZAS & RATIOS PRO (BLOOMBERG TERMINAL INTEGRATED - ANTI-CRASH)
     # -------------------------------------------------------------------------
-    with tabs[5]:
+    with tabs[6]:
         st.subheader("🏛️ Terminal de Inteligencia Financiera: Costco Wholesale")
         st.info("Fusión de Estados Financieros de Gestión y Ratios de Eficiencia Operativa (2022-2025).")
         
@@ -1148,9 +1242,9 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
             
     # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO (MATRIZ CALIBRADA AL PRECIO ACTUAL)
+    # TAB 8: DCF LAB PRO (MATRIZ CALIBRADA AL PRECIO ACTUAL)
     # -------------------------------------------------------------------------
-    with tabs[6]:
+    with tabs[7]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
         # Cálculos de base para el laboratorio con rampa de desaceleración
@@ -1220,9 +1314,9 @@ def main():
             st.plotly_chart(fig_f, use_container_width=True)
 
     # -------------------------------------------------------------------------
-    # TAB 8: MONTE CARLO - RECALIBRACIÓN INSTITUCIONAL
+    # TAB 9: MONTE CARLO - RECALIBRACIÓN INSTITUCIONAL
     # -------------------------------------------------------------------------
-    with tabs[7]:
+    with tabs[8]:
         st.subheader("🎲 Simulación Estocástica de Valoración (1,000 Escenarios)")
         
         # --- GESTIÓN DE SEMILLA DINÁMICA ---
@@ -1347,9 +1441,9 @@ def main():
             st.error("No se pudieron generar escenarios válidos. Revisa los parámetros de WACC y Crecimiento.")
         
 # -------------------------------------------------------------------------
-    # TAB 9: VALORACIÓN MULTI-MODELO (CONSENSO DCF vs APT)
+    # TAB 10: VALORACIÓN MULTI-MODELO (CONSENSO DCF vs APT)
     # -------------------------------------------------------------------------
-    with tabs[8]:
+    with tabs[9]:
         st.subheader("🔬 Benchmark de Valoración: DCF vs Arbitrage Pricing Theory (APT)")
         
         # Recuperación segura de EPS
@@ -1437,9 +1531,9 @@ def main():
             """, unsafe_allow_html=True)
 
     # -------------------------------------------------------------------------
-    # TAB 10: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
+    # TAB 11: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
     # -------------------------------------------------------------------------
-    with tabs[9]:
+    with tabs[10]:
         st.subheader("📑 Documentación Técnica y Fuentes de Verificación")
         
         m_col1, m_col2 = st.columns([1.5, 1], gap="large")
@@ -1506,9 +1600,9 @@ def main():
         st.caption(f"Terminal Costco Intelligence | Versión 3.4.1 | {datetime.date.today().year}")
         
     # -------------------------------------------------------------------------
-    # TAB 11: OPCIONES LAB (FULL GREEKS)
+    # TAB 12: OPCIONES LAB (FULL GREEKS)
     # -------------------------------------------------------------------------
-    with tabs[10]:
+    with tabs[11]:
         st.subheader("Laboratorio de Griegas y Pricing (Black-Scholes)")
         ok1, ok2, ok3 = st.columns(3)
         strike_p = ok1.number_input("Strike Price ($)", value=float(round(p_ref*1.05, 0)))
