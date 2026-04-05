@@ -337,6 +337,7 @@ def main():
     )
     
     upside = (f_val / p_ref - 1) * 100
+    equity_val_b = (f_val * data['shares_m']) / 1000
 
     # 4. Cabecera
     st.title(f"🏛️ {data['info'].get('longName')} Institutional Terminal")
@@ -411,17 +412,18 @@ def main():
         equity_val_b = (v_base * data['shares_m']) / 1000 
         
         fig_water = go.Figure(go.Waterfall(
-            orientation="v", measure=["relative", "relative", "relative", "total"],
+            orientation="v", 
+            measure=["relative", "relative", "relative", "total"],
             x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Market Cap Est. ($B)"],
+            # Usamos las variables que definimos en la Sección 1
             y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b],
-            textposition="outside",
             decreasing={"marker":{"color":"#f85149"}},
             increasing={"marker":{"color":"#3fb950"}},
             totals={"marker":{"color":"#005BAA"}}
         ))
         
-        fig_water.update_layout(title="Desglose del Valor de Mercado ($B)", template="plotly_dark", height=450)
-        st.plotly_chart(fig_water, use_container_width=True)
+        fig_water.update_layout(template="plotly_dark", height=450)
+        st.plotly_chart(fig_water, use_container_width=True))
 
     # -------------------------------------------------------------------------
     # TAB 2: SCORECARD & RADAR (RESTAURADO)
