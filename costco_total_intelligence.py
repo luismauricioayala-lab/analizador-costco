@@ -1013,8 +1013,8 @@ def main():
 
         # 2. Análisis de Probabilidad de Éxito (Manual Standard)
         st.markdown(f"""
-            **Margen de Seguridad Estadístico:** Según el manual, evaluamos la **Probabilidad de Éxito** comparando el Valor Intrínseco frente al precio actual de mercado de **${precio_actual:.2f}**.
-        """)
+        mensaje_seguridad = f"**Margen de Seguridad Estadístico:** Según el manual, evaluamos la **Probabilidad de Éxito** comparando el Valor Intrínseco frente al precio actual de mercado de **${precio_actual:.2f}**."
+        st.write(mensaje_seguridad)
         
         c_mc1, c_mc2 = st.columns([2, 1])
         
