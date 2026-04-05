@@ -312,6 +312,14 @@ class ValuationOracle:
 
 def main():
     # --- CONFIGURACIÓN GLOBAL DE GRÁFICOS (VERSIÓN SEGURA) ---
+    def mostrar(fig):
+        # 1. Forzar comas en números internos del Heatmap ($1,234)
+        fig.update_traces(texttemplate="$%{z:,.0f}") 
+        # 2. Forzar comas en el eje Y ($1,100)
+        fig.update_layout(yaxis_tickformat="$,.0f", template="plotly_dark")
+        # 3. Forzar comas en el eje X
+        fig.update_xaxes(tickformat=",.0f")
+        return st.plotly_chart(fig, use_container_width=True)
     def publicar(fig):
         fig.update_layout(template="plotly_dark")
         fig.update_yaxes(tickformat="$,.0f") # Fuerza comas y $ en eje Y
