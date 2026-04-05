@@ -502,14 +502,14 @@ def main():
         r_col1, r_col2 = st.columns([1.3, 2])
         
         with r_col1:
-            # 1. Datos de Consenso (Extracción robusta del diccionario 'data')
-            # Intentamos obtener de 'analysts' o 'info' como fallback
-            score_val = data.get('analysts', {}).get('score') or data.get('info', {}).get('recommendationMean', 2.0)
-            target_val = data.get('analysts', {}).get('target') or data.get('info', {}).get('targetMeanPrice', 1067.59)
-            rec_str = data.get('analysts', {}).get('key') or data.get('info', {}).get('recommendationKey', 'BUY')
-            count_val = data.get('analysts', {}).get('count') or data.get('info', {}).get('numberOfAnalystOpinions', 37)
+            # 1. Datos de Consenso (Extracción exacta de tu versión original)
+            # Nota: Asegúrate de que 'analysts' existe en tu diccionario 'data'
+            score_val = data.get('analysts', {}).get('score', 2.0)
+            target_val = data.get('analysts', {}).get('target', 1067.59)
+            rec_str = data.get('analysts', {}).get('key', 'BUY')
+            count_val = data.get('analysts', {}).get('count', 37)
             
-            # 2. CSS de Alto Contraste (Theme-Aware: funciona en Dark y Light Mode)
+            # 2. CSS Adaptativo (Soporte nativo para Dark Mode)
             st.markdown("""
                 <style>
                 .st-widget-box {
@@ -528,7 +528,7 @@ def main():
                 .st-rec-val { 
                     font-size: 2.2rem; 
                     font-weight: 900; 
-                    color: #1a7f37; /* Verde institucional constante */
+                    color: #1a7f37; 
                     margin: 5px 0; 
                 }
                 
@@ -552,7 +552,6 @@ def main():
                     margin: 0 12px;
                     border-radius: 5px;
                     border: 1px solid var(--border-color);
-                    overflow: hidden;
                 }
                 .st-data-bar-fill { height: 100%; border-radius: 4px; }
                 
@@ -564,20 +563,24 @@ def main():
                     font-weight: 800;
                     color: var(--text-color); 
                 }
-                .st-data-footer { border-top: 1px solid var(--border-color); margin-top: 15px; padding-top: 15px; }
+                .st-data-footer { 
+                    border-top: 2px solid var(--border-color); 
+                    margin-top: 15px; 
+                    padding-top: 15px; 
+                }
                 .st-footer-line { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; }
-                .st-footer-label { color: var(--text-color); opacity: 0.7; font-weight: 600; }
+                .st-footer-label { color: var(--text-color); opacity: 0.8; font-weight: 600; }
                 .st-footer-val { color: var(--text-color); font-weight: 800; }
                 </style>
             """, unsafe_allow_html=True)
 
-            # 3. Widget Header (Recomendación Principal)
+            # 3. Widget Header
             st.markdown(f"""
                 <div class="st-widget-box">
                     <div class="st-rec-header">
-                        <div style="font-size: 0.8rem; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; opacity: 0.8;">Recomendación de los analistas</div>
-                        <div class="st-rec-val">{rec_str.title().replace('_', ' ')}</div>
-                        <div style="font-size: 0.75rem; opacity: 0.7; font-weight: 600;">Basado en {count_val} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
+                        <div style="font-size: 0.8rem; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; opacity: 0.9;">Recomendación de los analistas</div>
+                        <div class="st-rec-val">{rec_str.title()}</div>
+                        <div style="font-size: 0.75rem; opacity: 0.8; font-weight: 600;">Basado en {count_val} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -603,7 +606,7 @@ def main():
             fig_gauge.update_layout(height=160, margin=dict(t=10, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
 
-            # 5. Cuerpo de Barras (Distribución de Opiniones)
+            # 5. Cuerpo de Barras (Legibilidad Máxima - Las 5 filas originales)
             st.markdown(f"""
                 <div class="st-widget-box" style="background: transparent; padding-top: 0; margin-top: -30px; border: none; box-shadow: none;">
                     <div class="st-data-row">
@@ -623,7 +626,38 @@ def main():
                     </div>
                     <div class="st-data-row">
                         <div class="st-data-label">Vender</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 0%; background: #
+                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 0%; background: #fb8f44;"></div></div>
+                        <div class="st-data-info">0 (0.0%)</div>
+                    </div>
+                    <div class="st-data-row">
+                        <div class="st-data-label">Venta fuerte</div>
+                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 5%; background: #d73a49;"></div></div>
+                        <div class="st-data-info">2 (5.4%)</div>
+                    </div>
+                    <div class="st-data-footer">
+                        <div class="st-footer-line"><span class="st-footer-label">Precio previsto (12m)</span><span class="st-footer-val">USD {target_val:,.2f}</span></div>
+                        <div class="st-footer-line"><span class="st-footer-label">Volatilidad</span><span class="st-footer-val">Promedio</span></div>
+                        <div class="st-footer-line"><span class="st-footer-label">Recomendación sector</span><span class="st-footer-val" style="color:#1a7f37;">Comprar</span></div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        with r_col2:
+            # 6. Gráfico de Ganancias Pro (Se mantiene con eje X categoría)
+            quarters = ['2025Q3', '2025Q4', '2026Q1', '2026Q2']
+            fig_eps = go.Figure()
+            fig_eps.add_trace(go.Bar(x=quarters, y=[3.80, 5.51, 4.55, 4.55], name="Estimado", marker_color="#495057"))
+            fig_eps.add_trace(go.Bar(x=quarters, y=[3.92, 5.82, 4.58, 4.58], name="Real", marker_color="#005BAA"))
+            
+            fig_eps.update_layout(
+                title="Sorpresas en Beneficio por Acción (BPA)",
+                barmode='group',
+                template="plotly_dark", 
+                height=450,
+                xaxis_type='category',
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig_eps, use_container_width=True)
             
 # -------------------------------------------------------------------------
     # TAB 4: STRESS TEST PRO (VERSIÓN FINAL SIN ERRORES)
