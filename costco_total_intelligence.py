@@ -1117,7 +1117,7 @@ with c4:
 # -------------------------------------------------------------------------
     # TAB 7: DCF LAB PRO (MATRIZ CALIBRADA AL PRECIO ACTUAL)
     # -------------------------------------------------------------------------
-        with tabs[6]:
+    with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
         fcf_premium_lab = data['fcf_now_b'] * 1.15 
