@@ -768,20 +768,20 @@
                 st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO - VERSIÓN ANTIBALAS (SIN TYPEERROR)
+    # TAB 7: DCF LAB PRO - VERSIÓN FINAL CON GO.HEATMAP (SIN TYPEERROR)
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # 1. OBTENCIÓN DEL PRECIO (Scalar Puro para evitar errores)
+        # 1. PRECIO DE REFERENCIA (Limpieza total para la escala)
         try:
-            p_val = data.get('price', 1060.0)
-            # Forzamos a ser un número simple, sin rastro de Pandas
-            p_ref = float(np.array(p_val).flatten()[0])
+            # Extraemos el precio actual y lo forzamos a float puro de Python
+            p_raw = data.get('price', 1060.0)
+            p_ref = float(np.array(p_raw).flatten()[0])
         except:
             p_ref = 1060.0
 
-        # Mantenemos el multiplicador para que los valores sean realistas
+        # Mantenemos el multiplicador para que los valores coincidan con tu tesis
         fcf_premium_lab = data['fcf_now_b'] * 1.15 
         
         col_mtx, col_flow = st.columns([1.2, 1])
@@ -789,44 +789,38 @@
         with col_mtx:
             st.write("**Matriz de Sensibilidad: Fair Value vs. WACC & g**")
             
+            # Definición de Ejes (9x9)
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            # Construcción de matriz con datos numéricos puros
+            # Generamos la matriz como lista de listas de floats puros
             z_mtx = []
             for w in w_rng:
                 fila = [float(ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, w, g, macro_adj)[0]) for g in g_rng]
                 z_mtx.append(fila)
 
-            # 2. EL GRÁFICO (Cambiamos px.imshow por go.Heatmap para que no falle)
+            # 2. EL GRÁFICO (Usamos go.Heatmap para evitar el error de px.imshow)
             import plotly.graph_objects as go
             
-            try:
-                fig_giant = go.Figure(data=go.Heatmap(
-                    z=z_mtx,
-                    x=[f"{x*100:.1f}%" for x in g_rng],
-                    y=[f"{x*100:.1f}%" for x in w_rng],
-                    colorscale='RdYlGn', # Rojo (Caro) -> Verde (Oportunidad)
-                    zmid=p_ref,           # <--- AQUÍ SE CENTRA EL COLOR EN EL PRECIO ACTUAL
-                    text=[[f"${v:.0f}" for v in row] for row in z_mtx],
-                    texttemplate="%{text}", # Muestra los números en las celdas
-                    showscale=True,
-                    colorbar=dict(title="Fair Value ($)")
-                ))
+            fig_giant = go.Figure(data=go.Heatmap(
+                z=z_mtx,
+                x=[f"{x*100:.1f}%" for x in g_rng],
+                y=[f"{x*100:.1f}%" for x in w_rng],
+                colorscale='RdYlGn', 
+                zmid=p_ref,           # <--- EL COLOR AMARILLO ES EL PRECIO ACTUAL
+                text=[[f"${v:.0f}" for v in row] for row in z_mtx],
+                texttemplate="%{text}", # Muestra los números grandes en las celdas
+                showscale=True,
+                colorbar=dict(title="Fair Value ($)")
+            ))
 
-                fig_giant.update_layout(
-                    template="plotly_dark", height=600,
-                    xaxis_title="Crecimiento Perpetuo (g)",
-                    yaxis_title="WACC",
-                    margin=dict(t=10, b=10, l=10, r=10)
-                )
-                st.plotly_chart(fig_giant, use_container_width=True)
-                
-            except Exception as e:
-                # Si Plotly fallara, mostramos la tabla con colores de respaldo
-                st.error("Error visual. Mostrando tabla de datos:")
-                df_visual = pd.DataFrame(z_mtx, index=[f"{x*100:.1f}%" for x in w_rng], columns=[f"{x*100:.1f}%" for x in g_rng])
-                st.dataframe(df_visual.style.background_gradient(cmap='RdYlGn', axis=None))
+            fig_giant.update_layout(
+                template="plotly_dark", height=600,
+                xaxis_title="Crecimiento Perpetuo (g)",
+                yaxis_title="Costo de Capital (WACC)",
+                margin=dict(t=10, b=10, l=10, r=10)
+            )
+            st.plotly_chart(fig_giant, use_container_width=True)
 
         with col_flow:
             st.write("**Evolución del Flujo de Caja Anual ($B)**")
@@ -837,8 +831,8 @@
             f_yrs = [str(int(h_yrs[-1]) + i) for i in range(1, 11)]
             
             fig_f = go.Figure()
-            fig_f.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Histórico", line=dict(color="#005BAA", width=5)))
-            fig_f.add_trace(go.Scatter(x=[h_yrs[-1]]+f_yrs, y=[data['fcf_hist_b'].values[0]]+list(f_proy), name="Proyección", line=dict(color="#f85149", dash='dash', width=4)))
+            fig_f.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Histórico", line=dict(color="#005BAA", width=5), mode='markers+lines'))
+            fig_f.add_trace(go.Scatter(x=[h_yrs[-1]]+f_yrs, y=[data['fcf_hist_b'].values[0]]+list(f_proy), name="Proyección", line=dict(color="#f85149", dash='dash', width=4), mode='markers+lines'))
             
             fig_f.update_layout(
                 template="plotly_dark", height=600,
