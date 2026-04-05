@@ -9,6 +9,9 @@ import os
 import io
 import datetime
 from plotly.subplots import make_subplots
+import plotly.io as pio
+
+pd.options.display.float_format = '{:,.2f}'.format
 
 # =============================================================================
 # 1. ARQUITECTURA DE CONFIGURACIÓN Y UI (ESTÉTICA BLOOMBERG ULTIMATE)
@@ -305,6 +308,11 @@ def main():
         st.error("No se pudieron cargar los datos de la API.")
         return
 
+    # Esto hace que los ejes de los gráficos tengan comas automáticamente
+    pio.templates.default = "plotly_dark"
+    pio.templates[pio.templates.default].layout.yaxis.tickformat = ",.0f"
+    pio.templates[pio.templates.default].layout.hoverformat = ",.2f"
+    
 # -------------------------------------------------------------------------
     # 2. SIDEBAR: PANEL DE CONTROL DIRECTO
     # -------------------------------------------------------------------------
