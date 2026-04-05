@@ -614,27 +614,51 @@ def main():
             )
             st.plotly_chart(fig_eps, use_container_width=True)
             
-    # -------------------------------------------------------------------------
-    # TAB 4: STRESS TEST PRO (TOTALMENTE AJUSTABLE)
+# -------------------------------------------------------------------------
+    # TAB 4: STRESS TEST PRO (LÓGICA UNIFICADA)
     # -------------------------------------------------------------------------
     with tabs[3]:
-        st.subheader("🌪️ Simulador de Shock Macroeconómico y Riesgos 10-K")
-        st.markdown('<div class="swan-box"><h4>⚠️ Matriz de Riesgos SEC 10-K</h4>Ajuste el ingreso disponible y factores macro para recalcular resiliencia.</div>', unsafe_allow_html=True)
+        st.subheader("🌪️ Simulador de Shock Macroeconómico")
+        st.markdown('<div class="swan-box"><h4>⚠️ Matriz de Riesgos SEC 10-K</h4>Ajuste los parámetros para simular un entorno de crisis.</div>', unsafe_allow_html=True)
         
         col_stress1, col_stress2 = st.columns(2)
-        # VARIABLE SOLICITADA: Ingreso Disponible ajustable localmente
-        s_income_local = col_stress1.slider("Escenario Shock Ingreso Disponible (%)", -20.0, 5.0, income_g*100) / 100
-        s_infl_local = col_stress2.slider("Escenario Inflación CPI (%)", 0.0, 20.0, inflation*100) / 100
+        # Usamos sliders locales que REEMPLAZAN a los globales solo para este cálculo
+        s_income_local = col_stress1.slider("Shock: Ingreso Disponible (%)", -20.0, 5.0, -5.0) / 100
+        s_infl_local = col_stress2.slider("Shock: Inflación CPI (%)", 0.0, 20.0, 8.0) / 100
         
+        # 1. CÁLCULO DEL NUEVO MACRO_ADJ (Escenario Alternativo Completo)
+        # Aquí incluimos el blended_gdp del sidebar para mantener la coherencia
+        macro_adj_stress = (s_income_local * 1.5) + (blended_gdp * 0.8) - (s_infl_local * 1.2)
+        
+        # 2. SELECCIÓN DE SHOCKS DE EVENTOS (Cisnes Negros)
         sw_imp = 0.0; wacc_sh = 0.0
         c_sw1, c_sw2, c_sw3, c_sw4 = st.columns(4)
-        if c_sw1.checkbox("Ataque Cibernético"): sw_imp -= 0.15; st.error("-15% Cash Flow")
-        if c_sw2.checkbox("Lockdown Global"): sw_imp -= 0.25; st.error("-25% Cash Flow")
-        if c_sw3.checkbox("Conflicto Geopolítico"): sw_imp -= 0.10; wacc_sh += 0.02; st.warning("-10% FCF")
-        if c_sw4.checkbox("Crisis de Membresías"): sw_imp -= 0.20; st.error("-20% FCF")
+        if c_sw1.checkbox("Ataque Cibernético"): sw_imp -= 0.15 
+        if c_sw2.checkbox("Lockdown Global"): sw_imp -= 0.25
+        if c_sw3.checkbox("Conflicto Geopolítico"): sw_imp -= 0.10; wacc_sh += 0.02
+        if c_sw4.checkbox("Crisis de Membresías"): sw_imp -= 0.20
+
+        # 3. EJECUCIÓN DEL MODELO (Sin doble conteo)
+        # Pasamos el FCF original sin multiplicar. 
+        # Sumamos el 'sw_imp' directamente al 'macro_adj' para que el impacto sea lineal y limpio.
+        total_stress_impact = macro_adj_stress + sw_imp
         
-        v_stress, _, _, _ = ValuationOracle.run_macro_dcf(data['fcf_now_b'] * (1 + sw_imp), g1_in, g2_in, final_wacc + wacc_sh, macro_adj=(s_income_local * 1.5))
-        st.metric("Fair Value Post-Stress Test", f"${v_stress:.2f}", f"{(v_stress/f_val-1)*100:.1f}% Impacto")
+        v_stress, _, _, _ = ValuationOracle.run_macro_dcf(
+            data['fcf_now_b'], 
+            g1_in, 
+            g2_in, 
+            final_wacc + wacc_sh, 
+            g_terminal,
+            shares=data['shares_m'], 
+            cash=data['cash_b'], 
+            debt=data['debt_b'], 
+            macro_adj=total_stress_impact
+        )
+        
+        # 4. MÉTRICA DE IMPACTO COMPARATIVA
+        # Comparamos contra el f_val global calculado al inicio del main()
+        diff_pct = (v_stress / f_val - 1) * 100
+        st.metric("Fair Value Post-Stress Test", f"${v_stress:.2f}", f"{diff_pct:.1f}% Impacto vs Base")
 
     # -------------------------------------------------------------------------
     # TAB 5: FORWARD LOOKING (VARIABLES AJUSTABLES)
