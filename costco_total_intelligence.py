@@ -768,20 +768,19 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO - ESCALA CENTRADA (FIJADO PARA EVITAR TYPEERROR)
+    # TAB 7: DCF LAB PRO - ESCALA CENTRADA (FIJADO CON GO.HEATMAP)
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # 1. EXTRACCIÓN SEGURA DEL PRECIO (Scalar Float)
-        # Esto evita el TypeError al asegurar que zmid reciba un número puro
+        # 1. Extracción del precio de referencia (Solo para esta pestaña)
+        # Convertimos a float puro para evitar errores de tipo en la matriz
         try:
-            raw_p = data.get('price', 1000.0)
-            p_ref = float(raw_p.iloc[0] if hasattr(raw_p, 'iloc') else raw_p)
+            precio_puro = data.get('price', 1000.0)
+            p_ref = float(precio_puro.iloc[0] if hasattr(precio_puro, 'iloc') else precio_puro)
         except:
             p_ref = 1000.0
 
-        # Mantenemos el multiplicador que prefieras para Costco
         fcf_premium_lab = data['fcf_now_b'] * 1.10 
         
         col_mtx, col_flow = st.columns([1.2, 1])
@@ -789,29 +788,30 @@ def main():
         with col_mtx:
             st.write("**Matriz de Sensibilidad: Fair Value vs. WACC & g Perpetuo**")
             
-            # Definición de ejes
+            # Definición de Ejes
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            # Cálculo de la matriz numérica
-            mtx_data = []
+            # Generamos la matriz numérica (lista de listas de floats)
+            mtx_raw = []
             for w in w_rng:
                 fila = []
                 for g in g_rng:
                     v = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj)[0]
                     fila.append(float(v) if np.isfinite(v) else 0.0)
-                mtx_data.append(fila)
+                mtx_raw.append(fila)
 
-            # 2. RENDERIZADO CON GRAPH OBJECTS (Inmune a errores de px.imshow)
+            # --- MOTOR DE GRÁFICO ROBUSTO (GO.HEATMAP) ---
+            # Usamos Graph Objects porque px.imshow falla con zmid en esta versión
             import plotly.graph_objects as go
             
             fig_giant = go.Figure(data=go.Heatmap(
-                z=mtx_data,
+                z=mtx_raw,
                 x=[f"{x*100:.1f}%" for x in g_rng],
                 y=[f"{x*100:.1f}%" for x in w_rng],
-                colorscale='RdYlGn', # Rojo (Caro) -> Amarillo (Neutral) -> Verde (Barato)
-                zmid=p_ref,          # <--- CENTRA EL COLOR EN EL PRECIO ACTUAL
-                text=[[f"${val:.0f}" for val in row] for row in mtx_data],
+                colorscale='RdYlGn',
+                zmid=p_ref, # <--- CENTRA EL COLOR EN EL PRECIO ACTUAL DE MERCADO
+                text=[[f"${val:.0f}" for val in row] for row in mtx_raw],
                 texttemplate="%{text}",
                 showscale=True,
                 colorbar=dict(title="Fair Value ($)")
@@ -829,32 +829,25 @@ def main():
         with col_flow:
             st.write("**Evolución del Flujo de Caja Anual ($B)**")
             
-            # Obtenemos los flujos proyectados
             res_dcf = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj)
-            
-            # Validación de la lista de flujos (posición 4 del return)
-            flows_proy = res_dcf[3] if (isinstance(res_dcf, (list, tuple)) and len(res_dcf) > 3) else []
-            
-            if not isinstance(flows_proy, list) or len(flows_proy) == 0:
-                flows_proy = [fcf_premium_lab * (1 + g1_in)**i for i in range(1, 11)]
+            f_proy = res_dcf[3] if (isinstance(res_dcf, (list, tuple)) and len(res_dcf) > 3) else [fcf_premium_lab*(1+g1_in)**i for i in range(1,11)]
 
             h_yrs = data['hist_years'][::-1]
             f_yrs = [str(int(h_yrs[-1]) + i) for i in range(1, 11)]
-            y_max = max(flows_proy) if flows_proy else 20
             
-            fig_dcf_flow = go.Figure()
+            fig_f = go.Figure()
             # Histórico
-            fig_dcf_flow.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Histórico", line=dict(color="#005BAA", width=6), mode='markers+lines'))
+            fig_f.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Histórico", line=dict(color="#005BAA", width=5)))
             # Proyección
-            fig_dcf_flow.add_trace(go.Scatter(x=[h_yrs[-1]] + f_yrs, y=[data['fcf_hist_b'].values[0]] + flows_proy, name="Proyección", line=dict(color="#f85149", dash='dash', width=5), mode='markers+lines'))
+            fig_f.add_trace(go.Scatter(x=[h_yrs[-1]]+f_yrs, y=[data['fcf_hist_b'].values[0]]+list(f_proy), name="Proyección", line=dict(color="#f85149", dash='dash', width=4)))
             
-            fig_dcf_flow.update_layout(
+            fig_f.update_layout(
                 template="plotly_dark", height=600,
                 xaxis_type='category',
-                yaxis=dict(title="FCF ($B)", range=[0, y_max * 1.3]),
+                yaxis=dict(title="FCF ($B)", range=[0, max(f_proy)*1.3 if f_proy else 30]),
                 legend=dict(orientation="h", y=1.1, x=1)
             )
-            st.plotly_chart(fig_dcf_flow, use_container_width=True)
+            st.plotly_chart(fig_f, use_container_width=True)
             
 # -------------------------------------------------------------------------
     # TAB 8: MONTE CARLO - RECALIBRACIÓN INSTITUCIONAL ($1,067 TARGET)
