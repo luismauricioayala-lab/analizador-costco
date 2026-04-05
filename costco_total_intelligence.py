@@ -835,7 +835,7 @@ def main():
             d2.metric("Growth Stress", f"{stress_g1*100:.1f}%", f"{impact_g*100:.1f}%")
             d3.metric("FCF Adjustment", f"{total_macro_stress*100:.1f}%", "Impacto Neto")
 
-    # -------------------------------------------------------------------------
+# -------------------------------------------------------------------------
     # TAB 5: FORWARD LOOKING (VARIABLES AJUSTABLES)
     # -------------------------------------------------------------------------
     with tabs[4]:
@@ -848,10 +848,35 @@ def main():
         
         yrs = [2026, 2027, 2028, 2029, 2030]
         p_revs = [data['acc_summary']['Revenue ($B)'] * (1 + rf_g)**i for i in range(1, 6)]
-        df_fwd = pd.DataFrame({"Año": yrs, "Rev ($B)": p_revs, "EBITDA ($B)": [r * mf_e for r in p_revs]})
-        st.table(df_fwd.style.format("{:.2f}"))
-        st.plotly_chart(px.line(df_fwd, x="Año", y="Rev ($B)", markers=True, title="Trayectoria Proyectada de Ingresos"), use_container_width=True)
+        
+        # 1. Creamos el DataFrame
+        df_fwd = pd.DataFrame({
+            "Año": yrs, 
+            "Rev ($B)": p_revs, 
+            "EBITDA ($B)": [r * mf_e for r in p_revs]
+        })
 
+        # 2. TABLA: Convertimos Año a string para que no tenga decimales ni comas
+        df_display = df_fwd.copy()
+        df_display["Año"] = df_display["Año"].astype(str)
+        st.table(df_display.style.format({
+            "Rev ($B)": "{:,.2f}", 
+            "EBITDA ($B)": "{:,.2f}"
+        }))
+
+        # 3. GRÁFICO: Forzamos el eje X a ser discreto y sin formato decimal
+        fig_fwd = px.line(df_fwd, x="Año", y="Rev ($B)", markers=True, title="Trayectoria Proyectada de Ingresos")
+        fig_fwd.update_layout(
+            xaxis=dict(
+                tickmode='linear',
+                dtick=1,        # Salto de 1 en 1
+                tickformat='d'  # 'd' de dígito entero (sin comas ni decimales)
+            ),
+            yaxis_tickformat="$,.0f", # Aprovechamos para poner comas y $ en el eje Y
+            template="plotly_dark"
+        )
+        st.plotly_chart(fig_fwd, use_container_width=True)
+        
 # -------------------------------------------------------------------------
     # TAB 6: FINANZAS & RATIOS PRO (BLOOMBERG TERMINAL INTEGRATED - ANTI-CRASH)
     # -------------------------------------------------------------------------
