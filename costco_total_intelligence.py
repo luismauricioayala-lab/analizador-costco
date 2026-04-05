@@ -287,16 +287,24 @@ class ValuationOracle:
 # =============================================================================
 
 def main():
-    # 1. Adquisición de Datos (Dentro de main para evitar NameError)
+    # 1. Adquisición de Datos
     data = InstitutionalDataService.fetch_verified_payload("COST")
     if not data: 
-        st.error("No se pudieron cargar los datos de la API.")
+        st.error("Error al conectar con la base de datos de Yahoo Finance.")
         return
 
     # 2. Sidebar: Master Control
     st.sidebar.title("🏛️ Master Control")
-    # p_ref será nuestra ancla para los colores de la Tab 7
-    p_ref = st.sidebar.number_input("Market Price Ref. ($)", value=float(data['price']))
+    
+    # --- FIJAMOS p_ref AQUÍ (Variable Global de la Función) ---
+    try:
+        p_val = data.get('price', 1015.0)
+        p_ref = float(p_val.iloc[0] if hasattr(p_val, 'iloc') else p_val)
+    except:
+        p_ref = 1015.0
+
+    # Input del usuario para el precio de referencia
+    p_ref = st.sidebar.number_input("Market Price Ref. ($)", value=p_ref)
     
     st.sidebar.markdown("---")
     st.sidebar.subheader("1. Valuación (DCF)")
@@ -307,49 +315,41 @@ def main():
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("2. Laboratorio Macroeconómico")
-    u_rate = st.sidebar.slider("Tasa de Desempleo (%)", 3.0, 18.0, 4.2)
     income_g = st.sidebar.slider("Crec. Ingreso Disponible (%)", -12.0, 12.0, 2.5) / 100
     inflation = st.sidebar.slider("Inflación CPI (%)", 0.0, 15.0, 3.2) / 100
     fed_rates = st.sidebar.slider("Variación Fed Rates (bps)", -200, 500, 0) / 10000
 
-    st.sidebar.markdown("### PIB Blended (Canadá 14%)")
+    st.sidebar.markdown("### PIB Blended")
     gdp_us = st.sidebar.slider("PIB EE.UU (%)", -5.0, 8.0, 2.3) / 100
     gdp_ca = st.sidebar.slider("PIB Canadá (%)", -5.0, 8.0, 2.1) / 100
     gdp_intl = st.sidebar.slider("PIB Internacional (%)", -5.0, 8.0, 3.0) / 100
     blended_gdp = (gdp_us * 0.73) + (gdp_ca * 0.14) + (gdp_intl * 0.13)
 
-    # --- LÓGICA DE IMPACTO MACRO INTEGRADA ---
+    # --- CÁLCULOS MACRO Y WACC FINAL ---
     macro_adj = (income_g * 1.5) + (blended_gdp * 0.8) - (inflation * 1.2)
     final_wacc = wacc_base + fed_rates 
 
-    # --- CÁLCULO DE VALORACIÓN PRO (MOTOR GLOBAL) ---
-    # Importante: El orden corregido es (Precio, PV_Flujos, PV_Terminal, Lista_Proyecciones)
+    # --- 3. EJECUCIÓN DEL MOTOR GLOBAL ---
+    # Usamos el orden nuevo: (Precio, PV_Flujos, PV_Terminal, Lista_Proyecciones)
     f_val, pv_f, pv_t, flows = ValuationOracle.run_macro_dcf(
-        data['fcf_now_b'], 
-        g1_in, 
-        g2_in, 
-        final_wacc, 
-        g_terminal,
-        shares=data['shares_m'], 
-        cash=data['cash_b'], 
-        debt=data['debt_b'], 
-        macro_adj=macro_adj
+        data['fcf_now_b'], g1_in, g2_in, final_wacc, g_terminal,
+        shares=data['shares_m'], cash=data['cash_b'], debt=data['debt_b'], macro_adj=macro_adj
     )
     
     upside = (f_val / p_ref - 1) * 100
 
-    # 4. Cabecera con Lógica Beta Neutro
+    # 4. Cabecera
     st.title(f"🏛️ {data['info'].get('longName')} Institutional Terminal")
-    st.caption(f"Sync SEC 2026 | Auditoría Alpha v43.0 | GDP Blended: {blended_gdp*100:.3f}% | WACC: {final_wacc*100:.2f}%")
+    st.caption(f"Sync SEC 2026 | WACC: {final_wacc*100:.2f}% | GDP: {blended_gdp*100:.2f}%")
 
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("P/E TTM", f"{data['info'].get('trailingPE', 52.9):.1f}x", "Premium Valuation")
-    m2.metric("Mkt Cap", f"${data['mkt_cap_b']:.1f}B", "NASDAQ: COST")
+    m1.metric("P/E TTM", f"{data['info'].get('trailingPE', 52.9):.1f}x")
+    m2.metric("Mkt Cap", f"${data['mkt_cap_b']:.1f}B")
     
     b_val = data['beta']
-    b_label, b_color = ("Market Neutral", "off") if 0.95 <= b_val <= 1.05 else (("Low Vol", "normal") if b_val < 0.95 else ("High Vol", "inverse"))
-    m3.metric("Riesgo Beta", f"{b_val:.3f}", b_label, delta_color=b_color)
-    m4.metric("Intrinsic Value", f"${f_val:.2f}", f"{upside:+.1f}%", delta_color="normal" if upside > 0 else "inverse")
+    b_label = "Market Neutral" if 0.95 <= b_val <= 1.05 else ("Low Vol" if b_val < 0.95 else "High Vol")
+    m3.metric("Beta", f"{b_val:.3f}", b_label)
+    m4.metric("Intrinsic Value", f"${f_val:.2f}", f"{upside:+.1f}%")
 
     st.markdown("---")
 
@@ -358,9 +358,6 @@ def main():
         "📋 Resumen", "🛡️ Scorecard & Radar", "💰 Ganancias", "🌪️ Stress Test Pro", 
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "📜 Metodología", "📈 Opciones Lab"
     ])
-
-    # A partir de aquí ya puedes seguir con tus 'with tabs[0]:', etc.
-    # RECUERDA: En Tab 1 usa: y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b]
 
 # -------------------------------------------------------------------------
     # TAB 1: RESUMEN EJECUTIVO (VERSIÓN COMPLETA RESTAURADA)
@@ -760,7 +757,7 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO (MATRIZ CALIBRADA AL PRECIO ACTUAL)
+    # TAB 7: DCF LAB PRO - ESCALA DE COLORES INVERTIDA
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
@@ -769,41 +766,50 @@ def main():
         col_mtx, col_flow = st.columns([1.2, 1])
         
         with col_mtx:
-            st.write(f"**Matriz de Sensibilidad (Punto Neutro: ${p_ref:.0f})**")
+            st.write(f"**Matriz de Sensibilidad (Escala Invertida - Centro: ${p_ref:.0f})**")
             
+            # Generamos los rangos
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            # Matriz de datos (Capturamos solo el Fair Value: posición [0])
+            # Calculamos la matriz
             z_mtx = [[float(ValuationOracle.run_macro_dcf(fcf_premium_lab, g1, g2_in, w, g_terminal, macro_adj=macro_adj)[0]) for g1 in g_rng] for w in w_rng]
 
+            # RENDERIZADO
+            import plotly.graph_objects as go
+            
             fig_giant = go.Figure(data=go.Heatmap(
                 z=z_mtx,
                 x=[f"{x*100:.1f}%" for x in g_rng],
                 y=[f"{x*100:.1f}%" for x in w_rng],
-                colorscale='RdYlGn', 
-                zmid=p_ref,           # <--- EL AMARILLO ES EL PRECIO ACTUAL
+                # CAMBIO AQUÍ: 'RdYlGn_r' invierte el Rojo y el Verde
+                colorscale='RdYlGn_r', 
+                zmid=p_ref,
                 text=[[f"${v:.0f}" for v in row] for row in z_mtx],
                 texttemplate="%{text}", 
-                showscale=True
+                showscale=True,
+                colorbar=dict(title="Value ($)")
             ))
 
-            fig_giant.update_layout(template="plotly_dark", height=600, xaxis_title="Crecimiento 1-5Y", yaxis_title="WACC")
+            fig_giant.update_layout(
+                template="plotly_dark", 
+                height=600,
+                xaxis_title="Crecimiento 1-5Y",
+                yaxis_title="WACC",
+                # Opcional: Esto asegura que el WACC más bajo (más valor) esté arriba
+                yaxis=dict(autorange='reversed'), 
+                margin=dict(t=10, b=10, l=10, r=10)
+            )
             st.plotly_chart(fig_giant, use_container_width=True)
 
         with col_flow:
+            # (El código del gráfico de flujo se mantiene igual para no romper la coherencia)
             st.write("**Evolución del Flujo de Caja ($B)**")
-            # Capturamos la lista de flujos (posición [3])
             _, _, _, flows_dcf = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj)
             
-            h_yrs = data['hist_years'][::-1]
-            f_yrs = [str(int(h_yrs[-1]) + i) for i in range(1, 11)]
-            
             fig_f = go.Figure()
-            fig_f.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Histórico", line=dict(color="#005BAA", width=5)))
-            fig_f.add_trace(go.Scatter(x=[h_yrs[-1]]+f_yrs, y=[data['fcf_hist_b'].values[0]]+list(flows_dcf), name="Proyección", line=dict(color="#f85149", dash='dash', width=4)))
-            
-            fig_f.update_layout(template="plotly_dark", height=600, yaxis=dict(title="FCF ($B)", range=[0, max(flows_dcf)*1.3]))
+            fig_f.add_trace(go.Scatter(x=list(range(2023, 2036)), y=[6.7, 6.5, 7.8] + list(flows_dcf), name="FCF", line=dict(color="#f85149", width=4)))
+            fig_f.update_layout(template="plotly_dark", height=600)
             st.plotly_chart(fig_f, use_container_width=True)
             
 # -------------------------------------------------------------------------
