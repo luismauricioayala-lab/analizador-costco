@@ -768,24 +768,20 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO - VERSIÓN ULTRA-ESTABLE (SIN PX.IMSHOW)
+    # TAB 7: DCF LAB PRO - ESCALA CENTRADA (FIJADO PARA EVITAR TYPEERROR)
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # 1. Extracción blindada del precio (Garantizamos Float Puro)
+        # 1. EXTRACCIÓN SEGURA DEL PRECIO (Scalar Float)
+        # Esto evita el TypeError al asegurar que zmid reciba un número puro
         try:
-            p_raw = data.get('price', 1000.0)
-            # Extraemos el valor real ignorando si es Serie o Array
-            if hasattr(p_raw, 'iloc'):
-                p_ref = float(p_raw.iloc[0])
-            elif isinstance(p_raw, (list, np.ndarray)):
-                p_ref = float(p_raw[0])
-            else:
-                p_ref = float(p_raw)
+            raw_p = data.get('price', 1000.0)
+            p_ref = float(raw_p.iloc[0] if hasattr(raw_p, 'iloc') else raw_p)
         except:
             p_ref = 1000.0
 
+        # Mantenemos el multiplicador que prefieras para Costco
         fcf_premium_lab = data['fcf_now_b'] * 1.10 
         
         col_mtx, col_flow = st.columns([1.2, 1])
@@ -793,11 +789,11 @@ def main():
         with col_mtx:
             st.write("**Matriz de Sensibilidad: Fair Value vs. WACC & g Perpetuo**")
             
-            # Definición de rangos
+            # Definición de ejes
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            # Construcción de la matriz como lista de listas (floats puros)
+            # Cálculo de la matriz numérica
             mtx_data = []
             for w in w_rng:
                 fila = []
@@ -806,17 +802,17 @@ def main():
                     fila.append(float(v) if np.isfinite(v) else 0.0)
                 mtx_data.append(fila)
 
-            # 2. RENDERIZADO CON GO.HEATMAP (Evita el TypeError de Plotly Express)
+            # 2. RENDERIZADO CON GRAPH OBJECTS (Inmune a errores de px.imshow)
             import plotly.graph_objects as go
             
             fig_giant = go.Figure(data=go.Heatmap(
                 z=mtx_data,
                 x=[f"{x*100:.1f}%" for x in g_rng],
                 y=[f"{x*100:.1f}%" for x in w_rng],
-                colorscale='RdYlGn',
-                zmid=p_ref, # <--- CENTRA LA ESCALA EN EL PRECIO ACTUAL
+                colorscale='RdYlGn', # Rojo (Caro) -> Amarillo (Neutral) -> Verde (Barato)
+                zmid=p_ref,          # <--- CENTRA EL COLOR EN EL PRECIO ACTUAL
                 text=[[f"${val:.0f}" for val in row] for row in mtx_data],
-                texttemplate="%{text}", # Muestra el valor en la celda
+                texttemplate="%{text}",
                 showscale=True,
                 colorbar=dict(title="Fair Value ($)")
             ))
@@ -832,9 +828,13 @@ def main():
 
         with col_flow:
             st.write("**Evolución del Flujo de Caja Anual ($B)**")
-            # El gráfico de flujo se mantiene igual (go.Figure ya es estable)
+            
+            # Obtenemos los flujos proyectados
             res_dcf = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj)
-            flows_proy = res_dcf[3] if len(res_dcf) > 3 else []
+            
+            # Validación de la lista de flujos (posición 4 del return)
+            flows_proy = res_dcf[3] if (isinstance(res_dcf, (list, tuple)) and len(res_dcf) > 3) else []
+            
             if not isinstance(flows_proy, list) or len(flows_proy) == 0:
                 flows_proy = [fcf_premium_lab * (1 + g1_in)**i for i in range(1, 11)]
 
@@ -843,10 +843,17 @@ def main():
             y_max = max(flows_proy) if flows_proy else 20
             
             fig_dcf_flow = go.Figure()
+            # Histórico
             fig_dcf_flow.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Histórico", line=dict(color="#005BAA", width=6), mode='markers+lines'))
+            # Proyección
             fig_dcf_flow.add_trace(go.Scatter(x=[h_yrs[-1]] + f_yrs, y=[data['fcf_hist_b'].values[0]] + flows_proy, name="Proyección", line=dict(color="#f85149", dash='dash', width=5), mode='markers+lines'))
             
-            fig_dcf_flow.update_layout(template="plotly_dark", height=600, xaxis_type='category', yaxis=dict(title="FCF ($B)", range=[0, y_max * 1.3]), legend=dict(orientation="h", y=1.1, x=1))
+            fig_dcf_flow.update_layout(
+                template="plotly_dark", height=600,
+                xaxis_type='category',
+                yaxis=dict(title="FCF ($B)", range=[0, y_max * 1.3]),
+                legend=dict(orientation="h", y=1.1, x=1)
+            )
             st.plotly_chart(fig_dcf_flow, use_container_width=True)
             
 # -------------------------------------------------------------------------
