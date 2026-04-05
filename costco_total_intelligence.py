@@ -467,7 +467,7 @@ def main():
                 v_bull, _, _, _ = ValuationOracle.run_macro_dcf(
                     fcf_premium, bull_g1, g2_in * 1.15, bull_wacc, bull_gt, macro_adj=bull_macro
                 )
-                bull_display = f"${v_bull:.0f}"
+                bull_display = f"${v_bull:,.0f}"
                 bull_color = "#3fb950"
 
             # --- RENDERIZADO DE TARJETAS (ESTILO BLOOMBERG PRO) ---
@@ -488,7 +488,7 @@ def main():
             with c_sc2:
                 st.markdown(f"""<div class="scenario-card-detailed base-pro">
                     <div class="scenario-label-sober">Escenario Base (Intrinsic)</div>
-                    <div class="price-hero-sober" style="color:var(--text-color)">${v_base:.0f}</div>
+                    <div class="price-hero-sober" style="color:var(--text-color)">${v_base:,.0f}</div>
                     <div class="driver-list-sober">
                         • <b>WACC:</b> {final_wacc*100:.2f}% (Market)<br>
                         • <b>Crec. 1-5Y:</b> {g1_in*100:.1f}%<br>
