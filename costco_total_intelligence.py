@@ -768,20 +768,20 @@
                 st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO - VERSIÓN FINAL CON GO.HEATMAP (SIN TYPEERROR)
+    # TAB 7: DCF LAB PRO - VERSIÓN FINAL ANTIBALAS (USA GRAPH OBJECTS)
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # 1. PRECIO DE REFERENCIA (Limpieza total para la escala)
+        # 1. EXTRACCIÓN DEL PRECIO (Blindaje total contra TypeErrors)
         try:
-            # Extraemos el precio actual y lo forzamos a float puro de Python
+            # Extraemos el precio actual y lo convertimos a un float puro de Python
             p_raw = data.get('price', 1060.0)
             p_ref = float(np.array(p_raw).flatten()[0])
         except:
             p_ref = 1060.0
 
-        # Mantenemos el multiplicador para que los valores coincidan con tu tesis
+        # Multiplicador premium (Ajustado para que el centro sea realista)
         fcf_premium_lab = data['fcf_now_b'] * 1.15 
         
         col_mtx, col_flow = st.columns([1.2, 1])
@@ -793,13 +793,13 @@
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            # Generamos la matriz como lista de listas de floats puros
+            # Generamos la matriz como una lista de listas de floats puros
             z_mtx = []
             for w in w_rng:
                 fila = [float(ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, w, g, macro_adj)[0]) for g in g_rng]
                 z_mtx.append(fila)
 
-            # 2. EL GRÁFICO (Usamos go.Heatmap para evitar el error de px.imshow)
+            # 2. EL GRÁFICO (IMPORTANTE: Usamos go.Heatmap para evitar el error de px.imshow)
             import plotly.graph_objects as go
             
             fig_giant = go.Figure(data=go.Heatmap(
@@ -807,15 +807,16 @@
                 x=[f"{x*100:.1f}%" for x in g_rng],
                 y=[f"{x*100:.1f}%" for x in w_rng],
                 colorscale='RdYlGn', 
-                zmid=p_ref,           # <--- EL COLOR AMARILLO ES EL PRECIO ACTUAL
+                zmid=p_ref,           # <--- EL COLOR AMARILLO ES EL PRECIO ACTUAL ($1,060 aprox)
                 text=[[f"${v:.0f}" for v in row] for row in z_mtx],
-                texttemplate="%{text}", # Muestra los números grandes en las celdas
+                texttemplate="%{text}", # Esto pone los números en las celdas como en tu imagen
                 showscale=True,
                 colorbar=dict(title="Fair Value ($)")
             ))
 
             fig_giant.update_layout(
-                template="plotly_dark", height=600,
+                template="plotly_dark", 
+                height=600,
                 xaxis_title="Crecimiento Perpetuo (g)",
                 yaxis_title="Costo de Capital (WACC)",
                 margin=dict(t=10, b=10, l=10, r=10)
@@ -831,13 +832,15 @@
             f_yrs = [str(int(h_yrs[-1]) + i) for i in range(1, 11)]
             
             fig_f = go.Figure()
-            fig_f.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Histórico", line=dict(color="#005BAA", width=5), mode='markers+lines'))
-            fig_f.add_trace(go.Scatter(x=[h_yrs[-1]]+f_yrs, y=[data['fcf_hist_b'].values[0]]+list(f_proy), name="Proyección", line=dict(color="#f85149", dash='dash', width=4), mode='markers+lines'))
+            # Histórico
+            fig_f.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Histórico Real", line=dict(color="#005BAA", width=5), mode='markers+lines'))
+            # Proyección
+            fig_f.add_trace(go.Scatter(x=[h_yrs[-1]]+f_yrs, y=[data['fcf_hist_b'].values[0]]+list(f_proy), name="Proyección OE", line=dict(color="#f85149", dash='dash', width=4), mode='markers+lines'))
             
             fig_f.update_layout(
                 template="plotly_dark", height=600,
                 xaxis_type='category',
-                yaxis=dict(title="FCF ($B)", range=[0, max(f_proy)*1.3 if f_proy else 30]),
+                yaxis=dict(title="Free Cash Flow ($B)", range=[0, max(f_proy)*1.3 if f_proy else 30]),
                 legend=dict(orientation="h", y=1.1, x=1)
             )
             st.plotly_chart(fig_f, use_container_width=True)
