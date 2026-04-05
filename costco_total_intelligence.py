@@ -311,22 +311,23 @@ class ValuationOracle:
 # =============================================================================
 
 def main():
-    # --- CONFIGURACIÓN GLOBAL DE GRÁFICOS (VERSIÓN SEGURA) ---
-    def mostrar(fig):
-        # 1. Forzar comas en números internos del Heatmap ($1,234)
-        fig.update_traces(texttemplate="$%{z:,.0f}") 
-        # 2. Forzar comas en el eje Y ($1,100)
-        fig.update_layout(yaxis_tickformat="$,.0f", template="plotly_dark")
-        # 3. Forzar comas en el eje X
+    # --- INTERCEPTOR MAESTRO (Sobreescribe Streamlit globalmente) ---
+    def patched_plotly_chart(fig, **kwargs):
+        # 1. Forzar comas dentro de Heatmaps/Matrices
+        fig.update_traces(texttemplate="$%{z:,.0f}", selector=dict(type='heatmap'))
+        # 2. Forzar comas en Eje Y y Hover
+        fig.update_layout(
+            yaxis_tickformat="$,.0f", 
+            hoverformat="$,.2f",
+            template="plotly_dark"
+        )
+        # 3. Forzar comas en Eje X (si es numérico)
         fig.update_xaxes(tickformat=",.0f")
+        # Llamar a la función real de Streamlit
         return st.plotly_chart(fig, use_container_width=True)
-    def publicar(fig):
-        fig.update_layout(template="plotly_dark")
-        fig.update_yaxes(tickformat="$,.0f") # Fuerza comas y $ en eje Y
-        fig.update_xaxes(tickformat=",.0f")  # Fuerza comas en eje X
-        # Si es un Heatmap (Matriz), fuerza las comas en los números internos
-        fig.update_traces(texttemplate="$%{z:,.0f}") 
-        return st.plotly_chart(fig, use_container_width=True)
+
+    # ESTA LÍNEA ES LA MAGIA: Reemplaza la función original por la nuestra
+    st.plotly_chart = patched_plotly_chart
     
     # 1. Adquisición de Datos (Dentro de main para evitar NameError)
     data = InstitutionalDataService.fetch_verified_payload("COST")
