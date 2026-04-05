@@ -377,29 +377,26 @@ def main():
 # -------------------------------------------------------------------------
     # TAB 1: RESUMEN EJECUTIVO (VERSIÓN INSTITUCIONAL COMPLETA)
     # -------------------------------------------------------------------------
-    with tabs[0]:
+with tabs[0]:
         st.subheader("Análisis de Sensibilidad de Escenarios (Target 2026)")
         
         # 1. Normalización de Flujos (Owner Earnings)
         fcf_premium = data['fcf_now_b'] * 1.25 
-
-        # --- VALIDACIÓN GLOBAL DE CONVERGENCIA ---
-        # Verificamos la condición matemática: $WACC > g_{terminal}$
-        if final_wacc <= g_terminal:
-            st.error(f"🚨 **MODELO INESTABLE:** El WACC Base ({final_wacc*100:.2f}%) es menor o igual al Crecimiento Terminal ({g_terminal*100:.2f}%).")
-            st.info("Ajusta los parámetros en el sidebar para que la tasa de descuento supere al crecimiento perpetuo.")
-        else:
-            
-        # --- CÁLCULO DE ESCENARIOS CON DESGLOSE DE DRIVERS ---
         
-        # ESCENARIO BAJISTA (BEAR)
-        bear_wacc = final_wacc + 0.005
-        bear_g1 = g1_in * 0.90
-        bear_gt = g_terminal - 0.005
-        bear_macro = macro_adj - 0.02
-        v_bear, _, _, _ = ValuationOracle.run_macro_dcf(
-            fcf_premium, bear_g1, g2_in * 0.90, bear_wacc, bear_gt, macro_adj=bear_macro
-        )
+        # --- VALIDACIÓN GLOBAL DE CONVERGENCIA ---
+        if final_wacc <= g_terminal:
+            st.error(f"🚨 **MODELO INESTABLE:** El WACC Base ({final_wacc*100:.2f}%) es <= al Crecimiento Terminal ({g_terminal*100:.2f}%)")
+            st.info("Ajusta los parámetros en el sidebar para que la tasa de descuento supere al crecimiento.")
+        else:
+            # TODO este bloque debe estar indentado 4 espacios a la derecha del 'else'
+            # ESCENARIO BAJISTA (BEAR)
+            bear_wacc = final_wacc + 0.005
+            bear_g1 = g1_in * 0.90
+            bear_gt = g_terminal - 0.005
+            bear_macro = macro_adj - 0.02
+            v_bear, _, _, _ = ValuationOracle.run_macro_dcf(
+                fcf_premium, bear_g1, g2_in * 0.90, bear_wacc, bear_gt, macro_adj=bear_macro
+            )
         
         # ESCENARIO BASE (INTRINSIC)
         v_base, pv_f, pv_t, _ = ValuationOracle.run_macro_dcf(
