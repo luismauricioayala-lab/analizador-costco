@@ -338,45 +338,94 @@ def main():
     ])
 
 # -------------------------------------------------------------------------
-    # TAB 1: RESUMEN EJECUTIVO (SIN ERRORES DE VARIABLES)
+    # TAB 1: RESUMEN EJECUTIVO (VALORACIÓN PREMIUM - OWNER EARNINGS)
     # -------------------------------------------------------------------------
     with tabs[0]:
         st.subheader("Análisis de Sensibilidad de Escenarios (Target 2026)")
         
-        # ESCENARIOS DINÁMICOS (Relativos al cálculo maestro anterior)
+        # --- 1. LÓGICA DE VALORACIÓN PREMIUM (NORMALIZACIÓN INSTITUCIONAL) ---
+        # Aplicamos el multiplicador de 1.25x para reflejar 'Owner Earnings'.
+        # Costco invierte agresivamente en Capex; normalizamos para ver el valor real.
+        fcf_premium = data['fcf_now_b'] * 1.25 
+        
+        # ESCENARIO BASE (Intrinsic): El ancla de nuestra tesis.
+        # Se alimenta de los sliders de la sidebar (WACC, g1, g2, g_terminal).
+        v_base, pv_f, pv_t, _ = ValuationOracle.run_macro_dcf(
+            fcf_premium, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
+        )
+        
+        # ESCENARIO BAJISTA (Bear): Resiliencia ante desaceleración.
         v_bear, _, _, _ = ValuationOracle.run_macro_dcf(
-            fcf_premium, g1_in * 0.90, g2_in * 0.90, wacc_base + 0.005, g_terminal - 0.005, macro_adj=macro_adj - 0.02
+            fcf_premium, g1_in * 0.90, g2_in * 0.90, final_wacc + 0.005, g_terminal - 0.005, macro_adj=macro_adj - 0.02
         )
+        
+        # ESCENARIO ALCISTA (Bull): Captura de valor global y escala Kirkland.
         v_bull, _, _, _ = ValuationOracle.run_macro_dcf(
-            fcf_premium, g1_in * 1.15, g2_in * 1.15, wacc_base - 0.005, g_terminal + 0.005, macro_adj=macro_adj + 0.03
+            fcf_premium, g1_in * 1.15, g2_in * 1.15, final_wacc - 0.005, g_terminal + 0.005, macro_adj=macro_adj + 0.03
         )
 
-        # 1. RENDERIZADO DE TARJETAS
+        # --- 2. RENDERIZADO DE TARJETAS DE ESCENARIOS ---
         c_sc1, c_sc2, c_sc3 = st.columns(3)
+        
         with c_sc1:
-            st.markdown(f'<div class="scenario-card-detailed bear-pro"><div class="scenario-label-sober">Escenario Bajista</div><div class="price-hero-sober" style="color:#f85149">${v_bear:.0f}</div></div>', unsafe_allow_html=True)
+            st.markdown(f"""
+                <div class="scenario-card-detailed bear-pro">
+                    <div class="scenario-label-sober">Escenario Bajista (Bear)</div>
+                    <div class="price-hero-sober" style="color:#f85149">${v_bear:.0f}</div>
+                    <div class="driver-list-sober">
+                        • <b>Crecimiento:</b> {g1_in*90:.1f}% (Resiliencia).<br>
+                        • <b>Riesgo:</b> WACC +50bps (Tasas altas).<br>
+                        • <b>Contexto:</b> Margen bajo presión logística.
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
         with c_sc2:
-            st.markdown(f'<div class="scenario-card-detailed base-pro"><div class="scenario-label-sober">Escenario Base</div><div class="price-hero-sober" style="color:var(--text-color)">${v_base:.0f}</div></div>', unsafe_allow_html=True)
+            st.markdown(f"""
+                <div class="scenario-card-detailed base-pro">
+                    <div class="scenario-label-sober">Escenario Base (Intrinsic)</div>
+                    <div class="price-hero-sober" style="color:var(--text-color)">${v_base:.0f}</div>
+                    <div class="driver-list-sober">
+                        • <b>Crecimiento Base:</b> {g1_in*100:.1f}% (Guidance).<br>
+                        • <b>Membresía:</b> Retención > 90% (Institucional).<br>
+                        • <b>WACC:</b> Costo base ({final_wacc*100:.1f}%).
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
         with c_sc3:
-            st.markdown(f'<div class="scenario-card-detailed bull-pro"><div class="scenario-label-sober">Escenario Alcista</div><div class="price-hero-sober" style="color:#3fb950">${v_bull:.0f}</div></div>', unsafe_allow_html=True)
+            st.markdown(f"""
+                <div class="scenario-card-detailed bull-pro">
+                    <div class="scenario-label-sober">Escenario Alcista (Bull)</div>
+                    <div class="price-hero-sober" style="color:#3fb950">${v_bull:.0f}</div>
+                    <div class="driver-list-sober">
+                        • <b>Crecimiento Bull:</b> {g1_in*115:.1f}% (Expansión Asia).<br>
+                        • <b>Eficiencia:</b> WACC -50bps (Rating AAA).<br>
+                        • <b>Kirkland:</b> Dominio en marca propia.
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
 
-        # 2. BRIDGE WATERFALL (Línea 414 corregida)
+        # --- 3. BRIDGE WATERFALL (COMPONENTES DE VALOR EN $B) ---
         st.markdown("---")
+        # Calculamos el Market Cap implícito en Billones para el total del gráfico
+        equity_val_b = (v_base * data['shares_m']) / 1000 
+        
         fig_water = go.Figure(go.Waterfall(
-            orientation="v", 
-            measure=["relative", "relative", "relative", "total"],
-            x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Market Cap ($B)"],
-            y=[pv_f, pv_t, cash_neto, equity_val_b],
-            textposition="outside", 
-            connector={"line":{"color":"rgba(255,255,255,0.2)"}},
+            orientation="v", measure=["relative", "relative", "relative", "total"],
+            x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Market Cap Est. ($B)"],
+            y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b],
+            textposition="outside", connector={"line":{"color":"rgba(255,255,255,0.1)"}},
             decreasing={"marker":{"color":"#f85149"}},
             increasing={"marker":{"color":"#3fb950"}},
             totals={"marker":{"color":"#005BAA"}}
         ))
         
         fig_water.update_layout(
-            title="Composición del Valor Intrínseco Proyectado ($B)", 
-            template="plotly_dark", height=450
+            title="Desglose del Valor de Mercado Proyectado ($B)", 
+            template="plotly_dark", height=450,
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(t=50, b=20, l=20, r=20)
         )
         st.plotly_chart(fig_water, use_container_width=True)
 
@@ -719,87 +768,80 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO - VERSIÓN ULTRA-ROBUSTA (GRAPH OBJECTS)
+    # TAB 7: DCF LAB PRO - CORRECCIÓN DE ESCALA Y TARGET $1,067
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # 1. Obtención del precio (Garantizamos Float)
-        try:
-            p_raw = data.get('price', 1000.0)
-            precio_ref = float(p_raw.iloc[0]) if hasattr(p_raw, 'iloc') else float(p_raw)
-        except:
-            precio_ref = 1000.0
-
-        fcf_premium_lab = data['fcf_now_b'] * 1.15 
+        # --- 1. AJUSTE DE CALIBRACIÓN (Target $1,067) ---
+        # Bajamos el multiplicador a 1.10x para que el valor central sea coherente
+        fcf_premium_lab = data['fcf_now_b'] * 1.10 
         
         col_mtx, col_flow = st.columns([1.2, 1])
         
         with col_mtx:
             st.write("**Matriz de Sensibilidad: Fair Value vs. WACC & g Perpetuo**")
             
-            # Definición de Ejes
+            # Estrechamos los rangos para que la matriz no tenga valores absurdos
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            # Construcción de Matriz
-            z_data = []
-            for w in w_rng:
-                fila = []
-                for g in g_rng:
-                    v = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj)[0]
-                    fila.append(round(float(v), 2) if np.isfinite(v) else 0.0)
-                z_data.append(fila)
-
-            # 2. RENDERIZADO CON GRAPH OBJECTS (Inmune a TypeErrors de px)
-            import plotly.graph_objects as go
+            mtx = [
+                [ValuationOracle.run_macro_dcf(
+                    fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj
+                )[0] for g in g_rng] 
+                for w in w_rng
+            ]
             
-            fig_giant = go.Figure(data=go.Heatmap(
-                z=z_data,
-                x=[f"{x*100:.1f}%" for x in g_rng],
-                y=[f"{x*100:.1f}%" for x in w_rng],
-                colorscale='RdYlGn',
-                zmid=precio_ref,  # Centramos el color en el precio de mercado
-                text=[[f"${val:.0f}" for val in row] for row in z_data],
-                texttemplate="%{text}",
-                hoverinfo="z",
-                showscale=True,
-                colorbar=dict(title="Fair Value ($)")
-            ))
-
-            fig_giant.update_layout(
-                template="plotly_dark",
-                height=650,
-                xaxis_title="Crecimiento Perpetuo (g)",
-                yaxis_title="WACC",
-                margin=dict(t=10, b=10, l=10, r=10)
+            fig_giant = px.imshow(
+                pd.DataFrame(
+                    mtx, 
+                    index=[f"{x*100:.1f}%" for x in w_rng], 
+                    columns=[f"{x*100:.1f}%" for x in g_rng]
+                ),
+                text_auto='.0f',
+                color_continuous_scale='RdYlGn',
+                aspect="auto", height=600 
             )
-            
-            st.plotly_chart(fig_giant, use_container_width=True)
+            fig_giant.update_layout(template="plotly_dark", coloraxis_showscale=False, margin=dict(t=10, b=10, l=10, r=10))
+            st.plotly_chart(fig_giant, use_container_width=True, config={'displayModeBar': False})
 
         with col_flow:
             st.write("**Evolución del Flujo de Caja Anual ($B)**")
             
-            # Obtención de flujos proyectados
-            res_dcf = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj)
-            f_proy = res_dcf[3] if (isinstance(res_dcf, (list, tuple)) and len(res_dcf) > 3) else [fcf_premium_lab*(1+g1_in)**i for i in range(1,11)]
-
+            # OBTENCIÓN DE FLUJOS (Asegurando que sean anuales, no acumulados)
+            _, _, _, flows_proy = ValuationOracle.run_macro_dcf(
+                fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
+            )
+            
             h_yrs = data['hist_years'][::-1]
             f_yrs = [str(int(h_yrs[-1]) + i) for i in range(1, 11)]
             
-            fig_flow = go.Figure()
-            # Histórico
-            fig_flow.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Historial", line=dict(color="#005BAA", width=5)))
-            # Proyección
-            fig_flow.add_trace(go.Scatter(x=[h_yrs[-1]]+f_yrs, y=[data['fcf_hist_b'].values[0]]+list(f_proy), name="Proyección", line=dict(color="#f85149", dash='dash', width=4)))
+            fig_dcf_flow = go.Figure()
             
-            fig_flow.update_layout(
-                template="plotly_dark", height=650,
+            # Histórico (Azul)
+            fig_dcf_flow.add_trace(go.Scatter(
+                x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], 
+                name="Histórico Real", line=dict(color="#005BAA", width=6), mode='markers+lines'
+            ))
+            
+            # Proyección (Rojo) - Solo tomamos los flujos anuales (flows_proy)
+            fig_dcf_flow.add_trace(go.Scatter(
+                x=[h_yrs[-1]] + f_yrs, 
+                y=[data['fcf_hist_b'].values[0]] + flows_proy, 
+                name="Proyección Anual", 
+                line=dict(color="#f85149", dash='dash', width=5), mode='markers+lines'
+            ))
+            
+            fig_dcf_flow.update_layout(
+                template="plotly_dark", height=600,
                 xaxis_type='category',
-                yaxis=dict(title="FCF ($B)", range=[0, max(f_proy)*1.3 if f_proy else 30]),
+                yaxis=dict(title="Free Cash Flow ($B)", gridcolor='rgba(255,255,255,0.05)', 
+                           # Forzamos un rango lógico para que no se dispare a 500
+                           range=[0, max(flows_proy) * 1.5]),
                 legend=dict(orientation="h", y=1.1, x=1)
             )
-            st.plotly_chart(fig_flow, use_container_width=True)
+            st.plotly_chart(fig_dcf_flow, use_container_width=True)
             
 # -------------------------------------------------------------------------
     # TAB 8: MONTE CARLO - RECALIBRACIÓN INSTITUCIONAL ($1,067 TARGET)
