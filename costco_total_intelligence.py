@@ -238,7 +238,7 @@ class InstitutionalDataService:
 class ValuationOracle:
     """Implementación de modelos financieros DCF y Black-Scholes."""
     
-@staticmethod
+    @staticmethod
     def run_macro_dcf(fcf, g1, g2, wacc, tg=0.025, shares=443.6, cash=22.0, debt=9.0, macro_adj=0.0):
         # 1. VALIDACIÓN CRÍTICA DE CONVERGENCIA
         # Si el WACC es menor o igual al crecimiento terminal (tg), 
