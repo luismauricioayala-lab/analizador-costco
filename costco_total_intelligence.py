@@ -980,11 +980,14 @@ def main():
             st.write("**P&L Institucional ($B)**")
             st.table(df_pl_viz.style.format("{:.2f}"))
         
-        with c2:
+with c2:
+            st.write("**P&L: Crecimiento vs. Rentabilidad Neta**")
             m_neto = (net_income / revenue) * 100
+            
+            # CAMBIO 1: Activar el soporte para doble eje
             fig_dual = make_subplots(specs=[[{"secondary_y": True}]])
             
-            # Barras Revenue
+            # CAMBIO 2: Barras (Revenue) al eje principal (False)
             fig_dual.add_trace(go.Bar(
                 x=años_finales, 
                 y=df_pl_viz.loc['Ingresos Totales'], 
@@ -992,22 +995,35 @@ def main():
                 marker_color="#005BAA"
             ), secondary_y=False)
             
-            # Línea Margen Neto
+            # CAMBIO 3: Línea (Margen) al eje secundario (True)
             fig_dual.add_trace(go.Scatter(
                 x=años_finales, 
                 y=m_neto.values, 
-                name="Net Margin %", 
+                name="Margen Neto (%)", 
                 line=dict(color="#f85149", width=4), 
                 marker=dict(size=10, symbol="diamond")
             ), secondary_y=True)
             
+            # CAMBIO 4: Identificación precisa de ejes
             fig_dual.update_layout(
                 template="plotly_dark", 
                 height=400, 
-                margin=dict(t=30, b=10), 
-                paper_bgcolor='rgba(0,0,0,0)', 
-                plot_bgcolor='rgba(0,0,0,0)', 
-                legend=dict(orientation="h", y=1.1, x=1)
+                hovermode="x unified",
+                legend=dict(orientation="h", y=1.1, x=1),
+                # Eje Izquierdo (Dinero)
+                yaxis=dict(
+                    title="Revenue ($B)", 
+                    tickformat="$,.0f"
+                ),
+                # Eje Derecho (Porcentaje)
+                yaxis2=dict(
+                    title="Margen Neto (%)", 
+                    tickformat=".1f", 
+                    suffix="%", 
+                    showgrid=False
+                ),
+                # Limpiar años (sin decimales)
+                xaxis=dict(tickmode='linear', dtick=1)
             )
             st.plotly_chart(fig_dual, use_container_width=True, config={'displayModeBar': False})
 
