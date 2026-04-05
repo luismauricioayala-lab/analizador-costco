@@ -360,25 +360,28 @@ def main():
     ])
 
 # -------------------------------------------------------------------------
-    # TAB 1: RESUMEN EJECUTIVO (VERSIÓN COMPLETA RESTAURADA)
+    # TAB 1: RESUMEN EJECUTIVO (RESTAURADO CON EL ORDEN DE DATOS CORRECTO)
     # -------------------------------------------------------------------------
     with tabs[0]:
         st.subheader("Análisis de Sensibilidad de Escenarios (Target 2026)")
         
+        # 1. Normalización del flujo
         fcf_premium = data['fcf_now_b'] * 1.25 
         
-        # --- CÁLCULOS CON ORDEN CORREGIDO ---
-        v_base, pv_f, pv_t, _ = ValuationOracle.run_macro_dcf(fcf_premium, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj)
+        # 2. Cálculos: El orden es (Precio, VP_Flujos, VP_Terminal, Lista_Flujos)
+        v_base, pv_f, pv_t, _ = ValuationOracle.run_macro_dcf(
             fcf_premium, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
         )
+        
         v_bear, _, _, _ = ValuationOracle.run_macro_dcf(
             fcf_premium, g1_in * 0.90, g2_in * 0.90, final_wacc + 0.005, g_terminal - 0.005, macro_adj=macro_adj - 0.02
         )
+        
         v_bull, _, _, _ = ValuationOracle.run_macro_dcf(
             fcf_premium, g1_in * 1.15, g2_in * 1.15, final_wacc - 0.005, g_terminal + 0.005, macro_adj=macro_adj + 0.03
         )
 
-        # --- RENDERIZADO DE TARJETAS (ESTILO BLOOMBERG) ---
+        # 3. Renderizado de Tarjetas (Manteniendo tu estilo original)
         c_sc1, c_sc2, c_sc3 = st.columns(3)
         
         with c_sc1:
@@ -402,14 +405,16 @@ def main():
                 <div class="driver-list-sober">• <b>Crecimiento Bull:</b> {g1_in*115:.1f}%<br>• <b>Eficiencia:</b> WACC -50bps</div>
             </div>""", unsafe_allow_html=True)
 
-        # --- BRIDGE WATERFALL (COMPONENTES DE VALOR) ---
+        # 4. Bridge Waterfall
         st.markdown("---")
+        # Calculamos el Equity Value para el total de la cascada
         equity_val_b = (v_base * data['shares_m']) / 1000 
         
         fig_water = go.Figure(go.Waterfall(
             orientation="v", measure=["relative", "relative", "relative", "total"],
             x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Market Cap Est. ($B)"],
             y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b],
+            textposition="outside",
             decreasing={"marker":{"color":"#f85149"}},
             increasing={"marker":{"color":"#3fb950"}},
             totals={"marker":{"color":"#005BAA"}}
