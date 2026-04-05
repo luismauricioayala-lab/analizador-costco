@@ -502,35 +502,25 @@ def main():
         r_col1, r_col2 = st.columns([1.3, 2])
         
         with r_col1:
-            # 1. Datos de Consenso (Extracción robusta del diccionario 'data')
-            # Intentamos obtener de 'analysts' o 'info' como fallback
-            score_val = data.get('analysts', {}).get('score') or data.get('info', {}).get('recommendationMean', 2.0)
-            target_val = data.get('analysts', {}).get('target') or data.get('info', {}).get('targetMeanPrice', 1067.59)
-            rec_str = data.get('analysts', {}).get('key') or data.get('info', {}).get('recommendationKey', 'BUY')
-            count_val = data.get('analysts', {}).get('count') or data.get('info', {}).get('numberOfAnalystOpinions', 37)
+            # 1. Datos de Consenso (Extracción exacta de tu versión original)
+            # Nota: Asegúrate de que 'analysts' existe en tu diccionario 'data'
+            score_val = data.get('analysts', {}).get('score', 2.0)
+            target_val = data.get('analysts', {}).get('target', 1067.59)
+            rec_str = data.get('analysts', {}).get('key', 'BUY')
+            count_val = data.get('analysts', {}).get('count', 37)
             
-            # 2. CSS de Alto Contraste (Theme-Aware: funciona en Dark y Light Mode)
+            # 2. CSS de Alto Contraste (Copiado línea por línea de tu original)
             st.markdown("""
                 <style>
                 .st-widget-box {
-                    background-color: var(--secondary-background-color); 
-                    border: 1px solid var(--border-color);
+                    background-color: #f8f9fa; 
+                    border: 1px solid #dee2e6;
                     border-radius: 12px;
                     padding: 20px;
                     font-family: 'Segoe UI', sans-serif;
-                    color: var(--text-color);
                 }
-                .st-rec-header { 
-                    text-align: center; 
-                    border-bottom: 2px solid var(--primary-color); 
-                    padding-bottom: 15px; 
-                }
-                .st-rec-val { 
-                    font-size: 2.2rem; 
-                    font-weight: 900; 
-                    color: #1a7f37; /* Verde institucional constante */
-                    margin: 5px 0; 
-                }
+                .st-rec-header { text-align: center; border-bottom: 2px solid #1e2b3c; padding-bottom: 15px; }
+                .st-rec-val { font-size: 2.2rem; font-weight: 900; color: #1a7f37; margin: 5px 0; }
                 
                 .st-data-row {
                     display: flex;
@@ -542,17 +532,16 @@ def main():
                 .st-data-label { 
                     width: 125px; 
                     font-size: 0.9rem; 
-                    color: var(--text-color); 
+                    color: #1e2b3c; 
                     font-weight: 700; 
                 }
                 .st-data-bar-bg {
                     flex-grow: 1;
                     height: 10px;
-                    background: var(--background-color);
+                    background: #e9ecef;
                     margin: 0 12px;
                     border-radius: 5px;
-                    border: 1px solid var(--border-color);
-                    overflow: hidden;
+                    border: 1px solid #ced4da;
                 }
                 .st-data-bar-fill { height: 100%; border-radius: 4px; }
                 
@@ -562,22 +551,22 @@ def main():
                     font-family: 'JetBrains Mono', monospace; 
                     font-size: 0.85rem; 
                     font-weight: 800;
-                    color: var(--text-color); 
+                    color: #000000; 
                 }
-                .st-data-footer { border-top: 1px solid var(--border-color); margin-top: 15px; padding-top: 15px; }
+                .st-data-footer { border-top: 2px solid #1e2b3c; margin-top: 15px; padding-top: 15px; }
                 .st-footer-line { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; }
-                .st-footer-label { color: var(--text-color); opacity: 0.7; font-weight: 600; }
-                .st-footer-val { color: var(--text-color); font-weight: 800; }
+                .st-footer-label { color: #495057; font-weight: 600; }
+                .st-footer-val { color: #000000; font-weight: 800; }
                 </style>
             """, unsafe_allow_html=True)
 
-            # 3. Widget Header (Recomendación Principal)
+            # 3. Widget Header
             st.markdown(f"""
                 <div class="st-widget-box">
                     <div class="st-rec-header">
-                        <div style="font-size: 0.8rem; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; opacity: 0.8;">Recomendación de los analistas</div>
-                        <div class="st-rec-val">{rec_str.title().replace('_', ' ')}</div>
-                        <div style="font-size: 0.75rem; opacity: 0.7; font-weight: 600;">Basado en {count_val} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
+                        <div style="font-size: 0.8rem; color: #1e2b3c; text-transform: uppercase; font-weight: 800; letter-spacing: 1px;">Recomendación de los analistas</div>
+                        <div class="st-rec-val">{rec_str.title()}</div>
+                        <div style="font-size: 0.75rem; color: #495057; font-weight: 600;">Basado en {count_val} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -589,7 +578,7 @@ def main():
                 domain = {'x': [0, 1], 'y': [0, 1]},
                 gauge = {
                     'axis': {'range': [1, 5], 'visible': False},
-                    'bar': {'color': "var(--text-color)", 'thickness': 0.08},
+                    'bar': {'color': "#1e2b3c", 'thickness': 0.08},
                     'steps': [
                         {'range': [1, 1.8], 'color': '#d73a49'}, # Rojo saturado
                         {'range': [1.8, 2.6], 'color': '#fb8f44'}, # Naranja
@@ -597,13 +586,13 @@ def main():
                         {'range': [3.4, 4.2], 'color': '#2da44e'}, # Verde
                         {'range': [4.2, 5], 'color': '#1a7f37'}    # Verde fuerte
                     ],
-                    'threshold': {'line': {'color': "var(--text-color)", 'width': 3}, 'thickness': 0.8, 'value': gauge_pos}
+                    'threshold': {'line': {'color': "black", 'width': 3}, 'thickness': 0.8, 'value': gauge_pos}
                 }
             ))
             fig_gauge.update_layout(height=160, margin=dict(t=10, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
 
-            # 5. Cuerpo de Barras (Distribución de Opiniones)
+            # 5. Cuerpo de Barras (Legibilidad Máxima - Las 5 filas originales)
             st.markdown(f"""
                 <div class="st-widget-box" style="background: transparent; padding-top: 0; margin-top: -30px; border: none; box-shadow: none;">
                     <div class="st-data-row">
@@ -623,7 +612,38 @@ def main():
                     </div>
                     <div class="st-data-row">
                         <div class="st-data-label">Vender</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 0%; background: #
+                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 0%; background: #fb8f44;"></div></div>
+                        <div class="st-data-info">0 (0.0%)</div>
+                    </div>
+                    <div class="st-data-row">
+                        <div class="st-data-label">Venta fuerte</div>
+                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 5%; background: #d73a49;"></div></div>
+                        <div class="st-data-info">2 (5.4%)</div>
+                    </div>
+                    <div class="st-data-footer">
+                        <div class="st-footer-line"><span class="st-footer-label">Precio previsto (12m)</span><span class="st-footer-val">USD {target_val:,.2f}</span></div>
+                        <div class="st-footer-line"><span class="st-footer-label">Volatilidad</span><span class="st-footer-val">Promedio</span></div>
+                        <div class="st-footer-line"><span class="st-footer-label">Recomendación sector</span><span class="st-footer-val" style="color:#1a7f37;">Comprar</span></div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        with r_col2:
+            # 6. Gráfico de Ganancias Pro (Se mantiene con eje X categoría)
+            quarters = ['2025Q3', '2025Q4', '2026Q1', '2026Q2']
+            fig_eps = go.Figure()
+            fig_eps.add_trace(go.Bar(x=quarters, y=[3.80, 5.51, 4.55, 4.55], name="Estimado", marker_color="#495057"))
+            fig_eps.add_trace(go.Bar(x=quarters, y=[3.92, 5.82, 4.58, 4.58], name="Real", marker_color="#005BAA"))
+            
+            fig_eps.update_layout(
+                title="Sorpresas en Beneficio por Acción (BPA)",
+                barmode='group',
+                template="plotly_dark", 
+                height=450,
+                xaxis_type='category',
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig_eps, use_container_width=True)
             
 # -------------------------------------------------------------------------
     # TAB 4: STRESS TEST PRO (VERSIÓN FINAL SIN ERRORES)
@@ -732,7 +752,7 @@ def main():
         st.plotly_chart(px.line(df_fwd, x="Año", y="Rev ($B)", markers=True, title="Trayectoria Proyectada de Ingresos"), use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 6: FINANZAS & RATIOS PRO (BLOOMBERG TERMINAL INTEGRATED - ANTI-CRASH)
+    # TAB 6: FINANZAS & RATIOS PRO (BLOOMBERG TERMINAL INTEGRATED)
     # -------------------------------------------------------------------------
     with tabs[5]:
         st.subheader("🏛️ Terminal de Inteligencia Financiera: Costco Wholesale")
@@ -756,39 +776,16 @@ def main():
         # Variable unificada para los años (eje X)
         años_finales = [str(c).split('-')[0] for c in is_f.columns]
 
-        # 2. SISTEMA DE EXTRACCIÓN ROBUSTA (Helper para evitar KeyErrors)
-        def safe_get(df, keys):
-            for k in keys:
-                if k in df.index:
-                    return df.loc[k]
-            # Si no encuentra nada, devolvemos una serie de ceros para no romper el cálculo
-            return pd.Series(0, index=df.columns)
-
-        # 3. CÁLCULO DE RATIOS PRO CON FALLBACKS
+        # 2. CÁLCULO DE RATIOS PRO
         try:
-            # Definición de lineas con sus alias comunes en yfinance
-            net_income = safe_get(is_f, ['Net Income Common Stockholders', 'Net Income', 'Net Income From Continuing Operation Net Minority Interest'])
-            total_equity = safe_get(bs_f, ['Stockholders Equity', 'Total Stockholders Equity'])
-            total_assets = safe_get(bs_f, ['Total Assets'])
-            revenue = safe_get(is_f, ['Total Revenue', 'Revenue'])
-            cogs = safe_get(is_f, ['Cost Of Revenue'])
-            inventory = safe_get(bs_f, ['Inventory'])
-            total_debt = safe_get(bs_f, ['Total Debt'])
-            ebitda = safe_get(is_f, ['EBITDA'])
-            curr_assets = safe_get(bs_f, ['Current Assets', 'Total Current Assets'])
-            curr_liab = safe_get(bs_f, ['Current Liabilities', 'Total Current Liabilities'])
-            op_inc = safe_get(is_f, ['Operating Income', 'Operating Profit'])
-            eps = safe_get(is_f, ['Basic EPS', 'EPS Basic'])
-
-            # Cálculos matemáticos
-            roe = (net_income / total_equity) * 100
-            roa = (net_income / total_assets) * 100
-            asset_turnover = revenue / total_assets
-            inv_turnover = cogs / inventory
-            debt_ebitda = total_debt / ebitda
-            current_ratio = curr_assets / curr_liab
-            rev_growth = revenue.pct_change() * 100
-            eps_growth = eps.pct_change() * 100
+            roe = (is_f.loc['Net Income Common Stockholders'] / bs_f.loc['Stockholders Equity']) * 100
+            roa = (is_f.loc['Net Income Common Stockholders'] / bs_f.loc['Total Assets']) * 100
+            asset_turnover = is_f.loc['Total Revenue'] / bs_f.loc['Total Assets']
+            inv_turnover = is_f.loc['Cost Of Revenue'] / bs_f.loc['Inventory']
+            debt_ebitda = bs_f.loc['Total Debt'] / is_f.loc['EBITDA']
+            current_ratio = bs_f.loc['Current Assets'] / bs_f.loc['Current Liabilities']
+            rev_growth = is_f.loc['Total Revenue'].pct_change() * 100
+            eps_growth = is_f.loc['Basic EPS'].pct_change() * 100
 
             df_ratios_pro = pd.DataFrame({
                 "Crecimiento Ingresos (%)": rev_growth,
@@ -802,27 +799,25 @@ def main():
             }).T
             df_ratios_pro.columns = años_finales
         except Exception as e:
-            st.error(f"Error crítico en el motor de cálculo: {e}")
+            st.error(f"Error calculando ratios: {e}")
 
         # --- SECCIÓN I: ESTADO DE RESULTADOS DE GESTIÓN ---
         st.markdown("### 📊 I. Estado de Resultados de Gestión")
         
-        # Mapeo de nombres para la tabla visual
         orden_p_l = [
-            (revenue, 'Ingresos Totales'),
-            (cogs, 'Coste de Ventas (COGS)'),
-            (safe_get(is_f, ['Gross Profit']), 'Utilidad Bruta'),
-            (safe_get(is_f, ['Operating Expense']), 'Gastos Operativos (OPEX)'),
-            (op_inc, 'Utilidad Operativa (EBIT)'),
-            (ebitda, 'EBITDA'),
-            (net_income, 'Utilidad Neta'),
-            (eps, 'BPA (Beneficio por Acción)')
+            ('Total Revenue', 'Ingresos Totales'),
+            ('Cost Of Revenue', 'Coste de Ventas (COGS)'),
+            ('Gross Profit', 'Utilidad Bruta'),
+            ('Operating Expense', 'Gastos Operativos (OPEX)'),
+            ('Operating Income', 'Utilidad Operativa (EBIT)'),
+            ('EBITDA', 'EBITDA'),
+            ('Net Income Common Stockholders', 'Utilidad Neta'),
+            ('Basic EPS', 'BPA (Beneficio por Acción)')
         ]
         
-        # Construcción del DataFrame de visualización
-        df_pl_viz = pd.DataFrame([x[0] for x in orden_p_l], index=[x[1] for x in orden_p_l])
+        df_pl_viz = is_f.reindex([x[0] for x in orden_p_l])
+        df_pl_viz.index = [x[1] for x in orden_p_l]
         
-        # Normalización a Billones (excepto EPS)
         for row in df_pl_viz.index:
             if row != 'BPA (Beneficio por Acción)':
                 df_pl_viz.loc[row] = df_pl_viz.loc[row] / 1e9
@@ -835,34 +830,16 @@ def main():
             st.table(df_pl_viz.style.format("{:.2f}"))
         
         with c2:
-            m_neto = (net_income / revenue) * 100
+            m_neto = (is_f.loc['Net Income Common Stockholders'] / is_f.loc['Total Revenue']) * 100
             fig_dual = make_subplots(specs=[[{"secondary_y": True}]])
             
             # Barras Revenue
-            fig_dual.add_trace(go.Bar(
-                x=años_finales, 
-                y=df_pl_viz.loc['Ingresos Totales'], 
-                name="Revenue ($B)", 
-                marker_color="#005BAA"
-            ), secondary_y=False)
+            fig_dual.add_trace(go.Bar(x=años_finales, y=df_pl_viz.loc['Ingresos Totales'], name="Revenue ($B)", marker_color="#005BAA"), secondary_y=False)
             
-            # Línea Margen Neto
-            fig_dual.add_trace(go.Scatter(
-                x=años_finales, 
-                y=m_neto.values, 
-                name="Net Margin %", 
-                line=dict(color="#f85149", width=4), 
-                marker=dict(size=10, symbol="diamond")
-            ), secondary_y=True)
+            # Línea Margen Neto (Aquí estaba el error, ahora usa años_finales)
+            fig_dual.add_trace(go.Scatter(x=años_finales, y=m_neto.values, name="Net Margin %", line=dict(color="#f85149", width=4), marker=dict(size=10, symbol="diamond")), secondary_y=True)
             
-            fig_dual.update_layout(
-                template="plotly_dark", 
-                height=400, 
-                margin=dict(t=30, b=10), 
-                paper_bgcolor='rgba(0,0,0,0)', 
-                plot_bgcolor='rgba(0,0,0,0)', 
-                legend=dict(orientation="h", y=1.1, x=1)
-            )
+            fig_dual.update_layout(template="plotly_dark", height=400, margin=dict(t=30, b=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1, x=1))
             st.plotly_chart(fig_dual, use_container_width=True, config={'displayModeBar': False})
 
         st.markdown("---")
@@ -873,12 +850,9 @@ def main():
         c3, c4 = st.columns([1, 1.2], gap="large")
         with c3:
             st.write("**Panel de Ratios (Mapa de Calor Interanual)**")
-            st.dataframe(
-                df_ratios_pro.style.format("{:.2f}").background_gradient(cmap='RdYlGn', axis=1), 
-                use_container_width=True
-            )
+            st.dataframe(df_ratios_pro.style.format("{:.2f}").background_gradient(cmap='RdYlGn', axis=1), use_container_width=True)
             
-            # Exportación robusta
+            # Exportación
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_pl_viz.to_excel(writer, sheet_name='P_and_L_Management')
@@ -886,33 +860,18 @@ def main():
                 is_raw.to_excel(writer, sheet_name='Audit_IS')
                 bs_raw.to_excel(writer, sheet_name='Audit_BS')
             
-            st.download_button(
-                label="💾 Descargar Suite Financiera Completa", 
-                data=output.getvalue(), 
-                file_name=f"COST_Pro_Analysis.xlsx", 
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                use_container_width=True
-            )
+            st.download_button(label="💾 Descargar Suite Financiera Completa", data=output.getvalue(), file_name=f"COST_Pro_Analysis.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
 
         with c4:
             st.write("**Estructura Comparativa de Márgenes (%)**")
-            m_bruto = (safe_get(is_f, ['Gross Profit']) / revenue) * 100
-            m_op = (op_inc / revenue) * 100
+            m_bruto = (is_f.loc['Gross Profit'] / is_f.loc['Total Revenue']) * 100
+            m_op = (is_f.loc['Operating Income'] / is_f.loc['Total Revenue']) * 100
             
             fig_marg = go.Figure()
             fig_marg.add_trace(go.Bar(x=años_finales, y=m_bruto, name="M. Bruto", marker_color="#27ae60"))
             fig_marg.add_trace(go.Bar(x=años_finales, y=m_op, name="M. Operativo", marker_color="#f1c40f"))
             fig_marg.add_trace(go.Bar(x=años_finales, y=m_neto, name="M. Neto", marker_color="#e74c3c"))
-            
-            fig_marg.update_layout(
-                template="plotly_dark", 
-                barmode='group', 
-                height=350, 
-                paper_bgcolor='rgba(0,0,0,0)', 
-                plot_bgcolor='rgba(0,0,0,0)', 
-                margin=dict(t=20, b=20), 
-                legend=dict(orientation="h", y=1.1, x=1)
-            )
+            fig_marg.update_layout(template="plotly_dark", barmode='group', height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=20, b=20), legend=dict(orientation="h", y=1.1, x=1))
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
