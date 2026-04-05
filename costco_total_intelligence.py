@@ -1180,39 +1180,59 @@ def main():
                     st.error(f"⚠️ Archivo '{pdf_filename}' no detectado.")
 
             # Indicadores de confianza
-            st.write("**Gobernanza del Modelo**")
+st.markdown("---")
+            st.write("### 🛡️ Gobernanza del Modelo")
+            
+            # Usamos markdown normal (sin 'f') para evitar conflictos con llaves {}
             st.markdown("""
-                - **Data Feed:** Yahoo Finance Premium API
-                - **Audit:** SEC EDGAR Verificado
-                - **Update Frequency:** Real-time (Intraday)
-                - **Monte Carlo:** 1,000 Scenarios
+            * **Data Source:** Yahoo Finance Premium API
+            * **Audit:** SEC EDGAR Verified
+            * **Latency:** Real-time (15m lag)
+            * **Methodology:** Monte Carlo & DCF Two-Stage
             """)
             
-            with st.expander("Ver Diccionario de Variables"):
+            with st.expander("Ver Glosario Técnico"):
                 st.write("""
-                    - **E:** Valor de mercado del capital propio.
-                    - **D:** Valor de mercado de la deuda.
-                    - **V:** Valor total (E + D).
-                    - **T:** Tasa impositiva corporativa.
-            """)
+                - **E:** Valor de mercado del capital (Market Cap).
+                - **D:** Deuda financiera neta.
+                - **V:** Enterprise Value (E + D).
+                - **Beta:** Coeficiente de riesgo sistemático.
+                """)
 
+        # Separador y créditos del final de la Tab 9
         st.divider()
-        st.caption(f"Terminal Costco Intelligence | Versión 3.4.1 | {datetime.date.today().year}")
-        
+        st.caption(f"Terminal Costco Intelligence | v3.4.1 | {datetime.date.today().year}")
+
     # -------------------------------------------------------------------------
-    # TAB 10: OPCIONES LAB (FULL GREEKS)
+    # TAB 10: OPCIONES LAB
     # -------------------------------------------------------------------------
     with tabs[9]:
-        st.subheader("Laboratorio de Griegas y Pricing (Black-Scholes)")
-        ok1, ok2, ok3 = st.columns(3)
-        strike_p = ok1.number_input("Strike Price ($)", value=float(round(p_ref*1.05, 0)))
-        iv_val = ok2.slider("IV (%)", 10, 100, 25) / 100
-        t_days = ok3.slider("Días a Expiración", 1, 730, 45)
+        st.subheader("🔬 Laboratorio de Griegas (Black-Scholes)")
+        
+        o_col1, o_col2, o_col3 = st.columns(3)
+        # p_ref debe estar definido arriba en tu código
+        strike_p = o_col1.number_input("Strike Price ($)", value=float(round(p_ref * 1.05, 0)))
+        iv_val = o_col2.slider("IV (%)", 10, 100, 25) / 100
+        t_days = o_col3.slider("Días a Expiración", 1, 730, 45)
+        
+        # Cálculo de Griegas
         g_res = ValuationOracle.calculate_full_greeks(p_ref, strike_p, t_days/365, 0.045, iv_val)
-        m_ok1, m_ok2, m_ok3, m_ok4, m_ok5 = st.columns(5)
-        m_ok1.metric("Call Price", f"${g_res['price']:.2f}"); m_ok2.metric("Delta Δ", f"{g_res['delta']:.4f}"); m_ok3.metric("Gamma γ", f"{g_res['gamma']:.4f}"); m_ok4.metric("Vega ν", f"{g_res['vega']:.4f}"); m_ok5.metric("Theta θ", f"{g_res['theta']:.3f}")
+        
+        st.markdown("---")
+        m_g1, m_g2, m_g3, m_g4, m_g5 = st.columns(5)
+        m_g1.metric("Call Price", f"${g_res['price']:.2f}")
+        m_g2.metric("Delta Δ", f"{g_res['delta']:.4f}")
+        m_g3.metric("Gamma γ", f"{g_res['gamma']:.4f}")
+        m_g4.metric("Vega ν", f"{g_res['vega']:.4f}")
+        m_g5.metric("Theta θ", f"{g_res['theta']:.3f}")
 
+# -------------------------------------------------------------------------
+# PUNTO DE ENTRADA ÚNICO
+# -------------------------------------------------------------------------
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        st.error(f"Error crítico al iniciar la Terminal: {e}")
 
-# --- FIN DEL DOCUMENTO MASTER v43.0 (1600+ LÍNEAS LÓGICAS) ---
+# --- FIN DEL DOCUMENTO ---
