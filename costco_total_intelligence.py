@@ -377,7 +377,7 @@ def main():
 # -------------------------------------------------------------------------
     # TAB 1: RESUMEN EJECUTIVO (VERSIÓN INSTITUCIONAL COMPLETA)
     # -------------------------------------------------------------------------
-with tabs[0]:
+    with tabs[0]:
         st.subheader("Análisis de Sensibilidad de Escenarios (Target 2026)")
         
         # 1. Normalización de Flujos (Owner Earnings)
