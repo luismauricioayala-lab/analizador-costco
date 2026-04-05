@@ -303,7 +303,7 @@ class ValuationOracle:
 
 def main():
     # --- CONFIGURACIÓN GLOBAL DE GRÁFICOS (VERSIÓN SEGURA) ---
-def publicar(fig):
+    def publicar(fig):
         fig.update_layout(template="plotly_dark")
         fig.update_yaxes(tickformat="$,.0f") # Fuerza comas y $ en eje Y
         fig.update_xaxes(tickformat=",.0f")  # Fuerza comas en eje X
