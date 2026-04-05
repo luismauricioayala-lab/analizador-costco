@@ -768,23 +768,21 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO - ESCALA DE COLORES (FIX TYPEERROR)
+    # TAB 7: DCF LAB PRO - VERSIÓN ULTRA-ESTABLE (GRAPH OBJECTS)
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # --- 1. EXTRACCIÓN SEGURA DEL PRECIO (Scalar Float) ---
+        # 1. Extracción blindada del precio (Scalar Float Puro)
         try:
-            p_raw = data.get('price', 0)
-            # Si es una Serie o Array, extraemos el valor. Si no, lo convertimos a float.
-            if hasattr(p_raw, 'iloc'):
-                precio_ref = float(p_raw.iloc[0])
-            elif isinstance(p_raw, (list, np.ndarray)):
-                precio_ref = float(p_raw[0])
+            p_val = data.get('price', 1000.0)
+            # Forzamos a float de Python, sin rastro de Pandas
+            if hasattr(p_val, 'iloc'):
+                precio_ref = float(p_val.iloc[0])
             else:
-                precio_ref = float(p_raw)
+                precio_ref = float(p_val)
         except:
-            precio_ref = 1000.0 # Valor de respaldo
+            precio_ref = 1000.0
 
         fcf_premium_lab = data['fcf_now_b'] * 1.10 
         
@@ -796,43 +794,42 @@ def main():
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            # Construcción de matriz asegurando floats puros
-            mtx = []
+            # Construcción de matriz numérica pura (lista de listas)
+            mtx_data = []
             for w in w_rng:
                 fila = []
                 for g in g_rng:
-                    val = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj)[0]
-                    fila.append(float(val) if np.isfinite(val) else 0.0)
-                mtx.append(fila)
-            
-            # Convertimos a DataFrame y forzamos tipo float
-            df_mtx = pd.DataFrame(
-                mtx, 
-                index=[f"{x*100:.1f}%" for x in w_rng], 
-                columns=[f"{x*100:.1f}%" for x in g_rng]
-            ).astype(float)
+                    v = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj)[0]
+                    fila.append(float(v) if np.isfinite(v) else 0.0)
+                mtx_data.append(fila)
 
-            # --- 2. RENDERIZADO CON ESCALA CENTRADA ---
-            fig_giant = px.imshow(
-                df_mtx,
-                text_auto='.0f', 
-                color_continuous_scale='RdYlGn', 
-                zmid=precio_ref, # Ahora garantizamos que es un float
-                aspect="auto", 
-                height=600 
-            )
+            # 2. RENDERIZADO CON GRAPH OBJECTS (Inmune a errores de px.imshow)
+            import plotly.graph_objects as go
             
+            fig_giant = go.Figure(data=go.Heatmap(
+                z=mtx_data,
+                x=[f"{x*100:.1f}%" for x in g_rng],
+                y=[f"{x*100:.1f}%" for x in w_rng],
+                colorscale='RdYlGn',
+                zmid=precio_ref, # <--- CENTRA EL COLOR EN EL PRECIO ACTUAL
+                text=[[f"{val:.0f}" for val in row] for row in mtx_data],
+                texttemplate="%{text}", # Muestra el precio dentro de la celda
+                showscale=True,
+                colorbar=dict(title="Fair Value ($)")
+            ))
+
             fig_giant.update_layout(
-                template="plotly_dark", 
-                coloraxis_showscale=True, 
-                coloraxis_colorbar=dict(title="Fair Value ($)"),
+                template="plotly_dark",
+                height=600,
+                xaxis_title="Crecimiento Perpetuo (g)",
+                yaxis_title="WACC",
                 margin=dict(t=10, b=10, l=10, r=10)
             )
-            st.plotly_chart(fig_giant, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig_giant, use_container_width=True)
 
-        # --- El resto del código (col_flow) se mantiene igual ---
         with col_flow:
             st.write("**Evolución del Flujo de Caja Anual ($B)**")
+            # El resto de tu lógica de flujo se mantiene igual ya que funcionaba bien
             res_dcf = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj)
             flows_proy = res_dcf[3] if len(res_dcf) > 3 else []
             if not isinstance(flows_proy, list) or len(flows_proy) == 0:
