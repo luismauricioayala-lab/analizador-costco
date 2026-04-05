@@ -571,26 +571,51 @@ def main():
                 </div>
             """, unsafe_allow_html=True)
 
-            # 4. Gráfico Gauge
-            gauge_pos = 6 - score_val
-            fig_gauge = go.Figure(go.Indicator(
-                mode = "gauge", value = gauge_pos,
-                domain = {'x': [0, 1], 'y': [0, 1]},
-                gauge = {
-                    'axis': {'range': [1, 5], 'visible': False},
-                    'bar': {'color': "#1e2b3c", 'thickness': 0.08}, # Aguja más gruesa y oscura
-                    'steps': [
-                        {'range': [1, 1.8], 'color': '#d73a49'}, # Rojo saturado
-                        {'range': [1.8, 2.6], 'color': '#fb8f44'}, # Naranja
-                        {'range': [2.6, 3.4], 'color': '#f6e05e'}, # Amarillo
-                        {'range': [3.4, 4.2], 'color': '#2da44e'}, # Verde
-                        {'range': [4.2, 5], 'color': '#1a7f37'}    # Verde fuerte
-                    ],
-                    'threshold': {'line': {'color': "black", 'width': 3}, 'thickness': 0.8, 'value': gauge_pos}
-                }
-            ))
-            fig_gauge.update_layout(height=160, margin=dict(t=10, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
+# 4. Gráfico Gauge de Analistas (Escala Calibrada y Etiquetada)
+
+    # Obtenemos el score (1=Strong Buy, 5=Strong Sell)
+    score_val = data['info'].get('recommendationMean', 3.0)
+
+    # Inversión lógica para que 5 sea lo mejor y 1 lo peor
+    gauge_pos = 6 - score_val
+
+    fig_gauge = go.Figure(go.Indicator(
+    mode = "gauge+number", 
+    value = gauge_pos,
+    domain = {'x': [0, 1], 'y': [0, 1]},
+    number = {'font': {'size': 18}, 'valueformat': ".1f", 'suffix': "/5"},
+    gauge = {
+        'axis': {
+            'range': [1, 5], 
+            'visible': True, 
+            'tickvals': [1, 2, 3, 4, 5],
+            'ticktext': ['Sell', '', 'Hold', '', 'Buy'], # Etiquetas claras en los puntos clave
+            'tickfont': {'size': 10, 'color': '#808495'}
+        },
+        'bar': {'color': "#1e2b3c", 'thickness': 0.15}, # Aguja visible y profesional
+        'steps': [
+            {'range': [1, 1.8], 'color': '#d73a49'},    # Venta Fuerte
+            {'range': [1.8, 2.6], 'color': '#fb8f44'},  # Venta
+            {'range': [2.6, 3.4], 'color': '#f6e05e'},  # Mantener
+            {'range': [3.4, 4.2], 'color': '#2da44e'},  # Compra
+            {'range': [4.2, 5], 'color': '#1a7f37'}     # Compra Fuerte
+        ],
+        'threshold': {
+            'line': {'color': "white", 'width': 2}, 
+            'thickness': 0.75, 
+            'value': gauge_pos
+        }
+    }
+))
+
+    fig_gauge.update_layout(
+    height=160, 
+    margin=dict(t=30, b=0, l=35, r=35), 
+    paper_bgcolor='rgba(0,0,0,0)',
+    font={'family': "Inter, sans-serif"}
+)
+
+    st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
 
             # 5. Cuerpo de Barras (Legibilidad Máxima)
             st.markdown(f"""
