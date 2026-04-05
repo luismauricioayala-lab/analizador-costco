@@ -1231,7 +1231,7 @@ with c4:
 
             # 2. Análisis de Probabilidad de Éxito
             st.markdown(f"**Margen de Seguridad Estadístico (Semilla: {st.session_state['mc_seed_tab8']})**")
-            st.info(f"Evaluamos la **Probabilidad de Éxito** comparando el Valor Intrínseco frente al precio actual de mercado de **${precio_actual:.2f}**.")
+            st.info(f"Evaluamos la **Probabilidad de Éxito** comparando el Valor Intrínseco frente al precio actual de mercado de **${precio_actual:,.2f}**.")
             
             c_mc1, c_mc2 = st.columns([2, 1])
             
@@ -1251,7 +1251,7 @@ with c4:
                 st.metric(
                     label="🎯 Probabilidad de Éxito", 
                     value=f"{prob_exito:.1f}%",
-                    delta=f"Base Case: ${media_sim:.2f}",
+                    delta=f"Base Case: ${media_sim:,.2f}",
                     delta_color="normal"
                 )
 
@@ -1265,13 +1265,13 @@ with c4:
             )
             
             fig_mc.add_vline(x=media_sim, line_color="#2ecc71", line_width=3, 
-                             annotation_text=f"Base Case: ${media_sim:.0f}", annotation_position="top left")
+                             annotation_text=f"Base Case: ${media_sim:,.0f}", annotation_position="top left")
             fig_mc.add_vline(x=umbral_mc, line_color="#f85149", line_dash="dash", line_width=3,
-                             annotation_text=f"Precio Entrada: ${umbral_mc:.0f}", annotation_position="top right")
+                             annotation_text=f"Precio Entrada: ${umbral_mc:,.0f}", annotation_position="top right")
 
             fig_mc.update_layout(
                 template="plotly_dark", height=500,
-                xaxis=dict(title="Valor Intrínseco Estimado (USD)", showgrid=False),
+                xaxis=dict(title="Valor Intrínseco Estimado (USD)", tickformat="$,.0f", showgrid=False),
                 yaxis=dict(title="Frecuencia de Escenarios"),
                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
             )
@@ -1285,7 +1285,7 @@ with c4:
             
             df_stress = pd.DataFrame({
                 "Escenario": ["Bear Case (P10)", "Base Case (Media)", "Bull Case (P90)"],
-                "Fair Value (USD)": [f"${p10:.2f}", f"${media_sim:.2f}", f"${p90:.2f}"],
+                "Fair Value (USD)": [f"${p10:,.2f}", f"${media_sim:,.2f}", f"${p90:,.2f}"],
                 "Upside/Downside": [
                     f"{((p10/precio_actual)-1)*100:+.1f}%",
                     f"{((media_sim/precio_actual)-1)*100:+.1f}%",
