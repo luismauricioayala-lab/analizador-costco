@@ -1194,7 +1194,7 @@ def main():
                     - **D:** Valor de mercado de la deuda.
                     - **V:** Valor total (E + D).
                     - **T:** Tasa impositiva corporativa.
-                """)
+            """)
 
         st.divider()
         st.caption(f"Terminal Costco Intelligence | Versión 3.4.1 | {datetime.date.today().year}")
