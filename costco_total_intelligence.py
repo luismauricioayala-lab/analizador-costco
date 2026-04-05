@@ -284,10 +284,9 @@ def main():
     
     st.sidebar.markdown("---")
     st.sidebar.subheader("1. Valuación (DCF)")
-    wacc_base = st.sidebar.slider("Tasa WACC Base (%)", 4.0, 16.0, 6.5) / 100
+    wacc_base = st.sidebar.slider("Tasa WACC Base (%)", 4.0, 16.0, 8.5) / 100
     g1_in = st.sidebar.slider("Crecimiento 1-5Y (%)", -10.0, 50.0, 12.0) / 100
     g2_in = st.sidebar.slider("Crecimiento 6-10Y (%)", 0.0, 20.0, 8.0) / 100
-    g_terminal = st.sidebar.slider("Crecimiento Perpetuo (%)", 1.0, 5.0, 3.5) / 100
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("2. Laboratorio Macroeconómico")
@@ -337,34 +336,16 @@ def main():
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "📜 Metodología", "📈 Opciones Lab"
     ])
 
-# -------------------------------------------------------------------------
-    # TAB 1: RESUMEN EJECUTIVO (VALORACIÓN PREMIUM - OWNER EARNINGS)
+    # -------------------------------------------------------------------------
+    # TAB 1: RESUMEN EJECUTIVO (MODIFICADO: DISEÑO SOBRIO)
     # -------------------------------------------------------------------------
     with tabs[0]:
-        st.subheader("Análisis de Sensibilidad de Escenarios (Target 2026)")
+        st.subheader("Análisis de Sensibilidad de Escenarios")
         
-        # --- 1. LÓGICA DE VALORACIÓN PREMIUM (NORMALIZACIÓN INSTITUCIONAL) ---
-        # Aplicamos el multiplicador de 1.25x para reflejar 'Owner Earnings'.
-        # Costco invierte agresivamente en Capex; normalizamos para ver el valor real.
-        fcf_premium = data['fcf_now_b'] * 1.25 
+        # Cálculos de Escenarios
+        v_bear, _, _, _ = ValuationOracle.run_macro_dcf(data['fcf_now_b'], 0.045, 0.02, final_wacc+0.02, macro_adj=-0.15)
+        v_bull, _, _, _ = ValuationOracle.run_macro_dcf(data['fcf_now_b'], 0.185, 0.10, final_wacc-0.01, macro_adj=0.12)
         
-        # ESCENARIO BASE (Intrinsic): El ancla de nuestra tesis.
-        # Se alimenta de los sliders de la sidebar (WACC, g1, g2, g_terminal).
-        v_base, pv_f, pv_t, _ = ValuationOracle.run_macro_dcf(
-            fcf_premium, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
-        )
-        
-        # ESCENARIO BAJISTA (Bear): Resiliencia ante desaceleración.
-        v_bear, _, _, _ = ValuationOracle.run_macro_dcf(
-            fcf_premium, g1_in * 0.90, g2_in * 0.90, final_wacc + 0.005, g_terminal - 0.005, macro_adj=macro_adj - 0.02
-        )
-        
-        # ESCENARIO ALCISTA (Bull): Captura de valor global y escala Kirkland.
-        v_bull, _, _, _ = ValuationOracle.run_macro_dcf(
-            fcf_premium, g1_in * 1.15, g2_in * 1.15, final_wacc - 0.005, g_terminal + 0.005, macro_adj=macro_adj + 0.03
-        )
-
-        # --- 2. RENDERIZADO DE TARJETAS DE ESCENARIOS ---
         c_sc1, c_sc2, c_sc3 = st.columns(3)
         
         with c_sc1:
@@ -373,9 +354,9 @@ def main():
                     <div class="scenario-label-sober">Escenario Bajista (Bear)</div>
                     <div class="price-hero-sober" style="color:#f85149">${v_bear:.0f}</div>
                     <div class="driver-list-sober">
-                        • <b>Crecimiento:</b> {g1_in*90:.1f}% (Resiliencia).<br>
-                        • <b>Riesgo:</b> WACC +50bps (Tasas altas).<br>
-                        • <b>Contexto:</b> Margen bajo presión logística.
+                        • <b>Macro:</b> Recesión profunda en Norteamérica.<br>
+                        • <b>CPI:</b> Inflación persistente erosiona poder de compra.<br>
+                        • <b>WACC:</b> Incremento en primas de riesgo (+200bps).
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -383,12 +364,12 @@ def main():
         with c_sc2:
             st.markdown(f"""
                 <div class="scenario-card-detailed base-pro">
-                    <div class="scenario-label-sober">Escenario Base (Intrinsic)</div>
-                    <div class="price-hero-sober" style="color:var(--text-color)">${v_base:.0f}</div>
+                    <div class="scenario-label-sober">Escenario Base (Base)</div>
+                    <div class="price-hero-sober" style="color:var(--text-color)">${f_val:.0f}</div>
                     <div class="driver-list-sober">
-                        • <b>Crecimiento Base:</b> {g1_in*100:.1f}% (Guidance).<br>
-                        • <b>Membresía:</b> Retención > 90% (Institucional).<br>
-                        • <b>WACC:</b> Costo base ({final_wacc*100:.1f}%).
+                        • <b>Crecimiento:</b> Expansión orgánica según guidance.<br>
+                        • <b>Membresía:</b> Retención estable por encima del 90%.<br>
+                        • <b>WACC:</b> Costo de capital institucional ({final_wacc*100:.1f}%).
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -399,34 +380,22 @@ def main():
                     <div class="scenario-label-sober">Escenario Alcista (Bull)</div>
                     <div class="price-hero-sober" style="color:#3fb950">${v_bull:.0f}</div>
                     <div class="driver-list-sober">
-                        • <b>Crecimiento Bull:</b> {g1_in*115:.1f}% (Expansión Asia).<br>
-                        • <b>Eficiencia:</b> WACC -50bps (Rating AAA).<br>
-                        • <b>Kirkland:</b> Dominio en marca propia.
+                        • <b>Asia:</b> Escalamiento acelerado de Costco China.<br>
+                        • <b>Márgenes:</b> Eficiencia digital mejora el Op. Margin.<br>
+                        • <b>Kirkland:</b> Mayor penetración de marca propia.
                     </div>
                 </div>
             """, unsafe_allow_html=True)
-
-        # --- 3. BRIDGE WATERFALL (COMPONENTES DE VALOR EN $B) ---
-        st.markdown("---")
-        # Calculamos el Market Cap implícito en Billones para el total del gráfico
-        equity_val_b = (v_base * data['shares_m']) / 1000 
         
+        # Bridge Waterfall (se mantiene por su alto valor analítico)
+        st.markdown("---")
         fig_water = go.Figure(go.Waterfall(
             orientation="v", measure=["relative", "relative", "relative", "total"],
-            x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Market Cap Est. ($B)"],
-            y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b],
-            textposition="outside", connector={"line":{"color":"rgba(255,255,255,0.1)"}},
-            decreasing={"marker":{"color":"#f85149"}},
-            increasing={"marker":{"color":"#3fb950"}},
-            totals={"marker":{"color":"#005BAA"}}
+            x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Valor de Capital"],
+            y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], (f_val * data['shares_m'] / 1000)],
+            textposition="outside", connector={"line":{"color":"#888"}}
         ))
-        
-        fig_water.update_layout(
-            title="Desglose del Valor de Mercado Proyectado ($B)", 
-            template="plotly_dark", height=450,
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            margin=dict(t=50, b=20, l=20, r=20)
-        )
+        fig_water.update_layout(title="Bridge de Composición de Valor ($B)", template="plotly_dark", height=400)
         st.plotly_chart(fig_water, use_container_width=True)
 
     # -------------------------------------------------------------------------
@@ -861,111 +830,105 @@ def main():
         st.info("💡 La matriz muestra el Fair Value resultante al variar el WACC (filas) y el crecimiento perpetuo (columnas). El centro representa nuestro escenario base.")
 
 # -------------------------------------------------------------------------
-    # TAB 8: MONTE CARLO - RECALIBRACIÓN INSTITUCIONAL ($1,067 TARGET)
+    # TAB 8: MONTE CARLO - SIMULACIÓN DE PROBABILIDADES
     # -------------------------------------------------------------------------
     with tabs[7]:
         st.subheader("🎲 Simulación Estocástica de Valoración (1,000 Escenarios)")
-        
-        # 1. Ajuste de Parámetros para Coherencia con Target de $1,067
-        # Para que el Base Case sea ~$1,067, Costco requiere un WACC más bajo (Calidad AAA)
-        # y un crecimiento proyectado acorde a su expansión internacional.
-        np.random.seed(42)
-        n_sims = 1000
-        precio_actual = data['price']
-        
-        sim_results = []
-        progress_bar = st.progress(0)
-        
-        # Recalibramos el motor para centrarlo en el Fair Value Institucional
-        for i in range(n_sims):
-            # Simulamos g1 (Crecimiento Etapa 1) centrado en un rango optimista (9-12%)
-            g_sim = np.random.normal(0.115, 0.015) 
-            # Simulamos WACC centrado en 7.0% (Costco es percibida como refugio seguro)
-            w_sim = np.random.normal(0.070, 0.003) 
-            
-            try:
-                # Ejecutamos el modelo capturando el Fair Value
-                res_dcf = ValuationOracle.run_macro_dcf(
-                    data['fcf_now_b'], g_sim, 0.08, w_sim, 0.03, macro_adj=macro_adj
-                )
-                fv_escenario = res_dcf[0] if isinstance(res_dcf, (list, tuple)) else res_dcf
-                sim_results.append(fv_escenario)
-            except:
-                continue
-            
-            if i % 100 == 0:
-                progress_bar.progress((i + 1) / n_sims)
-        
-        progress_bar.empty()
-        
-        sim_series = pd.Series(sim_results)
-        media_sim = sim_series.mean()
-
-        # 2. Análisis de Probabilidad de Éxito (Manual Standard)
-        st.markdown(f"""
-            **Margen de Seguridad Estadístico:** Según el manual, evaluamos la **Probabilidad de Éxito** comparando el Valor Intrínseco frente al precio actual de mercado de **${precio_actual:.2f}**.
+        st.markdown("""
+            Esta simulación proyecta 1,000 futuros posibles para Costco variando aleatoriamente el 
+            crecimiento y el costo de capital. Esto nos permite medir el **Margen de Seguridad** real.
         """)
         
-        c_mc1, c_mc2 = st.columns([2, 1])
+        # 1. Configuración de la Simulación
+        np.random.seed(42)
+        iteraciones = 1000
         
-        with c_mc1:
-            umbral_mc = st.slider(
-                "Umbral de Evaluación (Precio de Entrada USD):", 
+        # Generamos la distribución de resultados
+        # Variamos g1 (crecimiento) y WACC con una distribución normal
+        sim_mc = [
+            ValuationOracle.run_macro_dcf(
+                data['fcf_now_b'], 
+                np.random.normal(g1_in, 0.02), # Desviación del 2% en crecimiento
+                0.08, 
+                np.random.normal(final_wacc, 0.005), # Desviación de 0.5% en WACC
+                macro_adj=macro_adj
+            )[0] for _ in range(iteraciones)
+        ]
+        
+        sim_series = pd.Series(sim_mc)
+        media_mc = sim_series.mean()
+        
+        # 2. Control de Umbral (La barra ajustable que mencionabas)
+        st.write("---")
+        col_ui1, col_ui2 = st.columns([2, 1])
+        
+        with col_ui1:
+            umbral = st.slider(
+                "Seleccione umbral de Fair Value para medir probabilidad (USD):", 
                 min_value=float(sim_series.min()), 
                 max_value=float(sim_series.max()), 
-                value=float(precio_actual),
-                step=5.0
+                value=float(data['price']),
+                step=10.0,
+                help="Ajuste este valor para ver la probabilidad de que la acción valga más que este precio."
             )
         
-        exitos = (sim_series > umbral_mc).sum()
-        prob_exito = (exitos / len(sim_series)) * 100
+        # 3. Cálculo de Probabilidad
+        prob_exito = (sim_series > umbral).mean() * 100
         
-        with c_mc2:
+        with col_ui2:
+            color_prob = "#2ecc71" if prob_exito > 50 else "#f85149"
             st.metric(
-                label="🎯 Probabilidad de Éxito", 
+                label=f"Probabilidad de Valor > ${umbral:.0f}", 
                 value=f"{prob_exito:.1f}%",
-                delta=f"Base Case: ${media_sim:.2f}",
+                delta=f"{media_mc - umbral:.2f} spread vs media",
                 delta_color="normal"
             )
 
-        # 3. Visualización: Histograma de Probabilidades
-        fig_mc = px.histogram(
+        # 4. Visualización Avanzada
+        fig_hist = px.histogram(
             sim_series, 
-            nbins=40,
-            title="Distribución de Probabilidades: Fair Value vs Umbral de Éxito",
+            nbins=50,
+            title=f"Distribución de Probabilidades: Fair Value",
+            labels={'value': 'Fair Value (USD)', 'count': 'Frecuencia'},
             color_discrete_sequence=['#005BAA'],
-            opacity=0.85
+            opacity=0.7
         )
         
-        fig_mc.add_vline(x=media_sim, line_color="#2ecc71", line_width=3, 
-                         annotation_text=f"Base Case: ${media_sim:.0f}", annotation_position="top left")
-        fig_mc.add_vline(x=umbral_mc, line_color="#f85149", line_dash="dash", line_width=3,
-                         annotation_text=f"Precio Entrada: ${umbral_mc:.0f}", annotation_position="top right")
-
-        fig_mc.update_layout(
-            template="plotly_dark", height=500,
-            xaxis=dict(title="Valor Intrínseco Estimado (USD)", showgrid=False),
-            yaxis=dict(title="Frecuencia de Escenarios"),
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        # Añadimos línea vertical del umbral
+        fig_hist.add_vline(
+            x=umbral, 
+            line_dash="dash", 
+            line_color="#f85149", 
+            annotation_text=f"Umbral: ${umbral:.0f}", 
+            annotation_position="top right"
         )
-        st.plotly_chart(fig_mc, use_container_width=True)
-
-        # 4. Tabla de Escenarios Críticos (Stress Test)
-        st.write("**Resumen de Escenarios de Riesgo**")
-        st.table(pd.DataFrame({
-            "Escenario": ["Bear Case (P10)", "Base Case (Media)", "Bull Case (P90)"],
-            "Fair Value (USD)": [
-                f"${sim_series.quantile(0.1):.2f}",
-                f"${media_sim:.2f}",
-                f"${sim_series.quantile(0.9):.2f}"
-            ],
-            "Margen de Seguridad": [
-                f"{((sim_series.quantile(0.1)/precio_actual)-1)*100:.1f}%",
-                f"{((media_sim/precio_actual)-1)*100:.1f}%",
-                f"{((sim_series.quantile(0.9)/precio_actual)-1)*100:.1f}%"
-            ]
-        }))
         
+        # Añadimos línea de la media
+        fig_hist.add_vline(
+            x=media_mc, 
+            line_color="#2ecc71", 
+            annotation_text=f"Media: ${media_mc:.0f}", 
+            annotation_position="top left"
+        )
+
+        fig_hist.update_layout(
+            template="plotly_dark",
+            height=500,
+            showlegend=False,
+            margin=dict(t=50, b=50, l=50, r=50),
+            yaxis_title="Escenarios Detectados",
+            xaxis_title="Precio Objetivo Estimado (USD)"
+        )
+        
+        st.plotly_chart(fig_hist, use_container_width=True)
+        
+        # 5. Estadísticas de la Simulación
+        s1, s2, s3, s4 = st.columns(4)
+        s1.write(f"**Mínimo:** ${sim_series.min():.2f}")
+        s2.write(f"**Máximo:** ${sim_series.max():.2f}")
+        s3.write(f"**Percentil 25:** ${sim_series.quantile(0.25):.2f}")
+        s4.write(f"**Percentil 75:** ${sim_series.quantile(0.75):.2f}")
+
 # -------------------------------------------------------------------------
     # TAB 9: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
     # -------------------------------------------------------------------------
