@@ -1005,36 +1005,42 @@ def main():
             ), secondary_y=True)
             
             # CAMBIO 4: Identificación precisa de ejes
-            # Configuración base del gráfico
+            # Configuración Maestra del Gráfico Dual
             fig_dual.update_layout(
-                template="plotly_dark", 
-                height=400, 
+                template="plotly_dark",
+                height=400,
                 hovermode="x unified",
                 legend=dict(orientation="h", y=1.1, x=1),
-                margin=dict(t=30, b=10)
+                margin=dict(t=30, b=10),
+                
+                # Eje Y Primario (Izquierdo - Revenue)
+                yaxis=dict(
+                    title="Revenue ($B)",
+                    tickformat="$,.0f",
+                    side="left"
+                ),
+                
+                # Eje Y Secundario (Derecho - Margen)
+                # IMPORTANTE: Usamos 'yaxis2' directamente
+                yaxis2=dict(
+                    title="Net Margin (%)",
+                    tickformat=".1f",
+                    suffix="%",
+                    side="right",
+                    overlaying="y",
+                    showgrid=False
+                ),
+                
+                # Eje X (Años)
+                xaxis=dict(
+                    tickmode='linear',
+                    dtick=1,
+                    title="Año"
+                )
             )
-            
-            # Configuración quirúrgica del Eje Izquierdo (Revenue)
-            fig_dual.update_yaxes(
-                title_text="Revenue ($B)", 
-                tickformat="$,.0f", 
-                secondary_y=False
-            )
-            
-            # Configuración quirúrgica del Eje Derecho (Margen)
-            fig_dual.update_yaxes(
-                title_text="Net Margin (%)", 
-                tickformat=".1f", 
-                suffix="%", 
-                showgrid=False, 
-                secondary_y=True
-            )
-            
-            # Configuración del Eje X (Años)
-            fig_dual.update_xaxes(tickmode='linear', dtick=1)
 
             st.plotly_chart(fig_dual, use_container_width=True)
-
+            
         st.markdown("---")
 
         # --- SECCIÓN II: RATIOS PRO Y EFICIENCIA ---
