@@ -382,7 +382,14 @@ def main():
         
         # 1. Normalización de Flujos (Owner Earnings)
         fcf_premium = data['fcf_now_b'] * 1.25 
-        
+
+        # --- VALIDACIÓN GLOBAL DE CONVERGENCIA ---
+        # Verificamos la condición matemática: $WACC > g_{terminal}$
+        if final_wacc <= g_terminal:
+            st.error(f"🚨 **MODELO INESTABLE:** El WACC Base ({final_wacc*100:.2f}%) es menor o igual al Crecimiento Terminal ({g_terminal*100:.2f}%).")
+            st.info("Ajusta los parámetros en el sidebar para que la tasa de descuento supere al crecimiento perpetuo.")
+        else:
+            
         # --- CÁLCULO DE ESCENARIOS CON DESGLOSE DE DRIVERS ---
         
         # ESCENARIO BAJISTA (BEAR)
