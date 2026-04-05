@@ -368,7 +368,7 @@ def main():
         fcf_premium = data['fcf_now_b'] * 1.25 
         
         # --- CÁLCULOS CON ORDEN CORREGIDO ---
-        v_base, pv_f, pv_t, _ = ValuationOracle.run_macro_dcf(
+        v_base, pv_f, pv_t, _ = ValuationOracle.run_macro_dcf(fcf_premium, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj)
             fcf_premium, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
         )
         v_bear, _, _, _ = ValuationOracle.run_macro_dcf(
