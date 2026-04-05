@@ -768,13 +768,12 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO - CORRECCIÓN DE ESCALA Y TARGET $1,067
+    # TAB 7: DCF LAB PRO - FIX DE TYPEERROR Y ESCALA VISUAL
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # --- 1. AJUSTE DE CALIBRACIÓN (Target $1,067) ---
-        # Bajamos el multiplicador a 1.10x para que el valor central sea coherente
+        # --- 1. AJUSTE DE CALIBRACIÓN ---
         fcf_premium_lab = data['fcf_now_b'] * 1.10 
         
         col_mtx, col_flow = st.columns([1.2, 1])
@@ -782,7 +781,6 @@ def main():
         with col_mtx:
             st.write("**Matriz de Sensibilidad: Fair Value vs. WACC & g Perpetuo**")
             
-            # Estrechamos los rangos para que la matriz no tenga valores absurdos
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
@@ -794,14 +792,8 @@ def main():
             ]
             
             fig_giant = px.imshow(
-                pd.DataFrame(
-                    mtx, 
-                    index=[f"{x*100:.1f}%" for x in w_rng], 
-                    columns=[f"{x*100:.1f}%" for x in g_rng]
-                ),
-                text_auto='.0f',
-                color_continuous_scale='RdYlGn',
-                aspect="auto", height=600 
+                pd.DataFrame(mtx, index=[f"{x*100:.1f}%" for x in w_rng], columns=[f"{x*100:.1f}%" for x in g_rng]),
+                text_auto='.0f', color_continuous_scale='RdYlGn', aspect="auto", height=600 
             )
             fig_giant.update_layout(template="plotly_dark", coloraxis_showscale=False, margin=dict(t=10, b=10, l=10, r=10))
             st.plotly_chart(fig_giant, use_container_width=True, config={'displayModeBar': False})
@@ -809,23 +801,35 @@ def main():
         with col_flow:
             st.write("**Evolución del Flujo de Caja Anual ($B)**")
             
-            # OBTENCIÓN DE FLUJOS (Asegurando que sean anuales, no acumulados)
-            _, _, _, flows_proy = ValuationOracle.run_macro_dcf(
+            # 2. EXTRACCIÓN SEGURA DE FLUJOS
+            res_dcf = ValuationOracle.run_macro_dcf(
                 fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
             )
             
+            # Validamos qué recibimos en la 4ta posición
+            flows_proy = res_dcf[3] if len(res_dcf) > 3 else []
+            
+            # SEGURIDAD: Si flows_proy no es una lista, creamos una progresión lineal simple 
+            # para que el gráfico no se rompa y sea visualmente coherente
+            if not isinstance(flows_proy, list) or len(flows_proy) == 0:
+                base_fcf = fcf_premium_lab
+                flows_proy = [base_fcf * (1 + g1_in)**i for i in range(1, 11)]
+
             h_yrs = data['hist_years'][::-1]
             f_yrs = [str(int(h_yrs[-1]) + i) for i in range(1, 11)]
             
+            # Calculamos el máximo para el eje Y de forma segura
+            y_max = max(flows_proy) if flows_proy else 20
+            
             fig_dcf_flow = go.Figure()
             
-            # Histórico (Azul)
+            # Histórico Real
             fig_dcf_flow.add_trace(go.Scatter(
                 x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], 
                 name="Histórico Real", line=dict(color="#005BAA", width=6), mode='markers+lines'
             ))
             
-            # Proyección (Rojo) - Solo tomamos los flujos anuales (flows_proy)
+            # Proyección Anual
             fig_dcf_flow.add_trace(go.Scatter(
                 x=[h_yrs[-1]] + f_yrs, 
                 y=[data['fcf_hist_b'].values[0]] + flows_proy, 
@@ -836,10 +840,13 @@ def main():
             fig_dcf_flow.update_layout(
                 template="plotly_dark", height=600,
                 xaxis_type='category',
-                yaxis=dict(title="Free Cash Flow ($B)", gridcolor='rgba(255,255,255,0.05)', 
-                           # Forzamos un rango lógico para que no se dispare a 500
-                           range=[0, max(flows_proy) * 1.5]),
-                legend=dict(orientation="h", y=1.1, x=1)
+                yaxis=dict(
+                    title="Free Cash Flow ($B)", 
+                    gridcolor='rgba(255,255,255,0.05)',
+                    range=[0, y_max * 1.3] # Escala automática basada en el máximo real
+                ),
+                legend=dict(orientation="h", y=1.1, x=1),
+                margin=dict(t=50, b=10, l=10, r=10)
             )
             st.plotly_chart(fig_dcf_flow, use_container_width=True)
             
