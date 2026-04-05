@@ -1441,7 +1441,7 @@ with c4:
                 try:
                     with open(pdf_filename, "rb") as f:
                         pdf_data = f.read()
-                    st.download_button(label="📄 Descargar Guía (PDF)", data=pdf_data, file_name="Metodologia_Costco.pdf", mime="application/pdf", use_container_width=True)
+                    st.download_button(label="📄 Descargar Guía (PDF)", data=pdf_data, file_name="Guia_Metodologica_COST.pdf", mime="application/pdf", use_container_width=True)
                 except FileNotFoundError:
                     st.error(f"⚠️ Archivo '{pdf_filename}' no detectado.")
 
