@@ -1179,98 +1179,153 @@ def main():
             st.error("No se pudieron generar escenarios válidos. Revisa los parámetros de WACC y Crecimiento.")
         
 # -------------------------------------------------------------------------
-    # TAB 9: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
+    # TAB 9: VALORACIÓN MULTI-MODELO (CONSENSO DCF vs APT)
     # -------------------------------------------------------------------------
     with tabs[8]:
+        st.subheader("🔬 Benchmark de Valoración: DCF vs Arbitrage Pricing Theory (APT)")
+        
+        # 1. ENTRADAS DEL MODELO APT
+        st.markdown("### 1. Calibración de Factores de Riesgo (APT)")
+        a_col1, a_col2 = st.columns([1, 2])
+        
+        with a_col1:
+            st.write("**Sensibilidades (Betas)**")
+            b_mkt = st.slider("Beta Mercado (β_m)", 0.5, 1.5, 0.82, help="Sensibilidad al S&P 500")
+            b_inf = st.slider("Beta Inflación (β_inf)", -0.5, 0.5, -0.15, help="Sensibilidad al CPI")
+            b_gdp = st.slider("Beta Ciclo PIB (β_gdp)", 0.1, 1.0, 0.45, help="Sensibilidad al crecimiento económico")
+            
+            # Cálculo del Retorno Requerido (Ke - APT)
+            rf_rate = 0.042 # Yield 10Y Treasury
+            mkt_prem = 0.055 # Equity Risk Premium
+            ke_apt = rf_rate + (b_mkt * mkt_prem) + (b_inf * (inflation - 0.02)) + (b_gdp * blended_gdp)
+            
+            st.metric("Retorno Requerido (Ke)", f"{ke_apt*100:.2f}%")
+
+        with a_col2:
+            # Cálculo de Valor Intrínseco APT
+            g_apt = g_terminal 
+            f_val_apt = (data['eps_now'] * (1 + g_apt)) / (ke_apt - g_apt) if ke_apt > g_apt else float('nan')
+            
+            # --- GRÁFICO 1: COMPARATIVA DE "FAIR VALUE" ---
+            modelos = ["Mercado", "DCF (Flujos)", "APT (Macro)", "Analistas"]
+            valores = [p_ref, f_val, f_val_apt, data.get('analysts', {}).get('target', 1067)]
+            colores = ['#495057', '#005BAA', '#2ecc71', '#f6e05e']
+            
+            fig_bar = go.Figure(go.Bar(
+                x=modelos, y=valores,
+                marker_color=colores,
+                text=[f"${v:.0f}" if not np.isnan(v) else "Error" for v in valores],
+                textposition='outside'
+            ))
+            fig_bar.update_layout(title="Consenso de Valoración Intrínseca", template="plotly_dark", height=350, 
+                                  paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+        st.divider()
+
+        # --- GRÁFICO 2: DISPERSIÓN DE UPSIDE ---
+        st.markdown("### 2. Dispersión y Margen de Seguridad")
+        c_radar1, c_radar2 = st.columns([2, 1])
+        
+        with c_radar1:
+            upside_dcf = ((f_val / p_ref) - 1) * 100
+            upside_apt = ((f_val_apt / p_ref) - 1) * 100
+            upside_wallst = ((data.get('analysts', {}).get('target', 1067) / p_ref) - 1) * 100
+            
+            fig_scat = go.Figure(go.Scatter(
+                x=["DCF", "APT", "Wall St"], y=[upside_dcf, upside_apt, upside_wallst],
+                mode='markers+text', marker=dict(size=20, color=['#005BAA', '#2ecc71', '#f6e05e']),
+                text=[f"{upside_dcf:+.1f}%", f"{upside_apt:+.1f}%", f"{upside_wallst:+.1f}%"],
+                textposition="top center"
+            ))
+            fig_scat.update_layout(title="Upside Proyectado por Modelo (%)", template="plotly_dark", height=300, 
+                                   paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_scat, use_container_width=True)
+
+        with c_radar2:
+            st.markdown(f"""
+            <div style="background-color: var(--secondary-background-color); padding: 15px; border-radius: 10px; border-left: 5px solid #2ecc71;">
+                <h4 style="margin-top:0;">Veredicto APT</h4>
+                <p>Precio sugerido: <b>${f_val_apt:.2f}</b>.</p>
+                <p>Basado en inflación de <b>{inflation*100:.1f}%</b> y PIB de <b>{blended_gdp*100:.1f}%</b>.</p>
+                <hr>
+                <small>La Beta de Mercado ({b_mkt}) indica el perfil de riesgo relativo vs S&P 500.</small>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # -------------------------------------------------------------------------
+    # TAB 10: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
+    # -------------------------------------------------------------------------
+    with tabs[9]:
         st.subheader("📑 Documentación Técnica y Fuentes de Verificación")
         
         m_col1, m_col2 = st.columns([1.5, 1], gap="large")
         
         with m_col1:
             st.markdown("""
-                ### Framework de Valoración
-                El modelo **Costco Oracle** utiliza un sistema de alimentación híbrido. Los datos históricos son extraídos de reportes auditados (10-K/10-Q) y procesados mediante algoritmos de limpieza financiera.
-                
-                #### Fuentes de Datos Oficiales (Verificación SEC)
-                Para garantizar la integridad del análisis, puede consultar los archivos originales en los siguientes portales:
+                ### Framework de Valoración Híbrido
+                El sistema utiliza una arquitectura que contrasta el flujo de caja fundamental con el arbitraje por factores macro.
             """)
-            
-            # Botones de Enlace Externo
-            e1, e2 = st.columns(2)
-            e1.link_button("📂 SEC EDGAR: Archivos COST", "https://www.sec.gov/cgi-bin/browse-edgar?CIK=COST&action=getcompany", use_container_width=True)
-            e2.link_button("🌐 Costco Investor Relations", "https://investor.costco.com/financials/sec-filings/default.aspx", use_container_width=True)
-            
+
+            with st.expander("📝 Lógica APT vs CAPM: Explicación Detallada", expanded=True):
+                st.write("""
+                **CAPM (Capital Asset Pricing Model):** Modelo de un solo factor basado en el riesgo de mercado ($\beta$). 
+                Útil para medir volatilidad sistémica, pero limitado ante choques específicos de inflación o consumo.
+                
+                **APT (Arbitrage Pricing Theory):** Modelo multifactorial que sostiene que el retorno es función de varias primas de riesgo. 
+                Permite aislar cómo afectan la **Inflación** o el **PIB** al costo de capital de forma independiente.
+                """)
+                st.latex(r"E(R_i) = R_f + \sum_{j=1}^{n} \beta_{ij}RP_j")
+
             st.markdown("""
                 ---
                 #### 🧮 Resumen Matemático del Modelo
-                El motor de valoración opera bajo un framework de **Flujo de Caja Descontado (DCF)** dinámico. A continuación se detallan los pilares algorítmicos:
                 
-                **1. Costo del Patrimonio (CAPM):** Calcula la rentabilidad mínima exigida por los accionistas basándose en el riesgo sistémico (Beta).
+                **1. Costo del Patrimonio (CAPM):**
             """)
             st.latex(r"R_e = R_f + \beta \times (E_m - R_f)")
-            st.caption("Donde $$R_f$$ es la tasa libre de riesgo (T-Bond 10Y) y $$(E_m - R_f)$$ es la prima de riesgo de mercado.")
 
             st.markdown("""
-                **2. Costo Promedio Ponderado de Capital (WACC):** Es la tasa de descuento oficial del modelo. Representa el costo de financiar los activos promediando deuda y capital propio.
+                **2. Modelo Multifactorial (APT Ke):**
+            """)
+            st.latex(r"K_{e(apt)} = R_f + \beta_m(RP_m) + \beta_{inf}(RP_{inf}) + \beta_{gdp}(RP_{gdp})")
+
+            st.markdown("""
+                **3. Costo Promedio Ponderado de Capital (WACC):**
             """)
             st.latex(r"WACC = \left( \frac{E}{V} \times R_e \right) + \left( \frac{D}{V} \times R_d \times (1 - T) \right)")
-            st.caption("Ajustado por el escudo fiscal $$(1-T)$$ sobre el costo de la deuda ($$R_d$$).")
 
             st.markdown("""
-                **3. Valor Continuo o Terminal (TV):** Utilizamos el modelo de Gordon-Shapiro para estimar el valor de Costco más allá del año 10, asumiendo un crecimiento perpetuo ($$g$$).
+                **4. Valor Continuo (TV) e Intrínseco (Fair Value):**
             """)
             st.latex(r"TV = \frac{FCF_{10} \times (1 + g)}{WACC - g}")
-
-            st.markdown("""
-                **4. Valor Intrínseco (Fair Value):** Es el resultado final. Sumamos el valor presente de los flujos proyectados (ajustados por el entorno macro) más el valor terminal, sumando la caja neta y dividiendo por el total de acciones.
-            """)
-            st.latex(r"FairValue = \frac{\sum_{t=1}^{10} \frac{FCF_t \times (1 + MacroAdjust)}{(1 + WACC)^t} + \frac{TV}{(1 + WACC)^{10}} + Caja - Deuda}{Shares}")
-            
-            st.info("💡 **Nota:** El componente *MacroAdjust* es una variable propietaria que pondera el PIB real y el ingreso disponible sobre la generación de caja proyectada.")
+            st.latex(r"FairValue = \frac{\sum_{t=1}^{10} \frac{FCF_t \times (1 + \text{MacroAdj})}{(1 + WACC)^t} + \frac{TV}{(1 + WACC)^{10}} + \text{Caja} - \text{Deuda}}{\text{Shares}}")
 
         with m_col2:
             with st.container(border=True):
                 st.write("**📥 Repositorio Interno**")
-                st.info("Descargue la guía metodológica detallada del modelo.")
-                
                 pdf_filename = "Guia_Metodologica_COST.pdf"
                 try:
                     with open(pdf_filename, "rb") as f:
                         pdf_data = f.read()
-                    st.download_button(
-                        label="📄 Descargar Guía Metodológica (PDF)",
-                        data=pdf_data,
-                        file_name="Guia_Metodologica_Costco.pdf",
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
+                    st.download_button(label="📄 Descargar Guía (PDF)", data=pdf_data, file_name="Metodologia_Costco.pdf", mime="application/pdf", use_container_width=True)
                 except FileNotFoundError:
                     st.error(f"⚠️ Archivo '{pdf_filename}' no detectado.")
 
-            # Indicadores de confianza
             st.write("**Gobernanza del Modelo**")
             st.markdown("""
                 - **Data Feed:** Yahoo Finance Premium API
-                - **Audit:** SEC EDGAR Verificado
+                - **Methodology:** Híbrido DCF-APT
                 - **Update Frequency:** Real-time (Intraday)
-                - **Monte Carlo:** 1,000 Scenarios
             """)
-            
-            with st.expander("Ver Diccionario de Variables"):
-                st.write("""
-                    - **E:** Valor de mercado del capital propio.
-                    - **D:** Valor de mercado de la deuda.
-                    - **V:** Valor total (E + D).
-                    - **T:** Tasa impositiva corporativa.
-                """)
 
         st.divider()
         st.caption(f"Terminal Costco Intelligence | Versión 3.4.1 | {datetime.date.today().year}")
         
     # -------------------------------------------------------------------------
-    # TAB 10: OPCIONES LAB (FULL GREEKS)
+    # TAB 11: OPCIONES LAB (FULL GREEKS)
     # -------------------------------------------------------------------------
-    with tabs[9]:
+    with tabs[10]:
         st.subheader("Laboratorio de Griegas y Pricing (Black-Scholes)")
         ok1, ok2, ok3 = st.columns(3)
         strike_p = ok1.number_input("Strike Price ($)", value=float(round(p_ref*1.05, 0)))
@@ -1278,9 +1333,11 @@ def main():
         t_days = ok3.slider("Días a Expiración", 1, 730, 45)
         g_res = ValuationOracle.calculate_full_greeks(p_ref, strike_p, t_days/365, 0.045, iv_val)
         m_ok1, m_ok2, m_ok3, m_ok4, m_ok5 = st.columns(5)
-        m_ok1.metric("Call Price", f"${g_res['price']:.2f}"); m_ok2.metric("Delta Δ", f"{g_res['delta']:.4f}"); m_ok3.metric("Gamma γ", f"{g_res['gamma']:.4f}"); m_ok4.metric("Vega ν", f"{g_res['vega']:.4f}"); m_ok5.metric("Theta θ", f"{g_res['theta']:.3f}")
+        m_ok1.metric("Call Price", f"${g_res['price']:.2f}")
+        m_ok2.metric("Delta Δ", f"{g_res['delta']:.4f}")
+        m_ok3.metric("Gamma γ", f"{g_res['gamma']:.4f}")
+        m_ok4.metric("Vega ν", f"{g_res['vega']:.4f}")
+        m_ok5.metric("Theta θ", f"{g_res['theta']:.3f}")
 
 if __name__ == "__main__":
     main()
-
-# --- FIN DEL DOCUMENTO MASTER v43.0 (1600+ LÍNEAS LÓGICAS) ---
