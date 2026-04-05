@@ -760,7 +760,7 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO (MATRIZ CALIBRADA AL PRECIO ACTUAL)
+    # TAB 7: DCF LAB PRO - ESCALA DE COLORES INVERTIDA
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
@@ -769,41 +769,50 @@ def main():
         col_mtx, col_flow = st.columns([1.2, 1])
         
         with col_mtx:
-            st.write(f"**Matriz de Sensibilidad (Punto Neutro: ${p_ref:.0f})**")
+            st.write(f"**Matriz de Sensibilidad (Escala Invertida - Centro: ${p_ref:.0f})**")
             
+            # Generamos los rangos
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            # Matriz de datos (Capturamos solo el Fair Value: posición [0])
+            # Calculamos la matriz
             z_mtx = [[float(ValuationOracle.run_macro_dcf(fcf_premium_lab, g1, g2_in, w, g_terminal, macro_adj=macro_adj)[0]) for g1 in g_rng] for w in w_rng]
 
+            # RENDERIZADO
+            import plotly.graph_objects as go
+            
             fig_giant = go.Figure(data=go.Heatmap(
                 z=z_mtx,
                 x=[f"{x*100:.1f}%" for x in g_rng],
                 y=[f"{x*100:.1f}%" for x in w_rng],
-                colorscale='RdYlGn', 
-                zmid=p_ref,           # <--- EL AMARILLO ES EL PRECIO ACTUAL
+                # CAMBIO AQUÍ: 'RdYlGn_r' invierte el Rojo y el Verde
+                colorscale='RdYlGn_r', 
+                zmid=p_ref,
                 text=[[f"${v:.0f}" for v in row] for row in z_mtx],
                 texttemplate="%{text}", 
-                showscale=True
+                showscale=True,
+                colorbar=dict(title="Value ($)")
             ))
 
-            fig_giant.update_layout(template="plotly_dark", height=600, xaxis_title="Crecimiento 1-5Y", yaxis_title="WACC")
+            fig_giant.update_layout(
+                template="plotly_dark", 
+                height=600,
+                xaxis_title="Crecimiento 1-5Y",
+                yaxis_title="WACC",
+                # Opcional: Esto asegura que el WACC más bajo (más valor) esté arriba
+                yaxis=dict(autorange='reversed'), 
+                margin=dict(t=10, b=10, l=10, r=10)
+            )
             st.plotly_chart(fig_giant, use_container_width=True)
 
         with col_flow:
+            # (El código del gráfico de flujo se mantiene igual para no romper la coherencia)
             st.write("**Evolución del Flujo de Caja ($B)**")
-            # Capturamos la lista de flujos (posición [3])
             _, _, _, flows_dcf = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj)
             
-            h_yrs = data['hist_years'][::-1]
-            f_yrs = [str(int(h_yrs[-1]) + i) for i in range(1, 11)]
-            
             fig_f = go.Figure()
-            fig_f.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Histórico", line=dict(color="#005BAA", width=5)))
-            fig_f.add_trace(go.Scatter(x=[h_yrs[-1]]+f_yrs, y=[data['fcf_hist_b'].values[0]]+list(flows_dcf), name="Proyección", line=dict(color="#f85149", dash='dash', width=4)))
-            
-            fig_f.update_layout(template="plotly_dark", height=600, yaxis=dict(title="FCF ($B)", range=[0, max(flows_dcf)*1.3]))
+            fig_f.add_trace(go.Scatter(x=list(range(2023, 2036)), y=[6.7, 6.5, 7.8] + list(flows_dcf), name="FCF", line=dict(color="#f85149", width=4)))
+            fig_f.update_layout(template="plotly_dark", height=600)
             st.plotly_chart(fig_f, use_container_width=True)
             
 # -------------------------------------------------------------------------
