@@ -305,11 +305,13 @@ def main():
         st.error("No se pudieron cargar los datos de la API.")
         return
 
-    # 2. Sidebar: Master Control
-st.sidebar.title("🏛️ Master Control")
+# -------------------------------------------------------------------------
+    # SIDEBAR: PANEL DE CONTROL INSTITUCIONAL (UX OPTIMIZADA)
+    # -------------------------------------------------------------------------
+    st.sidebar.title("🏛️ Master Control")
     
     # Inicialización del Session State para el control de ejecución
-   if 'run_analysis' not in st.session_state:
+    if 'run_analysis' not in st.session_state:
         st.session_state.run_analysis = False
     
     # P_ref: El ancla para cálculos de mercado
