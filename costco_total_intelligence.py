@@ -768,18 +768,23 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO - ESCALA CALIBRADA AL PRECIO ACTUAL
+    # TAB 7: DCF LAB PRO - ESCALA DE COLORES (FIX TYPEERROR)
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # --- 1. DEFINICIÓN DE PRECIO DE REFERENCIA ---
+        # --- 1. EXTRACCIÓN SEGURA DEL PRECIO (Scalar Float) ---
         try:
             p_raw = data.get('price', 0)
-            # Aseguramos que sea un float puro para que Plotly no de error
-            precio_ref = float(p_raw.iloc[0]) if hasattr(p_raw, 'iloc') else float(p_raw)
+            # Si es una Serie o Array, extraemos el valor. Si no, lo convertimos a float.
+            if hasattr(p_raw, 'iloc'):
+                precio_ref = float(p_raw.iloc[0])
+            elif isinstance(p_raw, (list, np.ndarray)):
+                precio_ref = float(p_raw[0])
+            else:
+                precio_ref = float(p_raw)
         except:
-            precio_ref = 1000.0
+            precio_ref = 1000.0 # Valor de respaldo
 
         fcf_premium_lab = data['fcf_now_b'] * 1.10 
         
@@ -791,7 +796,7 @@ def main():
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            # Generamos la matriz asegurando valores numéricos limpios
+            # Construcción de matriz asegurando floats puros
             mtx = []
             for w in w_rng:
                 fila = []
@@ -800,12 +805,19 @@ def main():
                     fila.append(float(val) if np.isfinite(val) else 0.0)
                 mtx.append(fila)
             
-            # --- 2. RENDERIZADO CON ESCALA CENTRADA (zmid) ---
+            # Convertimos a DataFrame y forzamos tipo float
+            df_mtx = pd.DataFrame(
+                mtx, 
+                index=[f"{x*100:.1f}%" for x in w_rng], 
+                columns=[f"{x*100:.1f}%" for x in g_rng]
+            ).astype(float)
+
+            # --- 2. RENDERIZADO CON ESCALA CENTRADA ---
             fig_giant = px.imshow(
-                pd.DataFrame(mtx, index=[f"{x*100:.1f}%" for x in w_rng], columns=[f"{x*100:.1f}%" for x in g_rng]),
+                df_mtx,
                 text_auto='.0f', 
                 color_continuous_scale='RdYlGn', 
-                zmid=precio_ref, # <--- ESTO CENTRA LA ESCALA EN EL PRECIO ACTUAL
+                zmid=precio_ref, # Ahora garantizamos que es un float
                 aspect="auto", 
                 height=600 
             )
@@ -818,42 +830,23 @@ def main():
             )
             st.plotly_chart(fig_giant, use_container_width=True, config={'displayModeBar': False})
 
+        # --- El resto del código (col_flow) se mantiene igual ---
         with col_flow:
             st.write("**Evolución del Flujo de Caja Anual ($B)**")
-            
-            res_dcf = ValuationOracle.run_macro_dcf(
-                fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
-            )
-            
-            flows_proy = res_dcf[3] if (isinstance(res_dcf, (list, tuple)) and len(res_dcf) > 3) else []
-            
+            res_dcf = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj)
+            flows_proy = res_dcf[3] if len(res_dcf) > 3 else []
             if not isinstance(flows_proy, list) or len(flows_proy) == 0:
-                base_fcf = fcf_premium_lab
-                flows_proy = [base_fcf * (1 + g1_in)**i for i in range(1, 11)]
+                flows_proy = [fcf_premium_lab * (1 + g1_in)**i for i in range(1, 11)]
 
             h_yrs = data['hist_years'][::-1]
             f_yrs = [str(int(h_yrs[-1]) + i) for i in range(1, 11)]
             y_max = max(flows_proy) if flows_proy else 20
             
             fig_dcf_flow = go.Figure()
-            fig_dcf_flow.add_trace(go.Scatter(
-                x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], 
-                name="Histórico Real", line=dict(color="#005BAA", width=6), mode='markers+lines'
-            ))
-            fig_dcf_flow.add_trace(go.Scatter(
-                x=[h_yrs[-1]] + f_yrs, 
-                y=[data['fcf_hist_b'].values[0]] + flows_proy, 
-                name="Proyección Anual", 
-                line=dict(color="#f85149", dash='dash', width=5), mode='markers+lines'
-            ))
+            fig_dcf_flow.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Histórico", line=dict(color="#005BAA", width=6), mode='markers+lines'))
+            fig_dcf_flow.add_trace(go.Scatter(x=[h_yrs[-1]] + f_yrs, y=[data['fcf_hist_b'].values[0]] + flows_proy, name="Proyección", line=dict(color="#f85149", dash='dash', width=5), mode='markers+lines'))
             
-            fig_dcf_flow.update_layout(
-                template="plotly_dark", height=600,
-                xaxis_type='category',
-                yaxis=dict(title="Free Cash Flow ($B)", gridcolor='rgba(255,255,255,0.05)', range=[0, y_max * 1.3]),
-                legend=dict(orientation="h", y=1.1, x=1),
-                margin=dict(t=50, b=10, l=10, r=10)
-            )
+            fig_dcf_flow.update_layout(template="plotly_dark", height=600, xaxis_type='category', yaxis=dict(title="FCF ($B)", range=[0, y_max * 1.3]), legend=dict(orientation="h", y=1.1, x=1))
             st.plotly_chart(fig_dcf_flow, use_container_width=True)
             
 # -------------------------------------------------------------------------
