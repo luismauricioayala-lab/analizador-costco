@@ -1215,7 +1215,7 @@ def main():
                 # Formato con comas: : , .0f
                 text=[f"${v:,.0f}" if not np.isnan(v) else "Error" for v in valores],
                 textposition='outside',
-                textfont=dict(size=14, weight='bold') # Etiquetas más legibles
+                textfont=dict(size=14, weight='normal') # Etiquetas más legibles
             ))
             
             fig_bar.update_layout(
