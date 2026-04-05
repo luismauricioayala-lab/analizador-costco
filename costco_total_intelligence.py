@@ -1177,11 +1177,104 @@ def main():
             st.table(df_stress)
         else:
             st.error("No se pudieron generar escenarios válidos. Revisa los parámetros de WACC y Crecimiento.")
-        
-# -------------------------------------------------------------------------
-    # TAB 9: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
+
+    # -------------------------------------------------------------------------
+    # TAB 9: VALORACIÓN MULTI-MODELO (CONSENSO DCF vs APT)
     # -------------------------------------------------------------------------
     with tabs[8]:
+        st.subheader("🔬 Benchmark de Valoración: DCF vs Arbitrage Pricing Theory (APT)")
+        
+        # 1. ENTRADAS DEL MODELO APT
+        st.markdown("### 1. Calibración de Factores de Riesgo (APT)")
+        a_col1, a_col2 = st.columns([1, 2])
+        
+        with a_col1:
+            st.write("**Sensibilidades (Betas)**")
+            b_mkt = st.slider("Beta Mercado (β_m)", 0.5, 1.5, 0.82, help="Sensibilidad al S&P 500")
+            b_inf = st.slider("Beta Inflación (β_inf)", -0.5, 0.5, -0.15, help="Sensibilidad al CPI")
+            b_gdp = st.slider("Beta Ciclo PIB (β_gdp)", 0.1, 1.0, 0.45, help="Sensibilidad al crecimiento económico")
+            
+            # Cálculo del Retorno Requerido (Ke - APT)
+            rf_rate = 0.042 # Yield 10Y Treasury
+            mkt_prem = 0.055 # Equity Risk Premium
+            # Ke = Rf + (βm * ERP) + (βinf * Premium_Inf) + (βgdp * Premium_GDP)
+            ke_apt = rf_rate + (b_mkt * mkt_prem) + (b_inf * (inflation - 0.02)) + (b_gdp * blended_gdp)
+            
+            st.metric("Retorno Requerido (Ke)", f"{ke_apt*100:.2f}%")
+
+        with a_col2:
+            # Cálculo de Valor Intrínseco APT (Modelo de Capitalización de Beneficios)
+            g_apt = g_terminal 
+            f_val_apt = (data['eps_now'] * (1 + g_apt)) / (ke_apt - g_apt) if ke_apt > g_apt else float('nan')
+            
+            # --- GRÁFICO 1: COMPARATIVA DE "FAIR VALUE" POR MODELO ---
+            modelos = ["Mercado", "DCF (Flujos)", "APT (Macro)", "Analistas"]
+            valores = [p_ref, f_val, f_val_apt, data.get('analysts', {}).get('target', 1067)]
+            colores = ['#495057', '#005BAA', '#2ecc71', '#f6e05e']
+            
+            fig_bar = go.Figure(go.Bar(
+                x=modelos, y=valores,
+                marker_color=colores,
+                text=[f"${v:.0f}" if not np.isnan(v) else "Error" for v in valores],
+                textposition='outside'
+            ))
+            
+            fig_bar.update_layout(
+                title="Consenso de Valoración Intrínseca",
+                template="plotly_dark", height=350,
+                margin=dict(t=50, b=20, l=0, r=0),
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+        st.divider()
+
+        # --- GRÁFICO 2: RADAR DE SENSIBILIDAD (RADAR CHART) ---
+        # Este gráfico muestra qué modelo es más "agresivo" en su valoración
+        st.markdown("### 2. Dispersión y Margen de Seguridad")
+        
+        c_radar1, c_radar2 = st.columns([2, 1])
+        
+        with c_radar1:
+            # Gráfico de dispersión para ver el Upside de cada modelo
+            upside_dcf = ((f_val / p_ref) - 1) * 100
+            upside_apt = ((f_val_apt / p_ref) - 1) * 100
+            upside_wallst = ((data.get('analysts', {}).get('target', 1067) / p_ref) - 1) * 100
+            
+            fig_scat = go.Figure()
+            fig_scat.add_trace(go.Scatter(
+                x=["DCF", "APT", "Wall St"],
+                y=[upside_dcf, upside_apt, upside_wallst],
+                mode='markers+text',
+                marker=dict(size=20, color=['#005BAA', '#2ecc71', '#f6e05e']),
+                text=[f"{upside_dcf:+.1f}%", f"{upside_apt:+.1f}%", f"{upside_wallst:+.1f}%"],
+                textposition="top center"
+            ))
+            
+            fig_scat.update_layout(
+                title="Upside Proyectado por Modelo (%)",
+                template="plotly_dark", height=300,
+                yaxis_title="Potencial de Revalorización",
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_scat, use_container_width=True)
+
+        with c_radar2:
+            # Resumen Ejecutivo del APT
+            st.markdown(f"""
+            <div style="background-color: var(--secondary-background-color); padding: 15px; border-radius: 10px; border-left: 5px solid #2ecc71;">
+                <h4 style="margin-top:0;">Veredicto APT</h4>
+                <p>El modelo APT sugiere un precio de <b>${f_val_apt:.2f}</b>.</p>
+                <p>Basado en un entorno de inflación del <b>{inflation*100:.1f}%</b> y un PIB del <b>{blended_gdp*100:.1f}%</b>.</p>
+                <hr>
+                <small>La Beta de Mercado ({b_mkt}) indica que COST es un {abs(1-b_mkt)*100:.0f}% menos volátil que el S&P 500.</small>
+            </div>
+            """, unsafe_allow_html=True)
+        
+# -------------------------------------------------------------------------
+    # TAB 10: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
+    # -------------------------------------------------------------------------
+    with tabs[9]:
         st.subheader("📑 Documentación Técnica y Fuentes de Verificación")
         
         m_col1, m_col2 = st.columns([1.5, 1], gap="large")
@@ -1268,9 +1361,9 @@ def main():
         st.caption(f"Terminal Costco Intelligence | Versión 3.4.1 | {datetime.date.today().year}")
         
     # -------------------------------------------------------------------------
-    # TAB 10: OPCIONES LAB (FULL GREEKS)
+    # TAB 11: OPCIONES LAB (FULL GREEKS)
     # -------------------------------------------------------------------------
-    with tabs[9]:
+    with tabs[10]:
         st.subheader("Laboratorio de Griegas y Pricing (Black-Scholes)")
         ok1, ok2, ok3 = st.columns(3)
         strike_p = ok1.number_input("Strike Price ($)", value=float(round(p_ref*1.05, 0)))
