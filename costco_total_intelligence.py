@@ -1064,7 +1064,7 @@ def main():
                 use_container_width=True
             )
 
-with c4:
+        with c4:
             st.write("**Estructura Comparativa de Márgenes (%)**")
             
             # Cálculos (Aseguramos que sean listas limpias)
@@ -1117,7 +1117,7 @@ with c4:
 # -------------------------------------------------------------------------
     # TAB 7: DCF LAB PRO (MATRIZ CALIBRADA AL PRECIO ACTUAL) [cite: 8, 31]
     # -------------------------------------------------------------------------
-    with tabs[6]:
+    with tabs[6]    
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
         # Cálculos de base para el laboratorio con rampa de desaceleración [cite: 13, 19]
