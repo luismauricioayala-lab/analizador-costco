@@ -1064,56 +1064,55 @@ def main():
                 use_container_width=True
             )
 
-        with c4:
+with c4:
             st.write("**Estructura Comparativa de Márgenes (%)**")
             
-            # 1. Cálculos de márgenes (Asegurando que m_neto ya viene de arriba)
-            m_bruto = (safe_get(is_f, ['Gross Profit']) / revenue) * 100
-            m_op = (safe_get(is_f, ['Operating Income']) / revenue) * 100
-            # m_neto ya está calculado en el bloque c2, pero por seguridad:
-            m_neto_vals = (net_income / revenue) * 100
+            # Cálculos (Aseguramos que sean listas limpias)
+            m_bruto = ((safe_get(is_f, ['Gross Profit']) / revenue) * 100).tolist()
+            m_op = ((op_inc / revenue) * 100).tolist()
+            m_neto_vals = ((net_income / revenue) * 100).tolist()
             
             fig_marg = go.Figure()
             
-            # 2. Añadir trazas con etiquetas de texto (texttemplate)
+            # 1. INYECTAMOS EL TEXTO DIRECTAMENTE EN CADA BARRA
             fig_marg.add_trace(go.Bar(
                 x=años_finales, y=m_bruto, name="M. Bruto", 
-                marker_color="#27ae60", texttemplate='%{y:.1f}%', textposition='outside'
-            ))
-            fig_marg.add_trace(go.Bar(
-                x=años_finales, y=m_op, name="M. Operativo", 
-                marker_color="#f1c40f", texttemplate='%{y:.1f}%', textposition='outside'
-            ))
-            fig_marg.add_trace(go.Bar(
-                x=años_finales, y=m_neto_vals, name="M. Neto", 
-                marker_color="#e74c3c", texttemplate='%{y:.1f}%', textposition='outside'
+                marker_color="#27ae60",
+                text=[f"{v:.1f}%" for v in m_bruto], # Texto pre-formateado
+                textposition='outside'
             ))
             
-            # 3. Configuración estética y de ejes
+            fig_marg.add_trace(go.Bar(
+                x=años_finales, y=m_op, name="M. Operativo", 
+                marker_color="#f1c40f",
+                text=[f"{v:.1f}%" for v in m_op],
+                textposition='outside'
+            ))
+            
+            fig_marg.add_trace(go.Bar(
+                x=años_finales, y=m_neto_vals, name="M. Neto", 
+                marker_color="#e74c3c",
+                text=[f"{v:.1f}%" for v in m_neto_vals],
+                textposition='outside'
+            ))
+            
+            # 2. CONFIGURACIÓN DEL LAYOUT (Usando sintaxis plana para evitar errores)
             fig_marg.update_layout(
                 template="plotly_dark", 
                 barmode='group', 
-                height=400, # Aumentado un poco para dar espacio a las etiquetas superiores
-                paper_bgcolor='rgba(0,0,0,0)', 
-                plot_bgcolor='rgba(0,0,0,0)', 
-                margin=dict(t=50, b=20), # Más margen superior para los números
+                height=400,
+                margin=dict(t=50, b=20, l=10, r=10),
                 legend=dict(orientation="h", y=1.1, x=1),
-                
-                # Eje Y formateado como porcentaje
-                yaxis=dict(
-                    title="Margen (%)",
-                    ticksuffix="%",
-                    # Le damos un rango dinámico para que los números no se corten arriba
-                    range=[0, max(m_bruto) * 1.3] 
-                ),
-                # Eje X limpio
-                xaxis=dict(tickmode='linear', dtick=1)
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                # Forzar el símbolo % en el eje Y
+                yaxis_ticksuffix="%",
+                yaxis_range=[0, max(m_bruto) * 1.3], # Dar espacio para que no se corten los números
+                xaxis_tickmode='linear',
+                xaxis_dtick=1
             )
             
-            # Forzar que los números siempre se vean bien
-            fig_marg.update_traces(textfont_size=10, cliponaxis=False)
-            
-            st.plotly_chart(fig_marg, use_container_width=True, config={'displayModeBar': False})
+            st.plotly_chart(fig_marg, use_container_width=True)
             
 # -------------------------------------------------------------------------
     # TAB 7: DCF LAB PRO (MATRIZ CALIBRADA AL PRECIO ACTUAL)
