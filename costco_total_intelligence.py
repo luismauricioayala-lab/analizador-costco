@@ -1194,45 +1194,45 @@ def main():
                     - **D:** Valor de mercado de la deuda.
                     - **V:** Valor total (E + D).
                     - **T:** Tasa impositiva corporativa.
-""", unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-        # Elementos fuera de las columnas pero dentro de la Tab
+        # Elementos de pie de página (Fuera de las columnas, dentro de la Tab 9)
         st.divider()
         st.caption(f"Terminal Costco Intelligence | Versión 3.4.1 | {datetime.date.today().year}")
-        
+
     # -------------------------------------------------------------------------
     # TAB 10: OPCIONES LAB (FULL GREEKS)
     # -------------------------------------------------------------------------
     with tabs[9]:
         st.subheader("Laboratorio de Griegas y Pricing (Black-Scholes)")
-        st.markdown("Simulación de primas y sensibilidad para estrategias de cobertura o income.")
+        st.info("Simulación de sensibilidad para estrategias de opciones sobre COST.")
         
         ok1, ok2, ok3 = st.columns(3)
         
-        # Strike automático al 5% OTM del precio de referencia
+        # Strike automático al 5% OTM (Out of the Money)
         strike_p = ok1.number_input("Strike Price ($)", value=float(round(p_ref * 1.05, 0)))
         iv_val = ok2.slider("Volatilidad Implícita (IV %)", 10, 100, 25) / 100
         t_days = ok3.slider("Días a Expiración (DTE)", 1, 730, 45)
         
-        # Cálculo de Griegas mediante el Oracle
+        # Ejecución del motor matemático de Griegas
         g_res = ValuationOracle.calculate_full_greeks(p_ref, strike_p, t_days/365, 0.045, iv_val)
         
-        # Panel de visualización de Griegas
+        # Visualización en 5 columnas proporcionales
         m_ok1, m_ok2, m_ok3, m_ok4, m_ok5 = st.columns(5)
         
         m_ok1.metric("Call Price", f"${g_res['price']:.2f}")
-        m_ok2.metric("Delta Δ", f"{g_res['delta']:.4f}", help="Sensibilidad al precio")
-        m_ok3.metric("Gamma γ", f"{g_res['gamma']:.4f}", help="Aceleración del Delta")
-        m_ok4.metric("Vega ν", f"{g_res['vega']:.4f}", help="Sensibilidad a la IV")
-        m_ok5.metric("Theta θ", f"{g_res['theta']:.3f}", help="Decaimiento temporal")
+        m_ok2.metric("Delta Δ", f"{g_res['delta']:.4f}", help="Sensibilidad al cambio de $1 en la acción")
+        m_ok3.metric("Gamma γ", f"{g_res['gamma']:.4f}", help="Tasa de cambio del Delta")
+        m_ok4.metric("Vega ν", f"{g_res['vega']:.4f}", help="Sensibilidad a cambios en la volatilidad")
+        m_ok5.metric("Theta θ", f"{g_res['theta']:.3f}", help="Decaimiento por el paso del tiempo")
 
 # -------------------------------------------------------------------------
-# PUNTO DE ENTRADA (BOOTSTRAP)
+# EJECUCIÓN DEL MÓDULO PRINCIPAL
 # -------------------------------------------------------------------------
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        st.error(f"Error crítico en el despliegue de la Terminal: {e}")
+        st.error(f"Error crítico en el motor de la Terminal: {str(e)}")
 
-# --- FIN DEL DOCUMENTO MASTER v43.0 (1600+ LÍNEAS LÓGICAS) ---
+# --- FIN DEL DOCUMENTO MASTER v43.0 ---
