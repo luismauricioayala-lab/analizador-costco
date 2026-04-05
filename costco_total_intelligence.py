@@ -375,114 +375,125 @@ def main():
     # RECUERDA: En Tab 1 usa: y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b]
 
 # -------------------------------------------------------------------------
-    # TAB 1: RESUMEN EJECUTIVO (VERSIÓN INSTITUCIONAL COMPLETA)
+    # TAB 1: RESUMEN EJECUTIVO (VERSIÓN INSTITUCIONAL BLINDADA)
     # -------------------------------------------------------------------------
     with tabs[0]:
         st.subheader("Análisis de Sensibilidad de Escenarios (Target 2026)")
         
         # 1. Normalización de Flujos (Owner Earnings)
-        fcf_premium = data['fcf_now_b'] * 1.25 
+        fcf_now = data.get('fcf_now_b', 0)
+        fcf_premium = fcf_now * 1.25 
         
         # --- VALIDACIÓN GLOBAL DE CONVERGENCIA ---
         if final_wacc <= g_terminal:
-            st.error(f"🚨 **MODELO INESTABLE:** El WACC Base ({final_wacc*100:.2f}%) es <= al Crecimiento Terminal ({g_terminal*100:.2f}%)")
-            st.info("Ajusta los parámetros en el sidebar para que la tasa de descuento supere al crecimiento.")
+            st.error(f"🚨 **MODELO INESTABLE:** El WACC Base ({final_wacc*100:.2f}%) es menor o igual al Crecimiento Terminal ({g_terminal*100:.2f}%)")
+            st.info("Ajusta los parámetros en el sidebar (sube el WACC o baja el G Terminal) para que la tasa de descuento supere al crecimiento perpetuo.")
         else:
-            # TODO este bloque debe estar indentado 4 espacios a la derecha del 'else'
-            # ESCENARIO BAJISTA (BEAR)
+            # --- CÁLCULO DE ESCENARIOS CON DESGLOSE DE DRIVERS ---
+            
+            # A. ESCENARIO BAJISTA (BEAR)
             bear_wacc = final_wacc + 0.005
             bear_g1 = g1_in * 0.90
             bear_gt = g_terminal - 0.005
             bear_macro = macro_adj - 0.02
+            # Aquí raramente habrá error porque el WACC sube y el G baja
             v_bear, _, _, _ = ValuationOracle.run_macro_dcf(
                 fcf_premium, bear_g1, g2_in * 0.90, bear_wacc, bear_gt, macro_adj=bear_macro
             )
-        
-        # ESCENARIO BASE (INTRINSIC)
-        v_base, pv_f, pv_t, _ = ValuationOracle.run_macro_dcf(
-            fcf_premium, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
-        )
-        
-        # ESCENARIO ALCISTA (BULL)
-        bull_wacc = final_wacc - 0.005
-        bull_g1 = g1_in * 1.15
-        bull_gt = g_terminal + 0.005
-        bull_macro = macro_adj + 0.03
-        v_bull, _, _, _ = ValuationOracle.run_macro_dcf(
-            fcf_premium, bull_g1, g2_in * 1.15, bull_wacc, bull_gt, macro_adj=bull_macro
-        )
-
-        # --- RENDERIZADO DE TARJETAS (ESTILO BLOOMBERG PRO) ---
-        c_sc1, c_sc2, c_sc3 = st.columns(3)
-        
-        with c_sc1:
-            st.markdown(f"""<div class="scenario-card-detailed bear-pro">
-                <div class="scenario-label-sober">Escenario Bajista (Bear)</div>
-                <div class="price-hero-sober" style="color:#f85149">${v_bear:.0f}</div>
-                <div class="driver-list-sober">
-                    • <b>WACC:</b> {bear_wacc*100:.2f}% (Riesgo ↑)<br>
-                    • <b>Crec. 1-5Y:</b> {bear_g1*100:.1f}%<br>
-                    • <b>G. Terminal:</b> {bear_gt*100:.1f}%<br>
-                    • <b>Impacto Macro:</b> {bear_macro*100:.1f}%
-                </div>
-            </div>""", unsafe_allow_html=True)
             
-        with c_sc2:
-            st.markdown(f"""<div class="scenario-card-detailed base-pro">
-                <div class="scenario-label-sober">Escenario Base (Intrinsic)</div>
-                <div class="price-hero-sober" style="color:var(--text-color)">${v_base:.0f}</div>
-                <div class="driver-list-sober">
-                    • <b>WACC:</b> {final_wacc*100:.2f}% (Market)<br>
-                    • <b>Crec. 1-5Y:</b> {g1_in*100:.1f}%<br>
-                    • <b>G. Terminal:</b> {g_terminal*100:.1f}%<br>
-                    • <b>Impacto Macro:</b> {macro_adj*100:.1f}%
-                </div>
-            </div>""", unsafe_allow_html=True)
+            # B. ESCENARIO BASE (INTRINSIC)
+            v_base, pv_f, pv_t, _ = ValuationOracle.run_macro_dcf(
+                fcf_premium, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
+            )
             
-        with c_sc3:
-            st.markdown(f"""<div class="scenario-card-detailed bull-pro">
-                <div class="scenario-label-sober">Escenario Alcista (Bull)</div>
-                <div class="price-hero-sober" style="color:#3fb950">${v_bull:.0f}</div>
-                <div class="driver-list-sober">
-                    • <b>WACC:</b> {bull_wacc*100:.2f}% (Eficiencia ↓)<br>
-                    • <b>Crec. 1-5Y:</b> {bull_g1*100:.1f}%<br>
-                    • <b>G. Terminal:</b> {bull_gt*100:.1f}%<br>
-                    • <b>Impacto Macro:</b> {bull_macro*100:.1f}%
-                </div>
-            </div>""", unsafe_allow_html=True)
+            # C. ESCENARIO ALCISTA (BULL)
+            bull_wacc = final_wacc - 0.005
+            bull_g1 = g1_in * 1.15
+            bull_gt = g_terminal + 0.005
+            bull_macro = macro_adj + 0.03
+            
+            # VALIDACIÓN ESPECÍFICA PARA BULL (El escenario que suele dar $nan)
+            if bull_wacc <= bull_gt:
+                v_bull = float('nan')
+                bull_display = "N/A"
+                bull_color = "#888888" # Gris si no hay convergencia
+            else:
+                v_bull, _, _, _ = ValuationOracle.run_macro_dcf(
+                    fcf_premium, bull_g1, g2_in * 1.15, bull_wacc, bull_gt, macro_adj=bull_macro
+                )
+                bull_display = f"${v_bull:.0f}"
+                bull_color = "#3fb950"
 
-# --- BRIDGE WATERFALL (CALIBRACIÓN DE ESCALA $B) ---
-        st.markdown("---")
-        
-        # 1. Definimos la Caja Neta en Billones
-        net_cash_b = data['cash_b'] - data['debt_b']
-        
-        # 2. El Total (Equity Value) debe estar en Billones para coincidir con pv_f y pv_t
-        # Usamos tu lógica: (Precio * Acciones) / 1000
-        equity_val_b = (v_base * data['shares_m']) / 1000 
-        
-        fig_water = go.Figure(go.Waterfall(
-            orientation="v", 
-            measure=["relative", "relative", "relative", "total"],
-            x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Market Cap Est. ($B)"],
-            # Ahora todos los elementos hablan el mismo idioma: Billones
-            y=[pv_f, pv_t, net_cash_b, equity_val_b],
-            # Agregamos etiquetas de texto para que no haya duda del dato
-            text=[f"${pv_f:.1f}B", f"${pv_t:.1f}B", f"${net_cash_b:.1f}B", f"${equity_val_b:.1f}B"],
-            textposition="outside", 
-            connector={"line":{"color":"rgba(255,255,255,0.1)"}},
-            decreasing={"marker":{"color":"#f85149"}},
-            increasing={"marker":{"color":"#3fb950"}},
-            totals={"marker":{"color":"#005BAA"}}
-        ))
-        
-        fig_water.update_layout(
-            title="Desglose del Valor de Mercado Proyectado ($B)", 
-            template="plotly_dark", height=450,
-            yaxis_title="Billones USD",
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
-        )
-        st.plotly_chart(fig_water, use_container_width=True)
+            # --- RENDERIZADO DE TARJETAS (ESTILO BLOOMBERG PRO) ---
+            c_sc1, c_sc2, c_sc3 = st.columns(3)
+            
+            with c_sc1:
+                st.markdown(f"""<div class="scenario-card-detailed bear-pro">
+                    <div class="scenario-label-sober">Escenario Bajista (Bear)</div>
+                    <div class="price-hero-sober" style="color:#f85149">${v_bear:.0f}</div>
+                    <div class="driver-list-sober">
+                        • <b>WACC:</b> {bear_wacc*100:.2f}% (Riesgo ↑)<br>
+                        • <b>Crec. 1-5Y:</b> {bear_g1*100:.1f}%<br>
+                        • <b>G. Terminal:</b> {bear_gt*100:.1f}%<br>
+                        • <b>Impacto Macro:</b> {bear_macro*100:.1f}%
+                    </div>
+                </div>""", unsafe_allow_html=True)
+                
+            with c_sc2:
+                st.markdown(f"""<div class="scenario-card-detailed base-pro">
+                    <div class="scenario-label-sober">Escenario Base (Intrinsic)</div>
+                    <div class="price-hero-sober" style="color:var(--text-color)">${v_base:.0f}</div>
+                    <div class="driver-list-sober">
+                        • <b>WACC:</b> {final_wacc*100:.2f}% (Market)<br>
+                        • <b>Crec. 1-5Y:</b> {g1_in*100:.1f}%<br>
+                        • <b>G. Terminal:</b> {g_terminal*100:.1f}%<br>
+                        • <b>Impacto Macro:</b> {macro_adj*100:.1f}%
+                    </div>
+                </div>""", unsafe_allow_html=True)
+                
+            with c_sc3:
+                st.markdown(f"""<div class="scenario-card-detailed bull-pro">
+                    <div class="scenario-label-sober">Escenario Alcista (Bull)</div>
+                    <div class="price-hero-sober" style="color:{bull_color}">{bull_display}</div>
+                    <div class="driver-list-sober">
+                        • <b>WACC:</b> {bull_wacc*100:.2f}% (Eficiencia ↓)<br>
+                        • <b>Crec. 1-5Y:</b> {bull_g1*100:.1f}%<br>
+                        • <b>G. Terminal:</b> {bull_gt*100:.1f}%<br>
+                        • <b>Impacto Macro:</b> {bull_macro*100:.1f}%
+                    </div>
+                </div>""", unsafe_allow_html=True)
+                if bull_display == "N/A":
+                    st.warning("⚠️ El escenario **Bull** no converge (WACC 3.5% vs G 4.0%). Sube el WACC base para habilitar.")
+
+            # --- BRIDGE WATERFALL (CALIBRACIÓN DE ESCALA $B) ---
+            st.markdown("---")
+            
+            # 1. Definimos la Caja Neta en Billones
+            net_cash_b = data.get('cash_b', 0) - data.get('debt_b', 0)
+            
+            # 2. El Total (Equity Value) debe estar en Billones
+            equity_val_b = (v_base * data.get('shares_m', 443.6)) / 1000 
+            
+            fig_water = go.Figure(go.Waterfall(
+                orientation="v", 
+                measure=["relative", "relative", "relative", "total"],
+                x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Market Cap Est. ($B)"],
+                y=[pv_f, pv_t, net_cash_b, equity_val_b],
+                text=[f"${pv_f:.1f}B", f"${pv_t:.1f}B", f"${net_cash_b:.1f}B", f"${equity_val_b:.1f}B"],
+                textposition="outside", 
+                connector={"line":{"color":"rgba(255,255,255,0.1)"}},
+                decreasing={"marker":{"color":"#f85149"}},
+                increasing={"marker":{"color":"#3fb950"}},
+                totals={"marker":{"color":"#005BAA"}}
+            ))
+            
+            fig_water.update_layout(
+                title="Desglose del Valor de Mercado Proyectado ($B)", 
+                template="plotly_dark", height=450,
+                yaxis_title="Billones USD",
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_water, use_container_width=True)
 
     # -------------------------------------------------------------------------
     # TAB 2: SCORECARD & RADAR (RESTAURADO)
