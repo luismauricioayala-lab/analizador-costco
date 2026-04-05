@@ -830,104 +830,96 @@ def main():
         st.info("💡 La matriz muestra el Fair Value resultante al variar el WACC (filas) y el crecimiento perpetuo (columnas). El centro representa nuestro escenario base.")
 
 # -------------------------------------------------------------------------
-    # TAB 8: MONTE CARLO - SIMULACIÓN DE PROBABILIDADES
+    # TAB 8: MONTE CARLO - PROBABILIDAD DE ÉXITO (COHERENCIA CON MANUAL)
     # -------------------------------------------------------------------------
     with tabs[7]:
         st.subheader("🎲 Simulación Estocástica de Valoración (1,000 Escenarios)")
+        
+        # 1. Parámetros de Simulación (Alineados con Target > $1,000)
+        np.random.seed(42)
+        n_sims = 1000
+        precio_actual = data['price']
+        
+        # Simulamos variaciones realistas en G y WACC para generar la campana
+        sim_results = []
+        for _ in range(n_sims):
+            # Crecimiento g1 con desviación de 1.5%
+            g_sim = np.random.normal(g1_in, 0.015) 
+            # WACC con desviación de 0.5% (Refleja riesgo macro/tasas)
+            w_sim = np.random.normal(final_wacc, 0.005)
+            
+            fv, _, _ = ValuationOracle.run_macro_dcf(
+                data['fcf_now_b'], g_sim, 0.08, w_sim, 0.025, macro_adj=macro_adj
+            )
+            sim_results.append(fv)
+
+        sim_series = pd.Series(sim_results)
+        media_sim = sim_series.mean()
+
+        # 2. Definición de "Éxito" según Manual Metodológico
         st.markdown("""
-            Esta simulación proyecta 1,000 futuros posibles para Costco variando aleatoriamente el 
-            crecimiento y el costo de capital. Esto nos permite medir el **Margen de Seguridad** real.
+            **Definición Metodológica:** Se define como **'Éxito'** cualquier escenario simulado donde el 
+            Valor Intrínseco calculado es superior al Precio de Mercado Actual. 
+            Esta métrica representa el **Margen de Seguridad Estadístico**.
         """)
         
-        # 1. Configuración de la Simulación
-        np.random.seed(42)
-        iteraciones = 1000
+        c_mc1, c_mc2 = st.columns([2, 1])
         
-        # Generamos la distribución de resultados
-        # Variamos g1 (crecimiento) y WACC con una distribución normal
-        sim_mc = [
-            ValuationOracle.run_macro_dcf(
-                data['fcf_now_b'], 
-                np.random.normal(g1_in, 0.02), # Desviación del 2% en crecimiento
-                0.08, 
-                np.random.normal(final_wacc, 0.005), # Desviación de 0.5% en WACC
-                macro_adj=macro_adj
-            )[0] for _ in range(iteraciones)
-        ]
-        
-        sim_series = pd.Series(sim_mc)
-        media_mc = sim_series.mean()
-        
-        # 2. Control de Umbral (La barra ajustable que mencionabas)
-        st.write("---")
-        col_ui1, col_ui2 = st.columns([2, 1])
-        
-        with col_ui1:
-            umbral = st.slider(
-                "Seleccione umbral de Fair Value para medir probabilidad (USD):", 
+        with c_mc1:
+            umbral_mc = st.slider(
+                "Ajustar Umbral de Evaluación (USD):", 
                 min_value=float(sim_series.min()), 
                 max_value=float(sim_series.max()), 
-                value=float(data['price']),
-                step=10.0,
-                help="Ajuste este valor para ver la probabilidad de que la acción valga más que este precio."
+                value=float(precio_actual),
+                step=5.0,
+                help="Por defecto comparamos contra el precio actual de mercado."
             )
         
-        # 3. Cálculo de Probabilidad
-        prob_exito = (sim_series > umbral).mean() * 100
+        # CÁLCULO CRÍTICO: Probabilidad de Éxito
+        escenarios_exito = (sim_series > umbral_mc).sum()
+        prob_exito = (escenarios_exito / n_sims) * 100
         
-        with col_ui2:
-            color_prob = "#2ecc71" if prob_exito > 50 else "#f85149"
+        with c_mc2:
+            color_exito = "#2ecc71" if prob_exito > 50 else "#f85149"
             st.metric(
-                label=f"Probabilidad de Valor > ${umbral:.0f}", 
+                label="🎯 Probabilidad de Éxito", 
                 value=f"{prob_exito:.1f}%",
-                delta=f"{media_mc - umbral:.2f} spread vs media",
+                delta=f"{escenarios_exito} de {n_sims} escenarios",
                 delta_color="normal"
             )
 
-        # 4. Visualización Avanzada
-        fig_hist = px.histogram(
+        # 3. Visualización de la Distribución de Probabilidad
+        fig_mc = px.histogram(
             sim_series, 
-            nbins=50,
-            title=f"Distribución de Probabilidades: Fair Value",
-            labels={'value': 'Fair Value (USD)', 'count': 'Frecuencia'},
+            nbins=45,
+            title="Histograma de Probabilidades: Fair Value vs Umbral de Éxito",
             color_discrete_sequence=['#005BAA'],
-            opacity=0.7
+            labels={'value': 'Valor Intrínseco Proyectado (USD)', 'count': 'Frecuencia'},
+            opacity=0.8
         )
         
-        # Añadimos línea vertical del umbral
-        fig_hist.add_vline(
-            x=umbral, 
-            line_dash="dash", 
-            line_color="#f85149", 
-            annotation_text=f"Umbral: ${umbral:.0f}", 
-            annotation_position="top right"
-        )
-        
-        # Añadimos línea de la media
-        fig_hist.add_vline(
-            x=media_mc, 
-            line_color="#2ecc71", 
-            annotation_text=f"Media: ${media_mc:.0f}", 
-            annotation_position="top left"
-        )
+        # Marcadores de Media y Umbral de Éxito
+        fig_mc.add_vline(x=media_sim, line_color="#2ecc71", line_width=3, 
+                         annotation_text=f"Media: ${media_sim:.0f}", annotation_position="top left")
+        fig_mc.add_vline(x=umbral_mc, line_color="#f85149", line_dash="dash", line_width=3,
+                         annotation_text=f"Umbral de Éxito: ${umbral_mc:.0f}", annotation_position="top right")
 
-        fig_hist.update_layout(
+        fig_mc.update_layout(
             template="plotly_dark",
             height=500,
-            showlegend=False,
-            margin=dict(t=50, b=50, l=50, r=50),
-            yaxis_title="Escenarios Detectados",
-            xaxis_title="Precio Objetivo Estimado (USD)"
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            xaxis=dict(title="Fair Value Estimado (USD)", showgrid=False),
+            yaxis=dict(title="Escenarios Detectados", gridcolor="#34495e")
         )
-        
-        st.plotly_chart(fig_hist, use_container_width=True)
-        
-        # 5. Estadísticas de la Simulación
-        s1, s2, s3, s4 = st.columns(4)
-        s1.write(f"**Mínimo:** ${sim_series.min():.2f}")
-        s2.write(f"**Máximo:** ${sim_series.max():.2f}")
-        s3.write(f"**Percentil 25:** ${sim_series.quantile(0.25):.2f}")
-        s4.write(f"**Percentil 75:** ${sim_series.quantile(0.75):.2f}")
+        st.plotly_chart(fig_mc, use_container_width=True)
+
+        # 4. Interpretación de Resultados (Consistencia con Manual)
+        st.info(f"""
+            **Interpretación:** Según las 1,000 iteraciones, existe un **{prob_exito:.1f}%** de probabilidad 
+            de que Costco tenga un valor real superior a **${umbral_mc:.0f}**. 
+            {"Esto sugiere un Margen de Seguridad robusto." if prob_exito > 60 else "Se recomienda cautela: el margen de seguridad es limitado."}
+        """)
 
 # -------------------------------------------------------------------------
     # TAB 9: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
