@@ -645,7 +645,7 @@ def main():
             st.plotly_chart(fig_eps, use_container_width=True)
             
 # -------------------------------------------------------------------------
-    # TAB 4: STRESS TEST PRO (SISTEMA DE IMPACTO MULTIVARIABLE)
+    # TAB 4: STRESS TEST PRO (VISUALIZACIÓN DE IMPACTOS POR ELEMENTO)
     # -------------------------------------------------------------------------
     with tabs[3]:
         st.subheader("🌪️ Simulador de Cisnes Negros & Shocks de Mercado")
@@ -659,31 +659,46 @@ def main():
         s_infl_local = col_s2.slider("Shock: Inflación de Costos (%)", 0.0, 25.0, 10.0) / 100
         
         st.markdown("### 🛠️ Selección de Eventos de Riesgo")
+        
+        # Creamos las columnas para los checkboxes
         c_sw1, c_sw2, c_sw3, c_sw4 = st.columns(4)
         
-        # Inicializamos los acumuladores de impacto
+        # Inicializamos acumuladores
         impact_fcf = 0.0
         impact_wacc = 0.0
         impact_g = 0.0
         active_risks = []
 
-        # Lógica de Impacto por Escenario
-        if c_sw1.checkbox("Ataque Cibernético"):
-            impact_fcf -= 0.15; active_risks.append("💻 <b>Ciber-Riesgo:</b> FCF -15% (Interrupción Operativa)")
-        
-        if c_sw2.checkbox("Lockdown Global"):
-            impact_fcf -= 0.25; impact_wacc += 0.01; active_risks.append("🔒 <b>Lockdown:</b> FCF -25% | WACC +100bps (Logística)")
-        
-        if c_sw3.checkbox("Conflicto Geopolítico"):
-            impact_fcf -= 0.10; impact_wacc += 0.025; impact_g -= 0.01
-            active_risks.append("🌍 <b>Geopolítica:</b> WACC +250bps | g -1% | FCF -10%")
-        
-        if c_sw4.checkbox("Crisis de Membresías"):
-            impact_fcf -= 0.20; impact_g -= 0.02
-            active_risks.append("💳 <b>Membresías:</b> FCF -20% | g -2% (Churn Masivo)")
+        # --- DISEÑO DE COLUMNAS CON IMPACTOS VISIBLES ---
+        with c_sw1:
+            check_ciber = st.checkbox("Ataque Cibernético")
+            st.markdown("<small style='color:#808495;'>📉 FCF: <b>-15%</b><br>⚖️ WACC: <b>+0 bps</b><br>📈 g: <b>0%</b></small>", unsafe_allow_html=True)
+            if check_ciber:
+                impact_fcf -= 0.15
+                active_risks.append("💻 <b>Ciber-Riesgo:</b> Interrupción Operativa Grave")
+
+        with c_sw2:
+            check_lock = st.checkbox("Lockdown Global")
+            st.markdown("<small style='color:#808495;'>📉 FCF: <b>-25%</b><br>⚖️ WACC: <b>+100 bps</b><br>📈 g: <b>0%</b></small>", unsafe_allow_html=True)
+            if check_lock:
+                impact_fcf -= 0.25; impact_wacc += 0.01
+                active_risks.append("🔒 <b>Lockdown:</b> Parálisis logística y de suministros")
+
+        with c_sw3:
+            check_geo = st.checkbox("Conflicto Geopolítico")
+            st.markdown("<small style='color:#808495;'>📉 FCF: <b>-10%</b><br>⚖️ WACC: <b>+250 bps</b><br>📈 g: <b>-1.0%</b></small>", unsafe_allow_html=True)
+            if check_geo:
+                impact_fcf -= 0.10; impact_wacc += 0.025; impact_g -= 0.01
+                active_risks.append("🌍 <b>Geopolítica:</b> Inestabilidad y riesgo país elevado")
+
+        with c_sw4:
+            check_mem = st.checkbox("Crisis de Membresías")
+            st.markdown("<small style='color:#808495;'>📉 FCF: <b>-20%</b><br>⚖️ WACC: <b>+0 bps</b><br>📈 g: <b>-2.0%</b></small>", unsafe_allow_html=True)
+            if check_mem:
+                impact_fcf -= 0.20; impact_g -= 0.02
+                active_risks.append("💳 <b>Membresías:</b> Pérdida de recurrencia y churn masivo")
 
         # 2. Consolidación de Variables Post-Stress
-        # Sumamos el macro local + los shocks de eventos
         total_macro_stress = (s_income_local * 1.5) - (s_infl_local * 1.2) + impact_fcf
         stress_wacc = final_wacc + impact_wacc
         stress_g1 = g1_in + impact_g
@@ -694,32 +709,22 @@ def main():
             shares=data['shares_m'], cash=data['cash_b'], debt=data['debt_b'], macro_adj=total_macro_stress
         )
 
-        # 4. Panel de Resultados y Drivers
+        # 4. Panel de Resultados
         st.markdown("---")
         res_col1, res_col2 = st.columns([1, 2])
         
         with res_col1:
-            diff_abs = v_stress - f_val
             diff_pct = (v_stress / f_val - 1) * 100
             st.metric("Fair Value en Crisis", f"${v_stress:.2f}", f"{diff_pct:.1f}% vs Base", delta_color="inverse")
-            
-            # Semáforo de Riesgo
             risk_level = "CRÍTICO" if diff_pct < -30 else ("ALTO" if diff_pct < -15 else "MODERADO")
-            st.warning(f"Nivel de Riesgo Combinado: **{risk_level}**")
+            st.error(f"Estatus del Portfolio: **{risk_level}**") if diff_pct < -15 else st.success(f"Estatus: **{risk_level}**")
 
         with res_col2:
-            st.write("**Impacto Detallado en Drivers Financieros:**")
+            st.write("**Resumen de Drivers Resultantes:**")
             d1, d2, d3 = st.columns(3)
             d1.metric("WACC Stress", f"{stress_wacc*100:.2f}%", f"+{impact_wacc*10000:.0f} bps")
-            d2.metric("Growth 1-5Y", f"{stress_g1*100:.1f}%", f"{impact_g*100:.1f}%")
-            d3.metric("FCF Adjustment", f"{total_macro_stress*100:.1f}%", "Total Shock")
-            
-            if active_risks:
-                with st.expander("📄 Ver desglose de eventos activos"):
-                    for risk in active_risks:
-                        st.markdown(risk, unsafe_allow_html=True)
-            else:
-                st.info("Seleccione uno o más eventos arriba para ver el impacto en los drivers.")
+            d2.metric("Growth Stress", f"{stress_g1*100:.1f}%", f"{impact_g*100:.1f}%")
+            d3.metric("FCF Adjustment", f"{total_macro_stress*100:.1f}%", "Impacto Neto")
 
     # -------------------------------------------------------------------------
     # TAB 5: FORWARD LOOKING (VARIABLES AJUSTABLES)
