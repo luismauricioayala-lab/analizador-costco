@@ -402,7 +402,7 @@ def main():
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("P/E TTM", f"{data['info'].get('trailingPE', 52.9):.1f}x", "Premium Valuation")
-    m2.metric("Mkt Cap", f"${data['mkt_cap_b']:,.1f}B", "NASDAQ: COST"))
+    m2.metric("Mkt Cap", f"${data['mkt_cap_b']:,.1f}B", "NASDAQ: COST")
     
     b_val = data['beta']
     b_label, b_color = ("Market Neutral", "off") if 0.95 <= b_val <= 1.05 else (("Low Vol", "normal") if b_val < 0.95 else ("High Vol", "inverse"))
