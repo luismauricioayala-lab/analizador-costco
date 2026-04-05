@@ -645,50 +645,81 @@ def main():
             st.plotly_chart(fig_eps, use_container_width=True)
             
 # -------------------------------------------------------------------------
-    # TAB 4: STRESS TEST PRO (LÓGICA UNIFICADA)
+    # TAB 4: STRESS TEST PRO (SISTEMA DE IMPACTO MULTIVARIABLE)
     # -------------------------------------------------------------------------
     with tabs[3]:
-        st.subheader("🌪️ Simulador de Shock Macroeconómico")
-        st.markdown('<div class="swan-box"><h4>⚠️ Matriz de Riesgos SEC 10-K</h4>Ajuste los parámetros para simular un entorno de crisis.</div>', unsafe_allow_html=True)
+        st.subheader("🌪️ Simulador de Cisnes Negros & Shocks de Mercado")
+        st.markdown("""<div style="background-color:rgba(248, 81, 73, 0.1); padding:15px; border-radius:10px; border-left: 5px solid #f85149; margin-bottom:20px;">
+            <b>Protocolo de Stress Test:</b> Estos escenarios simulan eventos de baja probabilidad pero alto impacto (Fat Tails). 
+            Los ajustes se suman al entorno macroeconómico actual.</div>""", unsafe_allow_html=True)
         
-        col_stress1, col_stress2 = st.columns(2)
-        # Usamos sliders locales que REEMPLAZAN a los globales solo para este cálculo
-        s_income_local = col_stress1.slider("Shock: Ingreso Disponible (%)", -20.0, 5.0, -5.0) / 100
-        s_infl_local = col_stress2.slider("Shock: Inflación CPI (%)", 0.0, 20.0, 8.0) / 100
+        # 1. Configuración del Entorno de Crisis (Local)
+        col_s1, col_s2 = st.columns(2)
+        s_income_local = col_s1.slider("Shock: Consumo Disponible (%)", -30.0, 5.0, -10.0) / 100
+        s_infl_local = col_s2.slider("Shock: Inflación de Costos (%)", 0.0, 25.0, 10.0) / 100
         
-        # 1. CÁLCULO DEL NUEVO MACRO_ADJ (Escenario Alternativo Completo)
-        # Aquí incluimos el blended_gdp del sidebar para mantener la coherencia
-        macro_adj_stress = (s_income_local * 1.5) + (blended_gdp * 0.8) - (s_infl_local * 1.2)
-        
-        # 2. SELECCIÓN DE SHOCKS DE EVENTOS (Cisnes Negros)
-        sw_imp = 0.0; wacc_sh = 0.0
+        st.markdown("### 🛠️ Selección de Eventos de Riesgo")
         c_sw1, c_sw2, c_sw3, c_sw4 = st.columns(4)
-        if c_sw1.checkbox("Ataque Cibernético"): sw_imp -= 0.15 
-        if c_sw2.checkbox("Lockdown Global"): sw_imp -= 0.25
-        if c_sw3.checkbox("Conflicto Geopolítico"): sw_imp -= 0.10; wacc_sh += 0.02
-        if c_sw4.checkbox("Crisis de Membresías"): sw_imp -= 0.20
+        
+        # Inicializamos los acumuladores de impacto
+        impact_fcf = 0.0
+        impact_wacc = 0.0
+        impact_g = 0.0
+        active_risks = []
 
-        # 3. EJECUCIÓN DEL MODELO (Sin doble conteo)
-        # Pasamos el FCF original sin multiplicar. 
-        # Sumamos el 'sw_imp' directamente al 'macro_adj' para que el impacto sea lineal y limpio.
-        total_stress_impact = macro_adj_stress + sw_imp
+        # Lógica de Impacto por Escenario
+        if c_sw1.checkbox("Ataque Cibernético"):
+            impact_fcf -= 0.15; active_risks.append("💻 <b>Ciber-Riesgo:</b> FCF -15% (Interrupción Operativa)")
         
+        if c_sw2.checkbox("Lockdown Global"):
+            impact_fcf -= 0.25; impact_wacc += 0.01; active_risks.append("🔒 <b>Lockdown:</b> FCF -25% | WACC +100bps (Logística)")
+        
+        if c_sw3.checkbox("Conflicto Geopolítico"):
+            impact_fcf -= 0.10; impact_wacc += 0.025; impact_g -= 0.01
+            active_risks.append("🌍 <b>Geopolítica:</b> WACC +250bps | g -1% | FCF -10%")
+        
+        if c_sw4.checkbox("Crisis de Membresías"):
+            impact_fcf -= 0.20; impact_g -= 0.02
+            active_risks.append("💳 <b>Membresías:</b> FCF -20% | g -2% (Churn Masivo)")
+
+        # 2. Consolidación de Variables Post-Stress
+        # Sumamos el macro local + los shocks de eventos
+        total_macro_stress = (s_income_local * 1.5) - (s_infl_local * 1.2) + impact_fcf
+        stress_wacc = final_wacc + impact_wacc
+        stress_g1 = g1_in + impact_g
+        
+        # 3. Cálculo de Valoración bajo Estrés
         v_stress, _, _, _ = ValuationOracle.run_macro_dcf(
-            data['fcf_now_b'], 
-            g1_in, 
-            g2_in, 
-            final_wacc + wacc_sh, 
-            g_terminal,
-            shares=data['shares_m'], 
-            cash=data['cash_b'], 
-            debt=data['debt_b'], 
-            macro_adj=total_stress_impact
+            data['fcf_now_b'], stress_g1, g2_in, stress_wacc, g_terminal,
+            shares=data['shares_m'], cash=data['cash_b'], debt=data['debt_b'], macro_adj=total_macro_stress
         )
+
+        # 4. Panel de Resultados y Drivers
+        st.markdown("---")
+        res_col1, res_col2 = st.columns([1, 2])
         
-        # 4. MÉTRICA DE IMPACTO COMPARATIVA
-        # Comparamos contra el f_val global calculado al inicio del main()
-        diff_pct = (v_stress / f_val - 1) * 100
-        st.metric("Fair Value Post-Stress Test", f"${v_stress:.2f}", f"{diff_pct:.1f}% Impacto vs Base")
+        with res_col1:
+            diff_abs = v_stress - f_val
+            diff_pct = (v_stress / f_val - 1) * 100
+            st.metric("Fair Value en Crisis", f"${v_stress:.2f}", f"{diff_pct:.1f}% vs Base", delta_color="inverse")
+            
+            # Semáforo de Riesgo
+            risk_level = "CRÍTICO" if diff_pct < -30 else ("ALTO" if diff_pct < -15 else "MODERADO")
+            st.warning(f"Nivel de Riesgo Combinado: **{risk_level}**")
+
+        with res_col2:
+            st.write("**Impacto Detallado en Drivers Financieros:**")
+            d1, d2, d3 = st.columns(3)
+            d1.metric("WACC Stress", f"{stress_wacc*100:.2f}%", f"+{impact_wacc*10000:.0f} bps")
+            d2.metric("Growth 1-5Y", f"{stress_g1*100:.1f}%", f"{impact_g*100:.1f}%")
+            d3.metric("FCF Adjustment", f"{total_macro_stress*100:.1f}%", "Total Shock")
+            
+            if active_risks:
+                with st.expander("📄 Ver desglose de eventos activos"):
+                    for risk in active_risks:
+                        st.markdown(risk, unsafe_allow_html=True)
+            else:
+                st.info("Seleccione uno o más eventos arriba para ver el impacto en los drivers.")
 
     # -------------------------------------------------------------------------
     # TAB 5: FORWARD LOOKING (VARIABLES AJUSTABLES)
