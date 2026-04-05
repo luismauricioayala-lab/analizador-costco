@@ -238,34 +238,46 @@ class InstitutionalDataService:
 class ValuationOracle:
     """Implementación de modelos financieros DCF y Black-Scholes."""
     
-    @staticmethod
+@staticmethod
     def run_macro_dcf(fcf, g1, g2, wacc, tg=0.025, shares=443.6, cash=22.0, debt=9.0, macro_adj=0.0):
-        # 1. Ajuste inicial por entorno macro
+        # 1. VALIDACIÓN CRÍTICA DE CONVERGENCIA
+        # Si el WACC es menor o igual al crecimiento terminal (tg), 
+        # el denominador (wacc - tg) es <= 0, invalidando el cálculo.
+        if wacc <= tg:
+            # Devolvemos NaN para el precio y ceros para los componentes financieros
+            return float('nan'), 0.0, 0.0, []
+
+        # 2. Ajuste inicial por entorno macro
         adj_base = fcf * (1 + macro_adj)
         projs, df_flows = [], []
         curr = adj_base
         
-        # 2. Proyección de flujos (Etapa 1 y 2)
+        # 3. Proyección de flujos (Etapa 1: años 1-5 | Etapa 2: años 6-10)
         for i in range(1, 6):
             curr *= (1 + g1)
             projs.append(curr)
             df_flows.append(curr / (1 + wacc)**i)
+            
         for i in range(6, 11):
             curr *= (1 + g2)
             projs.append(curr)
             df_flows.append(curr / (1 + wacc)**i)
             
-        # 3. Cálculos de Valor Presente
+        # 4. Cálculos de Valor Presente
         pv_f = sum(df_flows)
+        
+        # Aquí es donde la validación inicial previene la división por cero
         tv = (projs[-1] * (1 + tg)) / (wacc - tg)
         pv_t = tv / (1 + wacc)**10
         
-        # 4. Valor de Capital (Equity Value) y Precio por Acción
+        # 5. Valor de Capital (Equity Value) y Precio por Acción
+        # Nota: Multiplicamos por 1000 si tus flujos base están en Billones ($B) 
+        # y quieres el precio en dólares nominales.
         equity_v = pv_f + pv_t + cash - debt
         fair_p = (equity_v / shares) * 1000
         
-        # --- EL CAMBIO CRÍTICO ESTÁ AQUÍ ---
-        # Devolvemos: (Precio, VP Flujos, VP Terminal, Lista de Proyecciones)
+        # --- RETORNO ÍNTEGRO SEGÚN TU ESTRUCTURA ---
+        # (Precio, VP Flujos, VP Terminal, Lista de Proyecciones)
         return fair_p, pv_f, pv_t, projs
         
     @staticmethod
