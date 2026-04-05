@@ -363,46 +363,76 @@ def main():
     # RECUERDA: En Tab 1 usa: y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b]
 
 # -------------------------------------------------------------------------
-    # TAB 1: RESUMEN EJECUTIVO (VERSIÓN COMPLETA RESTAURADA)
+    # TAB 1: RESUMEN EJECUTIVO (VERSIÓN INSTITUCIONAL COMPLETA)
     # -------------------------------------------------------------------------
     with tabs[0]:
         st.subheader("Análisis de Sensibilidad de Escenarios (Target 2026)")
         
+        # 1. Normalización de Flujos (Owner Earnings)
         fcf_premium = data['fcf_now_b'] * 1.25 
         
-        # --- CÁLCULOS CON ORDEN CORREGIDO ---
+        # --- CÁLCULO DE ESCENARIOS CON DESGLOSE DE DRIVERS ---
+        
+        # ESCENARIO BAJISTA (BEAR)
+        bear_wacc = final_wacc + 0.005
+        bear_g1 = g1_in * 0.90
+        bear_gt = g_terminal - 0.005
+        bear_macro = macro_adj - 0.02
+        v_bear, _, _, _ = ValuationOracle.run_macro_dcf(
+            fcf_premium, bear_g1, g2_in * 0.90, bear_wacc, bear_gt, macro_adj=bear_macro
+        )
+        
+        # ESCENARIO BASE (INTRINSIC)
         v_base, pv_f, pv_t, _ = ValuationOracle.run_macro_dcf(
             fcf_premium, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
         )
-        v_bear, _, _, _ = ValuationOracle.run_macro_dcf(
-            fcf_premium, g1_in * 0.90, g2_in * 0.90, final_wacc + 0.005, g_terminal - 0.005, macro_adj=macro_adj - 0.02
-        )
+        
+        # ESCENARIO ALCISTA (BULL)
+        bull_wacc = final_wacc - 0.005
+        bull_g1 = g1_in * 1.15
+        bull_gt = g_terminal + 0.005
+        bull_macro = macro_adj + 0.03
         v_bull, _, _, _ = ValuationOracle.run_macro_dcf(
-            fcf_premium, g1_in * 1.15, g2_in * 1.15, final_wacc - 0.005, g_terminal + 0.005, macro_adj=macro_adj + 0.03
+            fcf_premium, bull_g1, g2_in * 1.15, bull_wacc, bull_gt, macro_adj=bull_macro
         )
 
-        # --- RENDERIZADO DE TARJETAS (ESTILO BLOOMBERG) ---
+        # --- RENDERIZADO DE TARJETAS (ESTILO BLOOMBERG PRO) ---
         c_sc1, c_sc2, c_sc3 = st.columns(3)
         
         with c_sc1:
             st.markdown(f"""<div class="scenario-card-detailed bear-pro">
                 <div class="scenario-label-sober">Escenario Bajista (Bear)</div>
                 <div class="price-hero-sober" style="color:#f85149">${v_bear:.0f}</div>
-                <div class="driver-list-sober">• <b>Crecimiento:</b> {g1_in*90:.1f}%<br>• <b>Riesgo:</b> WACC +50bps</div>
+                <div class="driver-list-sober">
+                    • <b>WACC:</b> {bear_wacc*100:.2f}% (Riesgo ↑)<br>
+                    • <b>Crec. 1-5Y:</b> {bear_g1*100:.1f}%<br>
+                    • <b>G. Terminal:</b> {bear_gt*100:.1f}%<br>
+                    • <b>Impacto Macro:</b> {bear_macro*100:.1f}%
+                </div>
             </div>""", unsafe_allow_html=True)
             
         with c_sc2:
             st.markdown(f"""<div class="scenario-card-detailed base-pro">
                 <div class="scenario-label-sober">Escenario Base (Intrinsic)</div>
                 <div class="price-hero-sober" style="color:var(--text-color)">${v_base:.0f}</div>
-                <div class="driver-list-sober">• <b>Crecimiento Base:</b> {g1_in*100:.1f}%<br>• <b>WACC:</b> {final_wacc*100:.1f}%</div>
+                <div class="driver-list-sober">
+                    • <b>WACC:</b> {final_wacc*100:.2f}% (Market)<br>
+                    • <b>Crec. 1-5Y:</b> {g1_in*100:.1f}%<br>
+                    • <b>G. Terminal:</b> {g_terminal*100:.1f}%<br>
+                    • <b>Impacto Macro:</b> {macro_adj*100:.1f}%
+                </div>
             </div>""", unsafe_allow_html=True)
             
         with c_sc3:
             st.markdown(f"""<div class="scenario-card-detailed bull-pro">
                 <div class="scenario-label-sober">Escenario Alcista (Bull)</div>
                 <div class="price-hero-sober" style="color:#3fb950">${v_bull:.0f}</div>
-                <div class="driver-list-sober">• <b>Crecimiento Bull:</b> {g1_in*115:.1f}%<br>• <b>Eficiencia:</b> WACC -50bps</div>
+                <div class="driver-list-sober">
+                    • <b>WACC:</b> {bull_wacc*100:.2f}% (Eficiencia ↓)<br>
+                    • <b>Crec. 1-5Y:</b> {bull_g1*100:.1f}%<br>
+                    • <b>G. Terminal:</b> {bull_gt*100:.1f}%<br>
+                    • <b>Impacto Macro:</b> {bull_macro*100:.1f}%
+                </div>
             </div>""", unsafe_allow_html=True)
 
 # --- BRIDGE WATERFALL (CALIBRACIÓN DE ESCALA $B) ---
