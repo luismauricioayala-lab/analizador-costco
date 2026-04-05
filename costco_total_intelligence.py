@@ -1064,7 +1064,7 @@ def main():
                 use_container_width=True
             )
 
-with c4:
+        with c4:
             st.write("**Estructura Comparativa de Márgenes (%)**")
             
             # 1. Cálculos de márgenes (Asegurando que m_neto ya viene de arriba)
