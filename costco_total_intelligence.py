@@ -405,20 +405,37 @@ def main():
                 <div class="driver-list-sober">• <b>Crecimiento Bull:</b> {g1_in*115:.1f}%<br>• <b>Eficiencia:</b> WACC -50bps</div>
             </div>""", unsafe_allow_html=True)
 
-        # --- BRIDGE WATERFALL (COMPONENTES DE VALOR) ---
+# --- BRIDGE WATERFALL (CALIBRACIÓN DE ESCALA $B) ---
         st.markdown("---")
+        
+        # 1. Definimos la Caja Neta en Billones
+        net_cash_b = data['cash_b'] - data['debt_b']
+        
+        # 2. El Total (Equity Value) debe estar en Billones para coincidir con pv_f y pv_t
+        # Usamos tu lógica: (Precio * Acciones) / 1000
         equity_val_b = (v_base * data['shares_m']) / 1000 
         
         fig_water = go.Figure(go.Waterfall(
-            orientation="v", measure=["relative", "relative", "relative", "total"],
+            orientation="v", 
+            measure=["relative", "relative", "relative", "total"],
             x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Market Cap Est. ($B)"],
-            y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b],
+            # Ahora todos los elementos hablan el mismo idioma: Billones
+            y=[pv_f, pv_t, net_cash_b, equity_val_b],
+            # Agregamos etiquetas de texto para que no haya duda del dato
+            text=[f"${pv_f:.1f}B", f"${pv_t:.1f}B", f"${net_cash_b:.1f}B", f"${equity_val_b:.1f}B"],
+            textposition="outside", 
+            connector={"line":{"color":"rgba(255,255,255,0.1)"}},
             decreasing={"marker":{"color":"#f85149"}},
             increasing={"marker":{"color":"#3fb950"}},
             totals={"marker":{"color":"#005BAA"}}
         ))
         
-        fig_water.update_layout(title="Desglose del Valor de Mercado ($B)", template="plotly_dark", height=450)
+        fig_water.update_layout(
+            title="Desglose del Valor de Mercado Proyectado ($B)", 
+            template="plotly_dark", height=450,
+            yaxis_title="Billones USD",
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+        )
         st.plotly_chart(fig_water, use_container_width=True)
 
     # -------------------------------------------------------------------------
