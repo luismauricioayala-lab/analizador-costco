@@ -12,6 +12,15 @@ from plotly.subplots import make_subplots
 import plotly.io as pio
 
 pd.options.display.float_format = '{:,.2f}'.format
+pio.templates["bloomberg_fix"] = pio.templates["plotly_dark"]
+# 1. Forzar comas en el eje Y de cualquier gráfico
+pio.templates["bloomberg_fix"].layout.yaxis.tickformat = ",.0f"
+# 2. Forzar comas en el eje X de cualquier gráfico
+pio.templates["bloomberg_fix"].layout.xaxis.tickformat = ",.0f"
+# 3. EL TRUCO PARA LA MATRIZ: Forzar formato de etiquetas internas
+pio.templates["bloomberg_fix"].layout.annotationdefaults.font.size = 10
+# Establecer como predeterminado
+pio.templates.default = "bloomberg_fix"
 
 # =============================================================================
 # 1. ARQUITECTURA DE CONFIGURACIÓN Y UI (ESTÉTICA BLOOMBERG ULTIMATE)
