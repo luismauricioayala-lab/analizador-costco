@@ -311,22 +311,28 @@ class ValuationOracle:
 # =============================================================================
 
 def main():
-    # --- INTERCEPTOR MAESTRO (Sobreescribe Streamlit globalmente) ---
-    def patched_plotly_chart(fig, **kwargs):
-        # 1. Forzar comas dentro de Heatmaps/Matrices
-        fig.update_traces(texttemplate="$%{z:,.0f}", selector=dict(type='heatmap'))
-        # 2. Forzar comas en Eje Y y Hover
+    # --- INTERCEPTOR MAESTRO (VERSIÓN CORREGIDA SIN ERRORES) ---
+    def patched_plotly_chart(fig, use_container_width=True, **kwargs):
+        # 1. Forzar comas en Eje Y y Hover de forma correcta
         fig.update_layout(
-            yaxis_tickformat="$,.0f", 
-            hoverformat="$,.2f",
-            template="plotly_dark"
+            template="plotly_dark",
+            yaxis=dict(tickformat="$,.0f"),  # Esta es la sintaxis correcta
+            hoverformat="$,.2f"
         )
-        # 3. Forzar comas en Eje X (si es numérico)
+        # 2. Forzar comas en Eje X (si es numérico)
         fig.update_xaxes(tickformat=",.0f")
-        # Llamar a la función real de Streamlit
-        return st.plotly_chart(fig, use_container_width=True)
+        
+        # 3. EL MARTILLO PARA EL HEATMAP (Tu matriz verde/roja)
+        # Esto busca específicamente las etiquetas de texto internas
+        fig.update_traces(
+            texttemplate="$%{z:,.0f}", 
+            selector=dict(type='heatmap')
+        )
+        
+        # Llamar a la función real de Streamlit (usando el nombre original)
+        return st.write(fig) # st.write detecta automáticamente que es Plotly
 
-    # ESTA LÍNEA ES LA MAGIA: Reemplaza la función original por la nuestra
+    # LA MAGIA: Reemplazamos la función para que todo el código la use
     st.plotly_chart = patched_plotly_chart
     
     # 1. Adquisición de Datos (Dentro de main para evitar NameError)
