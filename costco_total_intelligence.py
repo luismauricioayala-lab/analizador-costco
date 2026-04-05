@@ -1005,7 +1005,7 @@ def main():
             ), secondary_y=True)
             
             # CAMBIO 4: Identificación precisa de ejes
-            # Configuración Maestra del Gráfico Dual
+# Configuración Maestra con Propiedades Planas (Anti-Error)
             fig_dual.update_layout(
                 template="plotly_dark",
                 height=400,
@@ -1013,30 +1013,24 @@ def main():
                 legend=dict(orientation="h", y=1.1, x=1),
                 margin=dict(t=30, b=10),
                 
-                # Eje Y Primario (Izquierdo - Revenue)
-                yaxis=dict(
-                    title="Revenue ($B)",
-                    tickformat="$,.0f",
-                    side="left"
-                ),
-                
-                # Eje Y Secundario (Derecho - Margen)
-                # IMPORTANTE: Usamos 'yaxis2' directamente
-                yaxis2=dict(
-                    title="Net Margin (%)",
-                    tickformat=".1f",
-                    suffix="%",
-                    side="right",
-                    overlaying="y",
-                    showgrid=False
-                ),
-                
-                # Eje X (Años)
-                xaxis=dict(
-                    tickmode='linear',
-                    dtick=1,
-                    title="Año"
-                )
+                # Configuración Eje X
+                xaxis_title="Año",
+                xaxis_tickmode="linear",
+                xaxis_dtick=1,
+
+                # Configuración Eje Y Primario (Revenue)
+                yaxis_title="Revenue ($B)",
+                yaxis_tickformat="$,.0f",
+                yaxis_side="left",
+
+                # Configuración Eje Y Secundario (Margen)
+                # Aquí usamos 'ticksuffix' (el nombre correcto)
+                yaxis2_title="Net Margin (%)",
+                yaxis2_tickformat=".1f",
+                yaxis2_ticksuffix="%", 
+                yaxis2_side="right",
+                yaxis2_overlaying="y",
+                yaxis2_showgrid=False
             )
 
             st.plotly_chart(fig_dual, use_container_width=True)
