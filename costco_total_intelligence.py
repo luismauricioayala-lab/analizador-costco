@@ -303,9 +303,13 @@ class ValuationOracle:
 
 def main():
     # --- CONFIGURACIÓN GLOBAL DE GRÁFICOS (VERSIÓN SEGURA) ---
-    pio.templates.default = "plotly_dark"
-    # Configuramos el eje Y global para que siempre use comas
-    pio.templates[pio.templates.default].layout.yaxis.tickformat = ",.0f"
+def publicar(fig):
+        fig.update_layout(template="plotly_dark")
+        fig.update_yaxes(tickformat="$,.0f") # Fuerza comas y $ en eje Y
+        fig.update_xaxes(tickformat=",.0f")  # Fuerza comas en eje X
+        # Si es un Heatmap (Matriz), fuerza las comas en los números internos
+        fig.update_traces(texttemplate="$%{z:,.0f}") 
+        return st.plotly_chart(fig, use_container_width=True)
     
     # 1. Adquisición de Datos (Dentro de main para evitar NameError)
     data = InstitutionalDataService.fetch_verified_payload("COST")
