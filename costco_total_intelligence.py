@@ -618,7 +618,7 @@ def main():
     st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
 
             # 5. Cuerpo de Barras (Legibilidad Máxima)
-            st.markdown(f"""
+    st.markdown(f"""
                 <div class="st-widget-box" style="background: transparent; padding-top: 0; margin-top: -30px; border: none; box-shadow: none;">
                     <div class="st-data-row">
                         <div class="st-data-label">Compra agresiva</div>
