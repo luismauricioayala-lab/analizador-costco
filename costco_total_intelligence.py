@@ -722,9 +722,9 @@ def main():
             
             # Usamos un bloque if/else estándar para que Streamlit no imprima el objeto devuelto
             if diff_pct < -15:
-                st.error(f"Estatus del Portfolio: **{risk_level}**")
+                st.error(f"Riesgo de la acción: **{risk_level}**")
             else:
-                st.success(f"Estatus: **{risk_level}**")
+                st.success(f"Riesgo: **{risk_level}**")
 
         with res_col2:
             st.write("**Resumen de Drivers Resultantes:**")
