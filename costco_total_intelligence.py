@@ -980,7 +980,7 @@ def main():
             st.write("**P&L Institucional ($B)**")
             st.table(df_pl_viz.style.format("{:.2f}"))
         
-with c2:
+        with c2:
             st.write("**P&L: Crecimiento vs. Rentabilidad Neta**")
             m_neto = (net_income / revenue) * 100
             
