@@ -781,14 +781,19 @@ def main():
                 z=z_mtx,
                 x=[f"{x*100:.1f}%" for x in g_rng],
                 y=[f"{x*100:.1f}%" for x in w_rng],
-                colorscale='RdYlGn', 
+                colorscale='RdYlGn_r', 
                 zmid=p_ref,           # <--- EL AMARILLO ES EL PRECIO ACTUAL
                 text=[[f"${v:.0f}" for v in row] for row in z_mtx],
                 texttemplate="%{text}", 
                 showscale=True
             ))
 
-            fig_giant.update_layout(template="plotly_dark", height=600, xaxis_title="Crecimiento 1-5Y", yaxis_title="WACC")
+            fig_giant.update_layout(
+            template="plotly_dark", height=600,
+            # Invertimos el eje Y para que el WACC más bajo esté arriba
+            yaxis=dict(autorange='reversed', title="WACC (%)"),
+            xaxis=dict(title="Crecimiento (%)")
+            )
             st.plotly_chart(fig_giant, use_container_width=True)
 
         with col_flow:
