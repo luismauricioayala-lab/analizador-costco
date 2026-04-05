@@ -1179,55 +1179,68 @@ def main():
                 except FileNotFoundError:
                     st.error(f"⚠️ Archivo '{pdf_filename}' no detectado.")
 
-            # Indicadores de confianza
-st.markdown("---")
-            st.write("### 🛡️ Gobernanza del Modelo")
+# --- FINAL DE LA SECCIÓN DE GOBERNANZA ---
+            st.markdown("---")
+            st.write("### 🛡️ Gobernanza del Modelo & Certificación")
             
-            # Usamos markdown normal (sin 'f') para evitar conflictos con llaves {}
-            st.markdown("""
-            * **Data Source:** Yahoo Finance Premium API
-            * **Audit:** SEC EDGAR Verified
-            * **Latency:** Real-time (15m lag)
-            * **Methodology:** Monte Carlo & DCF Two-Stage
-            """)
+            g_col1, g_col2 = st.columns(2)
             
-            with st.expander("Ver Glosario Técnico"):
-                st.write("""
-                - **E:** Valor de mercado del capital (Market Cap).
-                - **D:** Deuda financiera neta.
-                - **V:** Enterprise Value (E + D).
-                - **Beta:** Coeficiente de riesgo sistemático.
+            with g_col1:
+                st.info("**Integridad de Datos**")
+                # Usamos markdown simple para evitar errores de f-string
+                st.markdown("""
+                * **Fuente:** Yahoo Finance Premium API
+                * **Auditoría:** Verificado vs SEC EDGAR
+                * **Latencia:** Real-time / Intraday (15m lag)
+                """)
+            
+            with g_col2:
+                st.info("**Fiabilidad del Motor**")
+                st.markdown("""
+                * **Simulación:** Monte Carlo (1,000 iteraciones)
+                * **Metodología:** Gordon Growth + Two-Stage DCF
+                * **Frecuencia:** Actualización Intradía
                 """)
 
-        # Separador y créditos del final de la Tab 9
+            with st.expander("📖 Glosario de Variables"):
+                st.write("""
+                * **E:** Valor de mercado del capital (Equity).
+                * **D:** Valor de mercado de la deuda.
+                * **V:** Valor total de la firma (E + D).
+                * **T:** Tasa impositiva corporativa.
+                """)
+
+        # --- PIE DE PÁGINA ---
         st.divider()
-        st.caption(f"Terminal Costco Intelligence | v3.4.1 | {datetime.date.today().year}")
+        st.caption(f"Terminal Costco Intelligence | Versión 3.4.1 | {datetime.date.today().year}")
 
     # -------------------------------------------------------------------------
-    # TAB 10: OPCIONES LAB
+    # TAB 10: OPCIONES LAB (FULL GREEKS)
     # -------------------------------------------------------------------------
     with tabs[9]:
-        st.subheader("🔬 Laboratorio de Griegas (Black-Scholes)")
+        st.subheader("🔬 Laboratorio de Griegas y Pricing (Black-Scholes)")
+        st.info("Simulación de sensibilidad para opciones sobre COST.")
         
-        o_col1, o_col2, o_col3 = st.columns(3)
-        # p_ref debe estar definido arriba en tu código
-        strike_p = o_col1.number_input("Strike Price ($)", value=float(round(p_ref * 1.05, 0)))
-        iv_val = o_col2.slider("IV (%)", 10, 100, 25) / 100
-        t_days = o_col3.slider("Días a Expiración", 1, 730, 45)
+        o1, o2, o3 = st.columns(3)
+        # Aseguramos que p_ref sea float
+        strike_p = o1.number_input("Strike Price ($)", value=float(round(p_ref * 1.05, 0)))
+        iv_val = o2.slider("Volatilidad Implícita (IV %)", 10, 100, 25) / 100
+        t_days = o3.slider("Días a Expiración", 1, 730, 45)
         
-        # Cálculo de Griegas
+        # Ejecución del motor matemático
         g_res = ValuationOracle.calculate_full_greeks(p_ref, strike_p, t_days/365, 0.045, iv_val)
         
         st.markdown("---")
-        m_g1, m_g2, m_g3, m_g4, m_g5 = st.columns(5)
-        m_g1.metric("Call Price", f"${g_res['price']:.2f}")
-        m_g2.metric("Delta Δ", f"{g_res['delta']:.4f}")
-        m_g3.metric("Gamma γ", f"{g_res['gamma']:.4f}")
-        m_g4.metric("Vega ν", f"{g_res['vega']:.4f}")
-        m_g5.metric("Theta θ", f"{g_res['theta']:.3f}")
+        m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
+        
+        m_col1.metric("Call Price", f"${g_res['price']:.2f}")
+        m_col2.metric("Delta Δ", f"{g_res['delta']:.4f}")
+        m_col3.metric("Gamma γ", f"{g_res['gamma']:.4f}")
+        m_col4.metric("Vega ν", f"{g_res['vega']:.4f}")
+        m_col5.metric("Theta θ", f"{g_res['theta']:.3f}")
 
 # -------------------------------------------------------------------------
-# PUNTO DE ENTRADA ÚNICO
+# PUNTO DE ENTRADA FINAL
 # -------------------------------------------------------------------------
 if __name__ == "__main__":
     try:
