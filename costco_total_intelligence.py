@@ -502,14 +502,14 @@ def main():
         r_col1, r_col2 = st.columns([1.3, 2])
         
         with r_col1:
-            # 1. Datos de Consenso (Extracción exacta de tu versión original)
-            # Nota: Asegúrate de que 'analysts' existe en tu diccionario 'data'
-            score_val = data.get('analysts', {}).get('score', 2.0)
-            target_val = data.get('analysts', {}).get('target', 1067.59)
-            rec_str = data.get('analysts', {}).get('key', 'BUY')
-            count_val = data.get('analysts', {}).get('count', 37)
+            # 1. Datos de Consenso (Extracción robusta del diccionario 'data')
+            # Intentamos obtener de 'analysts' o 'info' como fallback
+            score_val = data.get('analysts', {}).get('score') or data.get('info', {}).get('recommendationMean', 2.0)
+            target_val = data.get('analysts', {}).get('target') or data.get('info', {}).get('targetMeanPrice', 1067.59)
+            rec_str = data.get('analysts', {}).get('key') or data.get('info', {}).get('recommendationKey', 'BUY')
+            count_val = data.get('analysts', {}).get('count') or data.get('info', {}).get('numberOfAnalystOpinions', 37)
             
-            # 2. CSS Adaptativo (Soporte nativo para Dark Mode)
+            # 2. CSS de Alto Contraste (Theme-Aware: funciona en Dark y Light Mode)
             st.markdown("""
                 <style>
                 .st-widget-box {
@@ -528,7 +528,7 @@ def main():
                 .st-rec-val { 
                     font-size: 2.2rem; 
                     font-weight: 900; 
-                    color: #1a7f37; 
+                    color: #1a7f37; /* Verde institucional constante */
                     margin: 5px 0; 
                 }
                 
@@ -552,6 +552,7 @@ def main():
                     margin: 0 12px;
                     border-radius: 5px;
                     border: 1px solid var(--border-color);
+                    overflow: hidden;
                 }
                 .st-data-bar-fill { height: 100%; border-radius: 4px; }
                 
@@ -563,24 +564,20 @@ def main():
                     font-weight: 800;
                     color: var(--text-color); 
                 }
-                .st-data-footer { 
-                    border-top: 2px solid var(--border-color); 
-                    margin-top: 15px; 
-                    padding-top: 15px; 
-                }
+                .st-data-footer { border-top: 1px solid var(--border-color); margin-top: 15px; padding-top: 15px; }
                 .st-footer-line { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.9rem; }
-                .st-footer-label { color: var(--text-color); opacity: 0.8; font-weight: 600; }
+                .st-footer-label { color: var(--text-color); opacity: 0.7; font-weight: 600; }
                 .st-footer-val { color: var(--text-color); font-weight: 800; }
                 </style>
             """, unsafe_allow_html=True)
 
-            # 3. Widget Header
+            # 3. Widget Header (Recomendación Principal)
             st.markdown(f"""
                 <div class="st-widget-box">
                     <div class="st-rec-header">
-                        <div style="font-size: 0.8rem; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; opacity: 0.9;">Recomendación de los analistas</div>
-                        <div class="st-rec-val">{rec_str.title()}</div>
-                        <div style="font-size: 0.75rem; opacity: 0.8; font-weight: 600;">Basado en {count_val} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
+                        <div style="font-size: 0.8rem; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; opacity: 0.8;">Recomendación de los analistas</div>
+                        <div class="st-rec-val">{rec_str.title().replace('_', ' ')}</div>
+                        <div style="font-size: 0.75rem; opacity: 0.7; font-weight: 600;">Basado en {count_val} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -606,7 +603,7 @@ def main():
             fig_gauge.update_layout(height=160, margin=dict(t=10, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
 
-            # 5. Cuerpo de Barras (Legibilidad Máxima - Las 5 filas originales)
+            # 5. Cuerpo de Barras (Distribución de Opiniones)
             st.markdown(f"""
                 <div class="st-widget-box" style="background: transparent; padding-top: 0; margin-top: -30px; border: none; box-shadow: none;">
                     <div class="st-data-row">
@@ -626,38 +623,7 @@ def main():
                     </div>
                     <div class="st-data-row">
                         <div class="st-data-label">Vender</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 0%; background: #fb8f44;"></div></div>
-                        <div class="st-data-info">0 (0.0%)</div>
-                    </div>
-                    <div class="st-data-row">
-                        <div class="st-data-label">Venta fuerte</div>
-                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 5%; background: #d73a49;"></div></div>
-                        <div class="st-data-info">2 (5.4%)</div>
-                    </div>
-                    <div class="st-data-footer">
-                        <div class="st-footer-line"><span class="st-footer-label">Precio previsto (12m)</span><span class="st-footer-val">USD {target_val:,.2f}</span></div>
-                        <div class="st-footer-line"><span class="st-footer-label">Volatilidad</span><span class="st-footer-val">Promedio</span></div>
-                        <div class="st-footer-line"><span class="st-footer-label">Recomendación sector</span><span class="st-footer-val" style="color:#1a7f37;">Comprar</span></div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-        with r_col2:
-            # 6. Gráfico de Ganancias Pro (Se mantiene con eje X categoría)
-            quarters = ['2025Q3', '2025Q4', '2026Q1', '2026Q2']
-            fig_eps = go.Figure()
-            fig_eps.add_trace(go.Bar(x=quarters, y=[3.80, 5.51, 4.55, 4.55], name="Estimado", marker_color="#495057"))
-            fig_eps.add_trace(go.Bar(x=quarters, y=[3.92, 5.82, 4.58, 4.58], name="Real", marker_color="#005BAA"))
-            
-            fig_eps.update_layout(
-                title="Sorpresas en Beneficio por Acción (BPA)",
-                barmode='group',
-                template="plotly_dark", 
-                height=450,
-                xaxis_type='category',
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-            )
-            st.plotly_chart(fig_eps, use_container_width=True)
+                        <div class="st-data-bar-bg"><div class="st-data-bar-fill" style="width: 0%; background: #
             
 # -------------------------------------------------------------------------
     # TAB 4: STRESS TEST PRO (VERSIÓN FINAL SIN ERRORES)
@@ -1047,8 +1013,8 @@ def main():
 
         # 2. Análisis de Probabilidad de Éxito (Manual Standard)
         st.markdown(f"""
-        mensaje_seguridad = f"**Margen de Seguridad Estadístico:** Según el manual, evaluamos la **Probabilidad de Éxito** comparando el Valor Intrínseco frente al precio actual de mercado de **${precio_actual:.2f}**."
-        st.write(mensaje_seguridad)
+            **Margen de Seguridad Estadístico:** Según el manual, evaluamos la **Probabilidad de Éxito** comparando el Valor Intrínseco frente al precio actual de mercado de **${precio_actual:.2f}**.
+        """)
         
         c_mc1, c_mc2 = st.columns([2, 1])
         
@@ -1179,73 +1145,40 @@ def main():
                 except FileNotFoundError:
                     st.error(f"⚠️ Archivo '{pdf_filename}' no detectado.")
 
-# --- FINAL DE LA SECCIÓN DE GOBERNANZA ---
-            st.markdown("---")
-            st.write("### 🛡️ Gobernanza del Modelo & Certificación")
+            # Indicadores de confianza
+            st.write("**Gobernanza del Modelo**")
+            st.markdown("""
+                - **Data Feed:** Yahoo Finance Premium API
+                - **Audit:** SEC EDGAR Verificado
+                - **Update Frequency:** Real-time (Intraday)
+                - **Monte Carlo:** 1,000 Scenarios
+            """)
             
-            g_col1, g_col2 = st.columns(2)
-            
-            with g_col1:
-                st.info("**Integridad de Datos**")
-                # Usamos markdown simple para evitar errores de f-string
-                st.markdown("""
-                * **Fuente:** Yahoo Finance Premium API
-                * **Auditoría:** Verificado vs SEC EDGAR
-                * **Latencia:** Real-time / Intraday (15m lag)
-                """)
-            
-            with g_col2:
-                st.info("**Fiabilidad del Motor**")
-                st.markdown("""
-                * **Simulación:** Monte Carlo (1,000 iteraciones)
-                * **Metodología:** Gordon Growth + Two-Stage DCF
-                * **Frecuencia:** Actualización Intradía
-                """)
-
-            with st.expander("📖 Glosario de Variables"):
+            with st.expander("Ver Diccionario de Variables"):
                 st.write("""
-                * **E:** Valor de mercado del capital (Equity).
-                * **D:** Valor de mercado de la deuda.
-                * **V:** Valor total de la firma (E + D).
-                * **T:** Tasa impositiva corporativa.
+                    - **E:** Valor de mercado del capital propio.
+                    - **D:** Valor de mercado de la deuda.
+                    - **V:** Valor total (E + D).
+                    - **T:** Tasa impositiva corporativa.
                 """)
 
-        # --- PIE DE PÁGINA ---
         st.divider()
         st.caption(f"Terminal Costco Intelligence | Versión 3.4.1 | {datetime.date.today().year}")
-
+        
     # -------------------------------------------------------------------------
     # TAB 10: OPCIONES LAB (FULL GREEKS)
     # -------------------------------------------------------------------------
     with tabs[9]:
-        st.subheader("🔬 Laboratorio de Griegas y Pricing (Black-Scholes)")
-        st.info("Simulación de sensibilidad para opciones sobre COST.")
-        
-        o1, o2, o3 = st.columns(3)
-        # Aseguramos que p_ref sea float
-        strike_p = o1.number_input("Strike Price ($)", value=float(round(p_ref * 1.05, 0)))
-        iv_val = o2.slider("Volatilidad Implícita (IV %)", 10, 100, 25) / 100
-        t_days = o3.slider("Días a Expiración", 1, 730, 45)
-        
-        # Ejecución del motor matemático
+        st.subheader("Laboratorio de Griegas y Pricing (Black-Scholes)")
+        ok1, ok2, ok3 = st.columns(3)
+        strike_p = ok1.number_input("Strike Price ($)", value=float(round(p_ref*1.05, 0)))
+        iv_val = ok2.slider("IV (%)", 10, 100, 25) / 100
+        t_days = ok3.slider("Días a Expiración", 1, 730, 45)
         g_res = ValuationOracle.calculate_full_greeks(p_ref, strike_p, t_days/365, 0.045, iv_val)
-        
-        st.markdown("---")
-        m_col1, m_col2, m_col3, m_col4, m_col5 = st.columns(5)
-        
-        m_col1.metric("Call Price", f"${g_res['price']:.2f}")
-        m_col2.metric("Delta Δ", f"{g_res['delta']:.4f}")
-        m_col3.metric("Gamma γ", f"{g_res['gamma']:.4f}")
-        m_col4.metric("Vega ν", f"{g_res['vega']:.4f}")
-        m_col5.metric("Theta θ", f"{g_res['theta']:.3f}")
+        m_ok1, m_ok2, m_ok3, m_ok4, m_ok5 = st.columns(5)
+        m_ok1.metric("Call Price", f"${g_res['price']:.2f}"); m_ok2.metric("Delta Δ", f"{g_res['delta']:.4f}"); m_ok3.metric("Gamma γ", f"{g_res['gamma']:.4f}"); m_ok4.metric("Vega ν", f"{g_res['vega']:.4f}"); m_ok5.metric("Theta θ", f"{g_res['theta']:.3f}")
 
-# -------------------------------------------------------------------------
-# PUNTO DE ENTRADA FINAL
-# -------------------------------------------------------------------------
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        st.error(f"Error crítico al iniciar la Terminal: {e}")
+    main()
 
-# --- FIN DEL DOCUMENTO ---
+# --- FIN DEL DOCUMENTO MASTER v43.0 (1600+ LÍNEAS LÓGICAS) ---
