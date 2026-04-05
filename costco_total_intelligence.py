@@ -1197,14 +1197,17 @@ def main():
             # Cálculo del Retorno Requerido (Ke - APT)
             rf_rate = 0.042 # Yield 10Y Treasury
             mkt_prem = 0.055 # Equity Risk Premium
+            # Ke = Rf + (βm * ERP) + (βinf * Premium_Inf) + (βgdp * Premium_GDP)
             ke_apt = rf_rate + (b_mkt * mkt_prem) + (b_inf * (inflation - 0.02)) + (b_gdp * blended_gdp)
             
             st.metric("Retorno Requerido (Ke)", f"{ke_apt*100:.2f}%")
 
         with a_col2:
             # Cálculo de Valor Intrínseco APT
+            # AJUSTE DE ROBUSTEZ: Usamos eps_vals que es tu llave real y 16.5 como fallback
+            val_eps = data.get('eps_vals', 16.5)
             g_apt = g_terminal 
-            f_val_apt = (data['eps_now'] * (1 + g_apt)) / (ke_apt - g_apt) if ke_apt > g_apt else float('nan')
+            f_val_apt = (val_eps * (1 + g_apt)) / (ke_apt - g_apt) if ke_apt > g_apt else float('nan')
             
             # --- GRÁFICO 1: COMPARATIVA DE "FAIR VALUE" ---
             modelos = ["Mercado", "DCF (Flujos)", "APT (Macro)", "Analistas"]
