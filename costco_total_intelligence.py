@@ -306,63 +306,55 @@ def main():
         return
 
 # -------------------------------------------------------------------------
-    # 2. SIDEBAR: PANEL DE CONTROL REACTIVO (CAMBIOS INSTANTÁNEOS)
+    # 2. SIDEBAR: PANEL DE CONTROL DIRECTO
     # -------------------------------------------------------------------------
     st.sidebar.title("🏛️ Master Control")
     
-    # P_ref: El ancla para cálculos de mercado (Actualización inmediata)
+    # Referencia de precio base
     p_ref = st.sidebar.number_input("Market Price Ref. ($)", value=float(data['price']))
 
-    # --- SECCIÓN 1: VALUACIÓN (DCF CORE) ---
+    st.sidebar.divider()
+    
+    # --- SECCIÓN 1: VALUACIÓN CORE ---
     st.sidebar.subheader("1. Valuación (DCF)")
     wacc_base = st.sidebar.slider("Tasa WACC Base (%)", 4.0, 16.0, 6.5) / 100
     g1_in = st.sidebar.slider("Crecimiento 1-5Y (%)", -10.0, 50.0, 12.0) / 100
     g2_in = st.sidebar.slider("Crecimiento 6-10Y (%)", 0.0, 20.0, 8.0) / 100
     g_terminal = st.sidebar.slider("Crecimiento Perpetuo (%)", 1.0, 5.0, 3.5) / 100
 
-    # --- SECCIÓN 2: LABORATORIO MACRO (AGRUPADO) ---
-    with st.sidebar.expander("🌍 Laboratorio Macroeconómico", expanded=False):
-        st.markdown("Ajustes de sensibilidad de entorno")
-        u_rate = st.sidebar.slider("Tasa de Desempleo (%)", 3.0, 18.0, 4.2)
-        income_g = st.sidebar.slider("Crec. Ingreso Disponible (%)", -12.0, 12.0, 2.5) / 100
-        inflation = st.sidebar.slider("Inflación CPI (%)", 0.0, 15.0, 3.2) / 100
-        fed_rates = st.sidebar.slider("Variación Fed Rates (bps)", -200, 500, 0) / 10000
+    st.sidebar.divider()
 
-        st.markdown("---")
-        st.markdown("**PIB Blended (Ponderado)**")
-        gdp_us = st.sidebar.slider("PIB EE.UU (%)", -5.0, 8.0, 2.3) / 100
-        gdp_ca = st.sidebar.slider("PIB Canadá (%)", -5.0, 8.0, 2.1) / 100
-        gdp_intl = st.sidebar.slider("PIB Internacional (%)", -5.0, 8.0, 3.0) / 100
+    # --- SECCIÓN 2: LABORATORIO MACRO (DESPLEGADO) ---
+    st.sidebar.subheader("2. Laboratorio Macroeconómico")
+    u_rate = st.sidebar.slider("Tasa de Desempleo (%)", 3.0, 18.0, 4.2)
+    income_g = st.sidebar.slider("Crec. Ingreso Disponible (%)", -12.0, 12.0, 2.5) / 100
+    inflation = st.sidebar.slider("Inflación CPI (%)", 0.0, 15.0, 3.2) / 100
+    fed_rates = st.sidebar.slider("Variación Fed Rates (bps)", -200, 500, 0) / 10000
 
-    # --- LÓGICA DE IMPACTO MACRO (CÁLCULO EN TIEMPO REAL) ---
+    st.sidebar.markdown("**PIB Blended (Ponderado)**")
+    gdp_us = st.sidebar.slider("PIB EE.UU (%)", -5.0, 8.0, 2.3) / 100
+    gdp_ca = st.sidebar.slider("PIB Canadá (%)", -5.0, 8.0, 2.1) / 100
+    gdp_intl = st.sidebar.slider("PIB Internacional (%)", -5.0, 8.0, 3.0) / 100
+
+    # --- LÓGICA DE CÁLCULO INSTANTÁNEO ---
     blended_gdp = (gdp_us * 0.73) + (gdp_ca * 0.14) + (gdp_intl * 0.13)
     macro_adj = (income_g * 1.5) + (blended_gdp * 0.8) - (inflation * 1.2)
     final_wacc = wacc_base + fed_rates 
 
-    # --- MOTOR DE VALORACIÓN (EJECUCIÓN INMEDIATA) ---
+    # --- MOTOR DE VALORACIÓN ---
     if final_wacc <= g_terminal:
-        # Prevención de error matemático
         f_val, pv_f, pv_t, flows = float('nan'), 0.0, 0.0, []
         upside = 0.0
     else:
-        # Llamada directa al motor DCF
         f_val, pv_f, pv_t, flows = ValuationOracle.run_macro_dcf(
-            data['fcf_now_b'], 
-            g1_in, 
-            g2_in, 
-            final_wacc, 
-            g_terminal,
-            shares=data['shares_m'], 
-            cash=data['cash_b'], 
-            debt=data['debt_b'], 
+            data['fcf_now_b'], g1_in, g2_in, final_wacc, g_terminal,
+            shares=data['shares_m'], cash=data['cash_b'], debt=data['debt_b'], 
             macro_adj=macro_adj
         )
-        
-        # Cálculo de Upside/Downside instantáneo
         upside = (f_val / p_ref - 1) * 100 if p_ref > 0 else 0.0
 
-    st.sidebar.markdown("---")
-    st.sidebar.caption("💡 Los cambios se aplican automáticamente al mover los controles.")
+    st.sidebar.divider()
+    st.sidebar.caption("🚀 Terminal Reactiva: Todos los cambios impactan en tiempo real.")
 
     # 4. Cabecera con Lógica Beta Neutro
     st.title(f"🏛️ {data['info'].get('longName')} Institutional Terminal")
