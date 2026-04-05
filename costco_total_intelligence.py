@@ -1060,7 +1060,7 @@ def main():
                 y=[f"{x*100:.1f}%" for x in w_rng],
                 colorscale='RdYlGn', 
                 zmid=p_ref,           # <--- EL AMARILLO ES EL PRECIO ACTUAL
-                text=[[f"${v:.0f}" for v in row] for row in z_mtx],
+                text=[[f"${v:,.0f}" for v in row] for row in z_mtx],
                 texttemplate="%{text}", 
                 showscale=True
             ))
