@@ -1245,14 +1245,14 @@ def main():
                 # Formato con comas y signo
                 text=[f"{upside_dcf:+,.1f}%", f"{upside_apt:+,.1f}%", f"{upside_wallst:+,.1f}%"],
                 textposition="top center",
-                textfont=dict(size=15, color='white', weight='bold') # Texto más grande y visible
+                textfont=dict(size=14, color='white', weight='normal') # Texto más grande y visible
             ))
             
             fig_scat.update_layout(
                 title="Upside Proyectado por Modelo (%)",
                 template="plotly_dark", height=400,
                 yaxis=dict(ticksuffix="%", gridcolor='rgba(255,255,255,0.1)', tickfont=dict(size=13)),
-                xaxis=dict(tickfont=dict(size=14, weight='bold')),
+                xaxis=dict(tickfont=dict(size=14, weight='normal')),
                 paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
             )
             st.plotly_chart(fig_scat, use_container_width=True)
