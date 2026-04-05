@@ -374,7 +374,7 @@ def main():
     # 5. ARQUITECTURA DE PESTAÑAS
     tabs = st.tabs([
         "📋 Resumen", "🛡️ Scorecard & Radar", "💰 Ganancias", "🌪️ Stress Test Pro", 
-        "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "📜 Metodología", "📈 Opciones Lab"
+        "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "🔬 Comparativa APT", "📜 Metodología", "📈 Opciones Lab"
     ])
 
     # A partir de aquí ya puedes seguir con tus 'with tabs[0]:', etc.
