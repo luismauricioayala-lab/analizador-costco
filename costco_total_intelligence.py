@@ -311,28 +311,33 @@ class ValuationOracle:
 # =============================================================================
 
 def main():
-    # --- INTERCEPTOR MAESTRO (VERSIÓN CORREGIDA SIN ERRORES) ---
+    # --- INTERCEPTOR MAESTRO (VERSIÓN FINAL ANTI-ERRORES) ---
     def patched_plotly_chart(fig, use_container_width=True, **kwargs):
-        # 1. Forzar comas en Eje Y y Hover de forma correcta
-        fig.update_layout(
-            template="plotly_dark",
-            yaxis=dict(tickformat="$,.0f"),  # Esta es la sintaxis correcta
-            hoverformat="$,.2f"
-        )
-        # 2. Forzar comas en Eje X (si es numérico)
-        fig.update_xaxes(tickformat=",.0f")
-        
-        # 3. EL MARTILLO PARA EL HEATMAP (Tu matriz verde/roja)
-        # Esto busca específicamente las etiquetas de texto internas
-        fig.update_traces(
-            texttemplate="$%{z:,.0f}", 
-            selector=dict(type='heatmap')
-        )
-        
-        # Llamar a la función real de Streamlit (usando el nombre original)
-        return st.write(fig) # st.write detecta automáticamente que es Plotly
+        try:
+            # 1. Aplicar el tema oscuro
+            fig.update_layout(template="plotly_dark", hoverformat="$,.2f")
+            
+            # 2. Forzar comas y $ en el eje Y de forma aislada
+            fig.update_yaxes(tickformat="$,.0f")
+            
+            # 3. Forzar comas en el eje X (si es numérico)
+            fig.update_xaxes(tickformat=",.0f")
+            
+            # 4. EL MARTILLO PARA EL HEATMAP (Tu matriz verde/roja)
+            # Solo aplica si el gráfico tiene trazas tipo heatmap
+            fig.update_traces(
+                texttemplate="$%{z:,.0f}", 
+                selector=dict(type='heatmap')
+            )
+        except Exception:
+            # Si algún gráfico no es compatible con este formato, 
+            # lo deja pasar sin romper la app
+            pass
+            
+        # Usamos st.write para evitar bucles infinitos y renderizar Plotly
+        return st.write(fig)
 
-    # LA MAGIA: Reemplazamos la función para que todo el código la use
+    # REEMPLAZO GLOBAL
     st.plotly_chart = patched_plotly_chart
     
     # 1. Adquisición de Datos (Dentro de main para evitar NameError)
