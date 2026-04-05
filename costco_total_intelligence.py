@@ -1184,49 +1184,51 @@ def main():
     with tabs[8]:
         st.subheader("🔬 Benchmark de Valoración: DCF vs Arbitrage Pricing Theory (APT)")
         
+        # Recuperación segura de EPS
+        val_eps = data.get('eps_vals', 16.5)
+        
         # 1. ENTRADAS DEL MODELO APT
         st.markdown("### 1. Calibración de Factores de Riesgo (APT)")
         a_col1, a_col2 = st.columns([1, 2])
         
         with a_col1:
             st.write("**Sensibilidades (Betas)**")
-            b_mkt = st.slider("Beta Mercado (β_m)", 0.5, 1.5, 0.82, help="Sensibilidad al S&P 500")
-            b_inf = st.slider("Beta Inflación (β_inf)", -0.5, 0.5, -0.15, help="Sensibilidad al CPI")
-            b_gdp = st.slider("Beta Ciclo PIB (β_gdp)", 0.1, 1.0, 0.45, help="Sensibilidad al crecimiento económico")
+            b_mkt = st.slider("Beta Mercado (β_m)", 0.5, 1.5, 0.82)
+            b_inf = st.slider("Beta Inflación (β_inf)", -0.5, 0.5, -0.15)
+            b_gdp = st.slider("Beta Ciclo PIB (β_gdp)", 0.1, 1.0, 0.45)
             
-            # Cálculo del Retorno Requerido (Ke - APT)
-            rf_rate = 0.042 # Yield 10Y Treasury
-            mkt_prem = 0.055 # Equity Risk Premium
-            # Ke = Rf + (βm * ERP) + (βinf * Premium_Inf) + (βgdp * Premium_GDP)
+            rf_rate, mkt_prem = 0.042, 0.055 
             ke_apt = rf_rate + (b_mkt * mkt_prem) + (b_inf * (inflation - 0.02)) + (b_gdp * blended_gdp)
-            
             st.metric("Retorno Requerido (Ke)", f"{ke_apt*100:.2f}%")
 
         with a_col2:
-            # Cálculo de Valor Intrínseco APT
-            # AJUSTE DE ROBUSTEZ: Usamos eps_vals que es tu llave real y 16.5 como fallback
-            val_eps = data.get('eps_vals', 16.5)
             g_apt = g_terminal 
             f_val_apt = (val_eps * (1 + g_apt)) / (ke_apt - g_apt) if ke_apt > g_apt else float('nan')
             
-            # --- GRÁFICO 1: COMPARATIVA DE "FAIR VALUE" ---
+            # --- GRÁFICO 1: COMPARATIVA DE "FAIR VALUE" (CON COMAS) ---
             modelos = ["Mercado", "DCF (Flujos)", "APT (Macro)", "Analistas"]
             valores = [p_ref, f_val, f_val_apt, data.get('analysts', {}).get('target', 1067)]
-            colores = ['#495057', '#005BAA', '#2ecc71', '#f6e05e']
             
             fig_bar = go.Figure(go.Bar(
                 x=modelos, y=valores,
-                marker_color=colores,
-                text=[f"${v:.0f}" if not np.isnan(v) else "Error" for v in valores],
-                textposition='outside'
+                marker_color=['#495057', '#005BAA', '#2ecc71', '#f6e05e'],
+                # Formato con comas: : , .0f
+                text=[f"${v:,.0f}" if not np.isnan(v) else "Error" for v in valores],
+                textposition='outside',
+                textfont=dict(size=14, weight='bold') # Etiquetas más legibles
             ))
-            fig_bar.update_layout(title="Consenso de Valoración Intrínseca", template="plotly_dark", height=350, 
-                                  paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            
+            fig_bar.update_layout(
+                title="Consenso de Valoración Intrínseca",
+                template="plotly_dark", height=350,
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                yaxis=dict(tickformat="$,.0f", tickfont=dict(size=12)) # Eje Y con comas
+            )
             st.plotly_chart(fig_bar, use_container_width=True)
 
         st.divider()
 
-        # --- GRÁFICO 2: DISPERSIÓN DE UPSIDE ---
+        # --- GRÁFICO 2: DISPERSIÓN DE UPSIDE (MÁS LEGIBLE) ---
         st.markdown("### 2. Dispersión y Margen de Seguridad")
         c_radar1, c_radar2 = st.columns([2, 1])
         
@@ -1236,23 +1238,33 @@ def main():
             upside_wallst = ((data.get('analysts', {}).get('target', 1067) / p_ref) - 1) * 100
             
             fig_scat = go.Figure(go.Scatter(
-                x=["DCF", "APT", "Wall St"], y=[upside_dcf, upside_apt, upside_wallst],
-                mode='markers+text', marker=dict(size=20, color=['#005BAA', '#2ecc71', '#f6e05e']),
-                text=[f"{upside_dcf:+.1f}%", f"{upside_apt:+.1f}%", f"{upside_wallst:+.1f}%"],
-                textposition="top center"
+                x=["DCF", "APT", "Wall St"], 
+                y=[upside_dcf, upside_apt, upside_wallst],
+                mode='markers+text', 
+                marker=dict(size=25, color=['#005BAA', '#2ecc71', '#f6e05e'], line=dict(width=2, color='white')),
+                # Formato con comas y signo
+                text=[f"{upside_dcf:+,.1f}%", f"{upside_apt:+,.1f}%", f"{upside_wallst:+,.1f}%"],
+                textposition="top center",
+                textfont=dict(size=15, color='white', weight='bold') # Texto más grande y visible
             ))
-            fig_scat.update_layout(title="Upside Proyectado por Modelo (%)", template="plotly_dark", height=300, 
-                                   paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            
+            fig_scat.update_layout(
+                title="Upside Proyectado por Modelo (%)",
+                template="plotly_dark", height=400,
+                yaxis=dict(ticksuffix="%", gridcolor='rgba(255,255,255,0.1)', tickfont=dict(size=13)),
+                xaxis=dict(tickfont=dict(size=14, weight='bold')),
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+            )
             st.plotly_chart(fig_scat, use_container_width=True)
 
         with c_radar2:
             st.markdown(f"""
-            <div style="background-color: var(--secondary-background-color); padding: 15px; border-radius: 10px; border-left: 5px solid #2ecc71;">
-                <h4 style="margin-top:0;">Veredicto APT</h4>
-                <p>Precio sugerido: <b>${f_val_apt:.2f}</b>.</p>
+            <div style="background-color: var(--secondary-background-color); padding: 20px; border-radius: 15px; border-left: 8px solid #2ecc71; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+                <h4 style="margin-top:0; color:#2ecc71;">Veredicto APT</h4>
+                <p style="font-size:1.1rem;">Precio sugerido: <br><span style="font-size:2rem; font-weight:bold;">${f_val_apt:,.2f}</span></p>
                 <p>Basado en inflación de <b>{inflation*100:.1f}%</b> y PIB de <b>{blended_gdp*100:.1f}%</b>.</p>
-                <hr>
-                <small>La Beta de Mercado ({b_mkt}) indica el perfil de riesgo relativo vs S&P 500.</small>
+                <hr style="opacity:0.2;">
+                <small>Nota: Este modelo descuenta beneficios actuales sin capturar la fase de alto crecimiento proyectada en el DCF.</small>
             </div>
             """, unsafe_allow_html=True)
 
