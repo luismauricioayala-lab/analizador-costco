@@ -752,7 +752,7 @@ def main():
         st.plotly_chart(px.line(df_fwd, x="Año", y="Rev ($B)", markers=True, title="Trayectoria Proyectada de Ingresos"), use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 6: FINANZAS & RATIOS PRO (BLOOMBERG TERMINAL INTEGRATED)
+    # TAB 6: FINANZAS & RATIOS PRO (BLOOMBERG TERMINAL INTEGRATED - ANTI-CRASH)
     # -------------------------------------------------------------------------
     with tabs[5]:
         st.subheader("🏛️ Terminal de Inteligencia Financiera: Costco Wholesale")
@@ -776,16 +776,39 @@ def main():
         # Variable unificada para los años (eje X)
         años_finales = [str(c).split('-')[0] for c in is_f.columns]
 
-        # 2. CÁLCULO DE RATIOS PRO
+        # 2. SISTEMA DE EXTRACCIÓN ROBUSTA (Helper para evitar KeyErrors)
+        def safe_get(df, keys):
+            for k in keys:
+                if k in df.index:
+                    return df.loc[k]
+            # Si no encuentra nada, devolvemos una serie de ceros para no romper el cálculo
+            return pd.Series(0, index=df.columns)
+
+        # 3. CÁLCULO DE RATIOS PRO CON FALLBACKS
         try:
-            roe = (is_f.loc['Net Income Common Stockholders'] / bs_f.loc['Stockholders Equity']) * 100
-            roa = (is_f.loc['Net Income Common Stockholders'] / bs_f.loc['Total Assets']) * 100
-            asset_turnover = is_f.loc['Total Revenue'] / bs_f.loc['Total Assets']
-            inv_turnover = is_f.loc['Cost Of Revenue'] / bs_f.loc['Inventory']
-            debt_ebitda = bs_f.loc['Total Debt'] / is_f.loc['EBITDA']
-            current_ratio = bs_f.loc['Current Assets'] / bs_f.loc['Current Liabilities']
-            rev_growth = is_f.loc['Total Revenue'].pct_change() * 100
-            eps_growth = is_f.loc['Basic EPS'].pct_change() * 100
+            # Definición de lineas con sus alias comunes en yfinance
+            net_income = safe_get(is_f, ['Net Income Common Stockholders', 'Net Income', 'Net Income From Continuing Operation Net Minority Interest'])
+            total_equity = safe_get(bs_f, ['Stockholders Equity', 'Total Stockholders Equity'])
+            total_assets = safe_get(bs_f, ['Total Assets'])
+            revenue = safe_get(is_f, ['Total Revenue', 'Revenue'])
+            cogs = safe_get(is_f, ['Cost Of Revenue'])
+            inventory = safe_get(bs_f, ['Inventory'])
+            total_debt = safe_get(bs_f, ['Total Debt'])
+            ebitda = safe_get(is_f, ['EBITDA'])
+            curr_assets = safe_get(bs_f, ['Current Assets', 'Total Current Assets'])
+            curr_liab = safe_get(bs_f, ['Current Liabilities', 'Total Current Liabilities'])
+            op_inc = safe_get(is_f, ['Operating Income', 'Operating Profit'])
+            eps = safe_get(is_f, ['Basic EPS', 'EPS Basic'])
+
+            # Cálculos matemáticos
+            roe = (net_income / total_equity) * 100
+            roa = (net_income / total_assets) * 100
+            asset_turnover = revenue / total_assets
+            inv_turnover = cogs / inventory
+            debt_ebitda = total_debt / ebitda
+            current_ratio = curr_assets / curr_liab
+            rev_growth = revenue.pct_change() * 100
+            eps_growth = eps.pct_change() * 100
 
             df_ratios_pro = pd.DataFrame({
                 "Crecimiento Ingresos (%)": rev_growth,
@@ -799,25 +822,27 @@ def main():
             }).T
             df_ratios_pro.columns = años_finales
         except Exception as e:
-            st.error(f"Error calculando ratios: {e}")
+            st.error(f"Error crítico en el motor de cálculo: {e}")
 
         # --- SECCIÓN I: ESTADO DE RESULTADOS DE GESTIÓN ---
         st.markdown("### 📊 I. Estado de Resultados de Gestión")
         
+        # Mapeo de nombres para la tabla visual
         orden_p_l = [
-            ('Total Revenue', 'Ingresos Totales'),
-            ('Cost Of Revenue', 'Coste de Ventas (COGS)'),
-            ('Gross Profit', 'Utilidad Bruta'),
-            ('Operating Expense', 'Gastos Operativos (OPEX)'),
-            ('Operating Income', 'Utilidad Operativa (EBIT)'),
-            ('EBITDA', 'EBITDA'),
-            ('Net Income Common Stockholders', 'Utilidad Neta'),
-            ('Basic EPS', 'BPA (Beneficio por Acción)')
+            (revenue, 'Ingresos Totales'),
+            (cogs, 'Coste de Ventas (COGS)'),
+            (safe_get(is_f, ['Gross Profit']), 'Utilidad Bruta'),
+            (safe_get(is_f, ['Operating Expense']), 'Gastos Operativos (OPEX)'),
+            (op_inc, 'Utilidad Operativa (EBIT)'),
+            (ebitda, 'EBITDA'),
+            (net_income, 'Utilidad Neta'),
+            (eps, 'BPA (Beneficio por Acción)')
         ]
         
-        df_pl_viz = is_f.reindex([x[0] for x in orden_p_l])
-        df_pl_viz.index = [x[1] for x in orden_p_l]
+        # Construcción del DataFrame de visualización
+        df_pl_viz = pd.DataFrame([x[0] for x in orden_p_l], index=[x[1] for x in orden_p_l])
         
+        # Normalización a Billones (excepto EPS)
         for row in df_pl_viz.index:
             if row != 'BPA (Beneficio por Acción)':
                 df_pl_viz.loc[row] = df_pl_viz.loc[row] / 1e9
@@ -830,16 +855,34 @@ def main():
             st.table(df_pl_viz.style.format("{:.2f}"))
         
         with c2:
-            m_neto = (is_f.loc['Net Income Common Stockholders'] / is_f.loc['Total Revenue']) * 100
+            m_neto = (net_income / revenue) * 100
             fig_dual = make_subplots(specs=[[{"secondary_y": True}]])
             
             # Barras Revenue
-            fig_dual.add_trace(go.Bar(x=años_finales, y=df_pl_viz.loc['Ingresos Totales'], name="Revenue ($B)", marker_color="#005BAA"), secondary_y=False)
+            fig_dual.add_trace(go.Bar(
+                x=años_finales, 
+                y=df_pl_viz.loc['Ingresos Totales'], 
+                name="Revenue ($B)", 
+                marker_color="#005BAA"
+            ), secondary_y=False)
             
-            # Línea Margen Neto (Aquí estaba el error, ahora usa años_finales)
-            fig_dual.add_trace(go.Scatter(x=años_finales, y=m_neto.values, name="Net Margin %", line=dict(color="#f85149", width=4), marker=dict(size=10, symbol="diamond")), secondary_y=True)
+            # Línea Margen Neto
+            fig_dual.add_trace(go.Scatter(
+                x=años_finales, 
+                y=m_neto.values, 
+                name="Net Margin %", 
+                line=dict(color="#f85149", width=4), 
+                marker=dict(size=10, symbol="diamond")
+            ), secondary_y=True)
             
-            fig_dual.update_layout(template="plotly_dark", height=400, margin=dict(t=30, b=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation="h", y=1.1, x=1))
+            fig_dual.update_layout(
+                template="plotly_dark", 
+                height=400, 
+                margin=dict(t=30, b=10), 
+                paper_bgcolor='rgba(0,0,0,0)', 
+                plot_bgcolor='rgba(0,0,0,0)', 
+                legend=dict(orientation="h", y=1.1, x=1)
+            )
             st.plotly_chart(fig_dual, use_container_width=True, config={'displayModeBar': False})
 
         st.markdown("---")
@@ -850,9 +893,12 @@ def main():
         c3, c4 = st.columns([1, 1.2], gap="large")
         with c3:
             st.write("**Panel de Ratios (Mapa de Calor Interanual)**")
-            st.dataframe(df_ratios_pro.style.format("{:.2f}").background_gradient(cmap='RdYlGn', axis=1), use_container_width=True)
+            st.dataframe(
+                df_ratios_pro.style.format("{:.2f}").background_gradient(cmap='RdYlGn', axis=1), 
+                use_container_width=True
+            )
             
-            # Exportación
+            # Exportación robusta
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_pl_viz.to_excel(writer, sheet_name='P_and_L_Management')
@@ -860,18 +906,33 @@ def main():
                 is_raw.to_excel(writer, sheet_name='Audit_IS')
                 bs_raw.to_excel(writer, sheet_name='Audit_BS')
             
-            st.download_button(label="💾 Descargar Suite Financiera Completa", data=output.getvalue(), file_name=f"COST_Pro_Analysis.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+            st.download_button(
+                label="💾 Descargar Suite Financiera Completa", 
+                data=output.getvalue(), 
+                file_name=f"COST_Pro_Analysis.xlsx", 
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                use_container_width=True
+            )
 
         with c4:
             st.write("**Estructura Comparativa de Márgenes (%)**")
-            m_bruto = (is_f.loc['Gross Profit'] / is_f.loc['Total Revenue']) * 100
-            m_op = (is_f.loc['Operating Income'] / is_f.loc['Total Revenue']) * 100
+            m_bruto = (safe_get(is_f, ['Gross Profit']) / revenue) * 100
+            m_op = (op_inc / revenue) * 100
             
             fig_marg = go.Figure()
             fig_marg.add_trace(go.Bar(x=años_finales, y=m_bruto, name="M. Bruto", marker_color="#27ae60"))
             fig_marg.add_trace(go.Bar(x=años_finales, y=m_op, name="M. Operativo", marker_color="#f1c40f"))
             fig_marg.add_trace(go.Bar(x=años_finales, y=m_neto, name="M. Neto", marker_color="#e74c3c"))
-            fig_marg.update_layout(template="plotly_dark", barmode='group', height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=20, b=20), legend=dict(orientation="h", y=1.1, x=1))
+            
+            fig_marg.update_layout(
+                template="plotly_dark", 
+                barmode='group', 
+                height=350, 
+                paper_bgcolor='rgba(0,0,0,0)', 
+                plot_bgcolor='rgba(0,0,0,0)', 
+                margin=dict(t=20, b=20), 
+                legend=dict(orientation="h", y=1.1, x=1)
+            )
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
