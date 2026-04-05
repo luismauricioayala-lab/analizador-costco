@@ -306,81 +306,46 @@ def main():
         return
 
 # -------------------------------------------------------------------------
-    # SIDEBAR: PANEL DE CONTROL INSTITUCIONAL (UX OPTIMIZADA)
+    # 2. SIDEBAR: PANEL DE CONTROL REACTIVO (CAMBIOS INSTANTÁNEOS)
     # -------------------------------------------------------------------------
     st.sidebar.title("🏛️ Master Control")
     
-    # Inicialización del Session State para el control de ejecución
-    if 'run_analysis' not in st.session_state:
-        st.session_state.run_analysis = False
-    
-    # P_ref: El ancla para cálculos de mercado
-    p_ref_input = st.sidebar.number_input("Market Price Ref. ($)", value=float(data['price']))
+    # P_ref: El ancla para cálculos de mercado (Actualización inmediata)
+    p_ref = st.sidebar.number_input("Market Price Ref. ($)", value=float(data['price']))
 
     # --- SECCIÓN 1: VALUACIÓN (DCF CORE) ---
     st.sidebar.subheader("1. Valuación (DCF)")
-    wacc_base_input = st.sidebar.slider("Tasa WACC Base (%)", 4.0, 16.0, 6.5) / 100
-    g1_in_input = st.sidebar.slider("Crecimiento 1-5Y (%)", -10.0, 50.0, 12.0) / 100
-    g2_in_input = st.sidebar.slider("Crecimiento 6-10Y (%)", 0.0, 20.0, 8.0) / 100
-    g_terminal_input = st.sidebar.slider("Crecimiento Perpetuo (%)", 1.0, 5.0, 3.5) / 100
+    wacc_base = st.sidebar.slider("Tasa WACC Base (%)", 4.0, 16.0, 6.5) / 100
+    g1_in = st.sidebar.slider("Crecimiento 1-5Y (%)", -10.0, 50.0, 12.0) / 100
+    g2_in = st.sidebar.slider("Crecimiento 6-10Y (%)", 0.0, 20.0, 8.0) / 100
+    g_terminal = st.sidebar.slider("Crecimiento Perpetuo (%)", 1.0, 5.0, 3.5) / 100
 
     # --- SECCIÓN 2: LABORATORIO MACRO (AGRUPADO) ---
-    with st.sidebar.expander("🌍 Laboratorio Macroeconómico"):
+    with st.sidebar.expander("🌍 Laboratorio Macroeconómico", expanded=False):
         st.markdown("Ajustes de sensibilidad de entorno")
         u_rate = st.sidebar.slider("Tasa de Desempleo (%)", 3.0, 18.0, 4.2)
-        income_g_input = st.sidebar.slider("Crec. Ingreso Disponible (%)", -12.0, 12.0, 2.5) / 100
-        inflation_input = st.sidebar.slider("Inflación CPI (%)", 0.0, 15.0, 3.2) / 100
-        fed_rates_input = st.sidebar.slider("Variación Fed Rates (bps)", -200, 500, 0) / 10000
+        income_g = st.sidebar.slider("Crec. Ingreso Disponible (%)", -12.0, 12.0, 2.5) / 100
+        inflation = st.sidebar.slider("Inflación CPI (%)", 0.0, 15.0, 3.2) / 100
+        fed_rates = st.sidebar.slider("Variación Fed Rates (bps)", -200, 500, 0) / 10000
 
         st.markdown("---")
         st.markdown("**PIB Blended (Ponderado)**")
-        gdp_us_input = st.sidebar.slider("PIB EE.UU (%)", -5.0, 8.0, 2.3) / 100
-        gdp_ca_input = st.sidebar.slider("PIB Canadá (%)", -5.0, 8.0, 2.1) / 100
-        gdp_intl_input = st.sidebar.slider("PIB Internacional (%)", -5.0, 8.0, 3.0) / 100
+        gdp_us = st.sidebar.slider("PIB EE.UU (%)", -5.0, 8.0, 2.3) / 100
+        gdp_ca = st.sidebar.slider("PIB Canadá (%)", -5.0, 8.0, 2.1) / 100
+        gdp_intl = st.sidebar.slider("PIB Internacional (%)", -5.0, 8.0, 3.0) / 100
 
-    st.sidebar.markdown("---")
-    
-    # BOTÓN MAESTRO DE EJECUCIÓN
-    if st.sidebar.button("📊 Aplicar Tesis y Recalcular", use_container_width=True, type="primary"):
-        st.session_state.run_analysis = True
-        # Persistencia de inputs en el estado
-        st.session_state.p_ref = p_ref_input
-        st.session_state.wacc_base = wacc_base_input
-        st.session_state.g1_in = g1_in_input
-        st.session_state.g2_in = g2_in_input
-        st.session_state.g_term = g_terminal_input
-        st.session_state.income_g = income_g_input
-        st.session_state.inflation = inflation_input
-        st.session_state.fed_rates = fed_rates_input
-        st.session_state.gdp_us = gdp_us_input
-        st.session_state.gdp_ca = gdp_ca_input
-        st.session_state.gdp_intl = gdp_intl_input
-
-    # --- ASIGNACIÓN DE VARIABLES DE MOTOR (SESSION O DEFAULT) ---
-    p_ref = st.session_state.get('p_ref', p_ref_input)
-    wacc_base = st.session_state.get('wacc_base', wacc_base_input)
-    g1_in = st.session_state.get('g1_in', g1_in_input)
-    g2_in = st.session_state.get('g2_in', g2_in_input)
-    g_terminal = st.session_state.get('g_term', g_terminal_input)
-    income_g = st.session_state.get('income_g', income_g_input)
-    inflation = st.session_state.get('inflation', inflation_input)
-    fed_rates = st.session_state.get('fed_rates', fed_rates_input)
-    gdp_us = st.session_state.get('gdp_us', gdp_us_input)
-    gdp_ca = st.session_state.get('gdp_ca', gdp_ca_input)
-    gdp_intl = st.session_state.get('gdp_intl', gdp_intl_input)
-
-    # --- LÓGICA DE IMPACTO MACRO INTEGRADA ---
+    # --- LÓGICA DE IMPACTO MACRO (CÁLCULO EN TIEMPO REAL) ---
     blended_gdp = (gdp_us * 0.73) + (gdp_ca * 0.14) + (gdp_intl * 0.13)
     macro_adj = (income_g * 1.5) + (blended_gdp * 0.8) - (inflation * 1.2)
     final_wacc = wacc_base + fed_rates 
 
-    # --- CÁLCULO DE VALORACIÓN PRO (MOTOR GLOBAL) ---
-    # Validación preventiva: WACC debe ser > G_terminal para evitar NaNs
+    # --- MOTOR DE VALORACIÓN (EJECUCIÓN INMEDIATA) ---
     if final_wacc <= g_terminal:
+        # Prevención de error matemático
         f_val, pv_f, pv_t, flows = float('nan'), 0.0, 0.0, []
         upside = 0.0
     else:
-        # El orden es (Precio, PV_Flujos, PV_Terminal, Lista_Proyecciones)
+        # Llamada directa al motor DCF
         f_val, pv_f, pv_t, flows = ValuationOracle.run_macro_dcf(
             data['fcf_now_b'], 
             g1_in, 
@@ -393,8 +358,11 @@ def main():
             macro_adj=macro_adj
         )
         
-        # Upside solo se calcula si f_val es válido
+        # Cálculo de Upside/Downside instantáneo
         upside = (f_val / p_ref - 1) * 100 if p_ref > 0 else 0.0
+
+    st.sidebar.markdown("---")
+    st.sidebar.caption("💡 Los cambios se aplican automáticamente al mover los controles.")
 
     # 4. Cabecera con Lógica Beta Neutro
     st.title(f"🏛️ {data['info'].get('longName')} Institutional Terminal")
