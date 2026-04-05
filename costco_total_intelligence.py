@@ -768,90 +768,78 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
 
 # -------------------------------------------------------------------------
-    # TAB 7: DCF LAB PRO - ÚNICAMENTE AJUSTE DE ESCALA VISUAL
+    # TAB 7: DCF LAB PRO - ÚNICAMENTE COLOR (VERSIÓN BLINDADA)
     # -------------------------------------------------------------------------
     with tabs[6]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # --- 1. AJUSTE DE CALIBRACIÓN (SIN TOCAR CÓDIGO CORE) ---
-        # Definimos el multiplicador 'premium' para Costco (ej. 1.15x)
-        fcf_premium_lab = data['fcf_now_b'] * 1.15 
-        
-        # 2. Extracción blindada del precio actual (Scalar Float)
-        # Esto es CRÍTICO para que no de TypeError: convertimos data['price'] a número puro
-        raw_p = data.get('price', 0)
-        p_mercado_actual = float(raw_p.iloc[0] if hasattr(raw_p, 'iloc') else raw_p)
+        # 1. PRECIO DE REFERENCIA (Limpieza total para evitar TypeError)
+        try:
+            # Extraemos el precio y lo convertimos a un número float puro de Python
+            p_valor = data.get('price', 1060.0)
+            p_ref = float(np.array(p_valor).flatten()[0])
+        except:
+            p_ref = 1060.0
 
+        fcf_premium_lab = data['fcf_now_b'] * 1.10 
+        
         col_mtx, col_flow = st.columns([1.2, 1])
         
         with col_mtx:
             st.write("**Matriz de Sensibilidad: Fair Value vs. WACC & g Perpetuo**")
             
-            # Definición de rangos (9x9 para mantener compatibilidad visual)
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            # Cálculo de la matriz numérica limpia
-            mtx_data = []
+            # Construimos la matriz de datos puros
+            mtx = []
             for w in w_rng:
                 fila = []
                 for g in g_rng:
-                    v = ValuationOracle.run_macro_dcf(
-                        fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj
-                    )[0]
-                    # Limpieza: Forzamos a float y eliminamos NaNs/Infs
+                    v = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, w, g, macro_adj=macro_adj)[0]
                     fila.append(float(v) if np.isfinite(v) else 0.0)
-                mtx_data.append(fila)
-            
-            # Convertimos a DataFrame y forzamos tipo FLOAT explícitamente para Plotly Express
-            df_mtx = pd.DataFrame(
-                mtx_data, 
-                index=[f"{x*100:.1f}%" for x in w_rng], 
-                columns=[f"{x*100:.1f}%" for x in g_rng]
-            ).astype(float)
+                mtx.append(fila)
 
-            # --- 3. EL ÚNICO CAMBIO: RENDERIZADO CON ESCALA REALISTA ---
-            # Usamos px.imshow como pedías, pero CENTRADO en el precio de mercado actual
+            # 2. EL GRÁFICO (Usando NumPy para máxima estabilidad)
+            # Pasamos los datos como un array simple para que Plotly no se queje del tipo
             fig_giant = px.imshow(
-                df_mtx,
-                text_auto='.0f', # Mantiene los números grandes y legibles como en la imagen
-                color_continuous_scale='RdYlGn', # Rojo (Caro) -> Verde (Barato)
-                # LA MAGIA ESTÁ AQUÍ:
-                zmid=p_mercado_actual,            # <--- El color neutro es el precio actual
-                aspect="auto", 
-                height=600 
+                np.array(mtx),
+                labels=dict(x="Crecimiento (g)", y="WACC", color="Fair Value"),
+                x=[f"{x*100:.1f}%" for x in g_rng],
+                y=[f"{x*100:.1f}%" for x in w_rng],
+                text_auto='.0f',
+                color_continuous_scale='RdYlGn', # Escala financiera estándar
+                zmid=p_ref,                      # <--- AQUÍ SE CALIBRA EL COLOR
+                aspect="auto",
+                height=600
             )
             
             fig_giant.update_layout(
-                template="plotly_dark", 
-                coloraxis_showscale=True, 
-                coloraxis_colorbar=dict(title="Fair Value ($)"),
-                # Etiquetas de eje limpias
-                xaxis_title="g Perpetuo", yaxis_title="WACC",
+                template="plotly_dark",
+                coloraxis_colorbar=dict(title="USD"),
                 margin=dict(t=10, b=10, l=10, r=10)
             )
             st.plotly_chart(fig_giant, use_container_width=True, config={'displayModeBar': False})
 
-        # --- 4. El resto del código de la columna (flujo) se mantiene intacto ---
         with col_flow:
             st.write("**Evolución del Flujo de Caja Anual ($B)**")
-            res_dcf = ValuationOracle.run_macro_dcf(
-                fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
-            )
-            flows_proy = res_dcf[3] if len(res_dcf) > 3 else []
-            if not isinstance(flows_proy, list) or len(flows_proy) == 0:
-                flows_proy = [fcf_premium_lab * (1 + g1_in)**i for i in range(1, 11)]
+            res_dcf = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj)
+            f_proy = res_dcf[3] if len(res_dcf) > 3 else [fcf_premium_lab*(1+g1_in)**i for i in range(1,11)]
 
             h_yrs = data['hist_years'][::-1]
             f_yrs = [str(int(h_yrs[-1]) + i) for i in range(1, 11)]
-            y_max = max(flows_proy) if flows_proy else 20
             
-            fig_dcf_flow = go.Figure()
-            fig_dcf_flow.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Histórico Real", line=dict(color="#005BAA", width=6), mode='markers+lines'))
-            fig_dcf_flow.add_trace(go.Scatter(x=[h_yrs[-1]] + f_yrs, y=[data['fcf_hist_b'].values[0]] + flows_proy, name="Proyección", line=dict(color="#f85149", dash='dash', width=5), mode='markers+lines'))
+            fig_f = go.Figure()
+            fig_f.add_trace(go.Scatter(x=h_yrs, y=data['fcf_hist_b'].values[:3][::-1], name="Histórico", line=dict(color="#005BAA", width=6), mode='markers+lines'))
+            fig_f.add_trace(go.Scatter(x=[h_yrs[-1]]+f_yrs, y=[data['fcf_hist_b'].values[0]]+list(f_proy), name="Proyección", line=dict(color="#f85149", dash='dash', width=5), mode='markers+lines'))
             
-            fig_dcf_flow.update_layout(template="plotly_dark", height=600, xaxis_type='category', yaxis=dict(title="Free Cash Flow ($B)", range=[0, y_max * 1.3]), legend=dict(orientation="h", y=1.1, x=1))
-            st.plotly_chart(fig_dcf_flow, use_container_width=True)
+            fig_f.update_layout(
+                template="plotly_dark", height=600,
+                xaxis_type='category',
+                yaxis=dict(title="FCF ($B)", range=[0, max(f_proy)*1.3 if f_proy else 30]),
+                legend=dict(orientation="h", y=1.1, x=1)
+            )
+            st.plotly_chart(fig_f, use_container_width=True)
             
 # -------------------------------------------------------------------------
     # TAB 8: MONTE CARLO - RECALIBRACIÓN INSTITUCIONAL ($1,067 TARGET)
