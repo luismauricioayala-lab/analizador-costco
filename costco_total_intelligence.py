@@ -287,12 +287,15 @@ class ValuationOracle:
 # =============================================================================
 
 def main():
-    # 1. Adquisición de Datos
+    # 1. Adquisición de Datos (Dentro de main para evitar NameError)
     data = InstitutionalDataService.fetch_verified_payload("COST")
-    if not data: return
+    if not data: 
+        st.error("No se pudieron cargar los datos de la API.")
+        return
 
-    # 2. Sidebar: Master Control (Macro & Valuación)
+    # 2. Sidebar: Master Control
     st.sidebar.title("🏛️ Master Control")
+    # p_ref será nuestra ancla para los colores de la Tab 7
     p_ref = st.sidebar.number_input("Market Price Ref. ($)", value=float(data['price']))
     
     st.sidebar.markdown("---")
@@ -304,14 +307,12 @@ def main():
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("2. Laboratorio Macroeconómico")
-    # VARIABLE SOLICITADA: Ingreso Disponible (Disposable Income)
     u_rate = st.sidebar.slider("Tasa de Desempleo (%)", 3.0, 18.0, 4.2)
     income_g = st.sidebar.slider("Crec. Ingreso Disponible (%)", -12.0, 12.0, 2.5) / 100
     inflation = st.sidebar.slider("Inflación CPI (%)", 0.0, 15.0, 3.2) / 100
     fed_rates = st.sidebar.slider("Variación Fed Rates (bps)", -200, 500, 0) / 10000
 
     st.sidebar.markdown("### PIB Blended (Canadá 14%)")
-    # Costco Mix: 73% USA, 14% Canadá, 13% Internacional
     gdp_us = st.sidebar.slider("PIB EE.UU (%)", -5.0, 8.0, 2.3) / 100
     gdp_ca = st.sidebar.slider("PIB Canadá (%)", -5.0, 8.0, 2.1) / 100
     gdp_intl = st.sidebar.slider("PIB Internacional (%)", -5.0, 8.0, 3.0) / 100
@@ -321,27 +322,20 @@ def main():
     macro_adj = (income_g * 1.5) + (blended_gdp * 0.8) - (inflation * 1.2)
     final_wacc = wacc_base + fed_rates 
 
-    cf_ref_global = data['fcf_now_b'] * 1.15
-
-    # Este cálculo genera las variables para TODAS las pestañas
-    v_base, pv_f, pv_t, flows_proy = ValuationOracle.run_macro_dcf(
-    fcf_ref_global, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj
+    # --- CÁLCULO DE VALORACIÓN PRO (MOTOR GLOBAL) ---
+    # Importante: El orden corregido es (Precio, PV_Flujos, PV_Terminal, Lista_Proyecciones)
+    f_val, pv_f, pv_t, flows = ValuationOracle.run_macro_dcf(
+        data['fcf_now_b'], 
+        g1_in, 
+        g2_in, 
+        final_wacc, 
+        g_terminal,
+        shares=data['shares_m'], 
+        cash=data['cash_b'], 
+        debt=data['debt_b'], 
+        macro_adj=macro_adj
     )
-
-    equity_val_b = (v_base * data['shares_m']) / 1000
-    cash_neto = data['cash_b'] - data['debt_b']
-
-try:
-    p_raw = data.get('price', 1060.0)
-    precio_actual = float(p_raw.iloc[0] if hasattr(p_raw, 'iloc') else p_raw)
-except:
-    precio_actual = 1060.0
-
-    # 3. Cálculos de Valoración Pro
-    f_val, flows, pv_f, pv_t = ValuationOracle.run_macro_dcf(
-        data['fcf_now_b'], g1_in, g2_in, final_wacc, 0.025,
-        shares=data['shares_m'], cash=data['cash_b'], debt=data['debt_b'], macro_adj=macro_adj
-    )
+    
     upside = (f_val / p_ref - 1) * 100
 
     # 4. Cabecera con Lógica Beta Neutro
@@ -352,7 +346,6 @@ except:
     m1.metric("P/E TTM", f"{data['info'].get('trailingPE', 52.9):.1f}x", "Premium Valuation")
     m2.metric("Mkt Cap", f"${data['mkt_cap_b']:.1f}B", "NASDAQ: COST")
     
-    # LÓGICA BETA NEUTRO (Gris)
     b_val = data['beta']
     b_label, b_color = ("Market Neutral", "off") if 0.95 <= b_val <= 1.05 else (("Low Vol", "normal") if b_val < 0.95 else ("High Vol", "inverse"))
     m3.metric("Riesgo Beta", f"{b_val:.3f}", b_label, delta_color=b_color)
@@ -360,11 +353,14 @@ except:
 
     st.markdown("---")
 
-    # 5. ARQUITECTURA DE 10 PESTAÑAS (COMPLETAS Y ADITIVAS)
+    # 5. ARQUITECTURA DE PESTAÑAS
     tabs = st.tabs([
         "📋 Resumen", "🛡️ Scorecard & Radar", "💰 Ganancias", "🌪️ Stress Test Pro", 
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "📜 Metodología", "📈 Opciones Lab"
     ])
+
+    # A partir de aquí ya puedes seguir con tus 'with tabs[0]:', etc.
+    # RECUERDA: En Tab 1 usa: y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b]
 
 # -------------------------------------------------------------------------
     # TAB 1: RESUMEN EJECUTIVO (VERSIÓN COMPLETA RESTAURADA)
