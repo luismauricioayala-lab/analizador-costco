@@ -302,17 +302,16 @@ class ValuationOracle:
 # =============================================================================
 
 def main():
+    # --- CONFIGURACIÓN GLOBAL DE GRÁFICOS (VERSIÓN SEGURA) ---
+    pio.templates.default = "plotly_dark"
+    # Configuramos el eje Y global para que siempre use comas
+    pio.templates[pio.templates.default].layout.yaxis.tickformat = ",.0f"
+    
     # 1. Adquisición de Datos (Dentro de main para evitar NameError)
     data = InstitutionalDataService.fetch_verified_payload("COST")
     if not data: 
         st.error("No se pudieron cargar los datos de la API.")
-        return
-
-    # Esto hace que los ejes de los gráficos tengan comas automáticamente
-    pio.templates.default = "plotly_dark"
-    pio.templates[pio.templates.default].layout.yaxis.tickformat = ",.0f"
-    pio.templates[pio.templates.default].layout.hoverformat = ",.2f"
-    
+        return    
 # -------------------------------------------------------------------------
     # 2. SIDEBAR: PANEL DE CONTROL DIRECTO
     # -------------------------------------------------------------------------
