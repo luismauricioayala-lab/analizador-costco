@@ -884,7 +884,6 @@ def main():
                 st.info("📊 Esperando datos de competidores...")
 
         with c_p2:
-with c_p2:
             st.write("**Valoración y Generación de Caja**")
             try:
                 # 1. Carga de datos del búnker
