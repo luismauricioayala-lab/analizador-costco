@@ -747,89 +747,122 @@ def main():
             # Si yfinance falla, mostramos una nota informativa en lugar de un error rojo
             st.info("📉 Nota: El gráfico de rendimiento dinámico requiere conexión activa. Mostrando terminal en modo estable.")
 
-        # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
+# --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
         
         with c_p1:
-# --- BLOQUE DE SEGURIDAD PARA GRÁFICO DE DISPERSIÓN ---
-        st.write(f"**Análisis de Valoración Relativa: P/E vs ROE**")
-        
-        # 1. Verificamos que el DataFrame exista y no esté vacío
-        if df_full_comparison is not None and not df_full_comparison.empty:
+            # --- BLOQUE DE SEGURIDAD PARA GRÁFICO DE DISPERSIÓN ---
+            st.write(f"**Análisis de Valoración Relativa: P/E vs ROE**")
             
-            # 2. LIMPIEZA: Eliminamos filas que no tengan los 3 datos numéricos necesarios
-            cols_grafico = ["P/E Ratio", "ROE (%)", "Mkt Cap ($B)"]
-            # Solo intentamos limpiar si las columnas existen en el DataFrame
-            columnas_presentes = [c for c in cols_grafico if c in df_full_comparison.columns]
-            
-            if len(columnas_presentes) == len(cols_grafico):
-                df_plot = df_full_comparison.dropna(subset=cols_grafico)
+            # 1. Verificamos que el DataFrame exista y no esté vacío
+            if df_full_comparison is not None and not df_full_comparison.empty:
+                # 2. LIMPIEZA: Eliminamos filas que no tengan los 3 datos numéricos necesarios
+                cols_grafico = ["P/E Ratio", "ROE (%)", "Mkt Cap ($B)"]
+                columnas_presentes = [c for c in cols_grafico if c in df_full_comparison.columns]
                 
-                # 3. Solo graficamos si después de limpiar quedan empresas
-                if not df_plot.empty:
-                    try:
-                        fig_scat = px.scatter(
-                            df_plot, 
-                            x="P/E Ratio", 
-                            y="ROE (%)",
-                            size="Mkt Cap ($B)", 
-                            color="Nombre", 
-                            text="Ticker",
-                            template="plotly_dark", 
-                            size_max=40
-                        )
-                        fig_scat.update_layout(height=500)
-                        st.plotly_chart(fig_scat, use_container_width=True)
-                    except Exception:
-                        st.info("📊 Los datos actuales no permiten generar la comparativa visual.")
+                if len(columnas_presentes) == len(cols_grafico):
+                    df_plot = df_full_comparison.dropna(subset=cols_grafico)
+                    
+                    if not df_plot.empty:
+                        try:
+                            fig_scat = px.scatter(
+                                df_plot, 
+                                x="P/E Ratio", 
+                                y="ROE (%)",
+                                size="Mkt Cap ($B)", 
+                                color="Nombre", 
+                                text="Ticker",
+                                template="plotly_dark", 
+                                size_max=40
+                            )
+                            fig_scat.update_layout(height=450)
+                            st.plotly_chart(fig_scat, use_container_width=True)
+                        except Exception:
+                            st.info("📊 Error al generar gráfico de dispersión.")
+                    else:
+                        st.warning("⚠️ Datos insuficientes para dispersión (Modo Búnker).")
                 else:
-                    st.warning("⚠️ Sin datos numéricos suficientes para el gráfico (Modo Búnker).")
+                    st.info("📊 Columnas de análisis no encontradas.")
             else:
-                st.info("📊 Columnas de análisis no encontradas en el búnker actual.")
-        else:
-            st.info("📊 Esperando datos de competidores para generar comparativa.")
-            
+                st.info("📊 Esperando datos de competidores...")
+
         with c_p2:
+            # --- BLOQUE DE SEGURIDAD PARA GRÁFICO EV/EBITDA ---
             st.write("**Eficiencia Operativa: EV/EBITDA**")
-            fig_ev = px.bar(
-                df_full_comparison, x="Ticker", y="EV/EBITDA", 
-                color="Nombre", text_auto='.1f', template="plotly_dark"
-            )
-            st.plotly_chart(fig_ev, use_container_width=True)
+            if df_full_comparison is not None and not df_full_comparison.empty:
+                if "EV/EBITDA" in df_full_comparison.columns:
+                    df_plot_ev = df_full_comparison.dropna(subset=["EV/EBITDA"])
+                    if not df_plot_ev.empty:
+                        try:
+                            fig_ev = px.bar(
+                                df_plot_ev, x="Ticker", y="EV/EBITDA", 
+                                color="Nombre", text_auto='.1f', template="plotly_dark"
+                            )
+                            fig_ev.update_layout(height=450, showlegend=False)
+                            st.plotly_chart(fig_ev, use_container_width=True)
+                        except Exception:
+                            st.info("📊 Error al generar gráfico EV/EBITDA.")
+                    else:
+                        st.warning("⚠️ Sin datos de EV/EBITDA.")
+                else:
+                    st.info("📊 Datos de eficiencia no disponibles.")
+            else:
+                st.info("📊 Esperando datos de mercado...")
 
         # --- SECCIÓN: MATRIZ DE CORRELACIÓN ---
         st.markdown("---")
         st.write("**🧩 Matriz de Correlación de Retornos Diarios (1Y)**")
         with st.expander("Ver Análisis de Correlación"):
-            returns_df = perf_df.pct_change().dropna()
-            returns_df.columns = [reverse_map.get(col, col) for col in returns_df.columns]
-            corr_matrix = returns_df.corr()
-            
-            fig_corr = px.imshow(
-                corr_matrix, text_auto=".2f", color_continuous_scale='RdBu_r',
-                template="plotly_dark", aspect="auto"
-            )
-            st.plotly_chart(fig_corr, use_container_width=True)
+            # Verificamos si perf_df (descargado antes) tiene datos
+            if 'perf_df' in locals() and not perf_df.empty:
+                try:
+                    returns_df = perf_df.pct_change().dropna()
+                    # Usamos el mapeo seguro que definimos arriba
+                    mapping_corr = reverse_map if 'reverse_map' in locals() else bunker_names
+                    returns_df.columns = [mapping_corr.get(col, col) for col in returns_df.columns]
+                    corr_matrix = returns_df.corr()
+                    
+                    fig_corr = px.imshow(
+                        corr_matrix, text_auto=".2f", color_continuous_scale='RdBu_r',
+                        template="plotly_dark", aspect="auto"
+                    )
+                    st.plotly_chart(fig_corr, use_container_width=True)
+                except Exception:
+                    st.info("📈 No se pudo calcular la correlación (datos insuficientes).")
+            else:
+                st.info("📉 Matriz de correlación requiere conexión activa.")
 
         # --- TABLA MAESTRA CON FORMATO BLOOMBERG ---
         st.markdown("---")
         st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
         
-        st.dataframe(
-            df_full_comparison.set_index("Ticker").style.format({
-                "Mkt Cap ($B)": "{:.1f}",
-                "P/E Ratio": "{:.2f}",
-                "EV/EBITDA": "{:.2f}",
-                "ROE (%)": "{:.1f}%",
-                "Net Margin (%)": "{:.2f}%",
-                "Rev Growth (%)": "{:.2f}%"
-            }).background_gradient(cmap='RdYlGn', subset=['ROE (%)', 'Rev Growth (%)'])
-              .background_gradient(cmap='RdYlGn_r', subset=['P/E Ratio', 'EV/EBITDA']),
-            use_container_width=True
-        )
+        if df_full_comparison is not None and not df_full_comparison.empty:
+            try:
+                # Nos aseguramos de que las columnas existan antes de aplicar formato
+                cols_formato = {
+                    "Mkt Cap ($B)": "{:.1f}",
+                    "P/E Ratio": "{:.2f}",
+                    "EV/EBITDA": "{:.2f}",
+                    "ROE (%)": "{:.1f}%",
+                    "Net Margin (%)": "{:.2f}%",
+                    "Rev Growth (%)": "{:.2f}%"
+                }
+                columnas_validas = [c for c in cols_formato.keys() if c in df_full_comparison.columns]
+                
+                # Renderizado de la tabla con gradientes
+                st.dataframe(
+                    df_full_comparison.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_validas})
+                    .background_gradient(cmap='RdYlGn', subset=[c for c in ['ROE (%)', 'Rev Growth (%)'] if c in df_full_comparison.columns])
+                    .background_gradient(cmap='RdYlGn_r', subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_full_comparison.columns]),
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.dataframe(df_full_comparison, use_container_width=True)
+        else:
+            st.info("📊 La tabla maestra se poblará al sincronizar con el mercado.")
 
         st.caption("Nota: Las métricas de los índices se basan en los estados financieros y precios de sus ETFs representativos (SPY y QQQ).")
-
+        
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
     # -------------------------------------------------------------------------
