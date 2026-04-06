@@ -1342,45 +1342,76 @@ def main():
             d3.metric("FCF Adjustment", f"{total_macro_stress*100:.1f}%", "Impacto Neto")
 
 # -------------------------------------------------------------------------
-    # TAB 6: FORWARD LOOKING (VARIABLES AJUSTABLES)
+    # TAB 6: FORWARD LOOKING (VARIABLES AJUSTABLES) - VERSIÓN FCF
     # -------------------------------------------------------------------------
     with tabs[5]:
         st.subheader("Laboratorio de Resultados Proyectados (Forward Looking)")
         f1, f2, f3, f4 = st.columns(4)
+        
+        # Sliders conectados a variables
         rf_g = f1.slider("Crec. Ventas (%)", 0.0, 25.0, 8.5) / 100
         mf_e = f2.slider("Margen EBITDA (%)", 3.0, 15.0, 5.2) / 100
         re_f = f3.slider("Capex/Sales (%)", 1.0, 8.0, 2.0) / 100
         tax_f = f4.slider("Tax Rate (%)", 15.0, 35.0, 21.0) / 100
         
         yrs = [2026, 2027, 2028, 2029, 2030]
-        p_revs = [data['acc_summary']['Revenue ($B)'] * (1 + rf_g)**i for i in range(1, 6)]
         
-        # 1. Creamos el DataFrame
-        df_fwd = pd.DataFrame({
-            "Año": yrs, 
-            "Rev ($B)": p_revs, 
-            "EBITDA ($B)": [r * mf_e for r in p_revs]
-        })
+        # 1. Cálculo dinámico de la proyección
+        base_rev = data['acc_summary']['Revenue ($B)']
+        
+        proyecciones = []
+        for i in range(1, 6):
+            año = yrs[i-1]
+            rev = base_rev * (1 + rf_g)**i
+            ebitda = rev * mf_e
+            # Estimación de FCF: EBITDA - Taxes - Capex
+            taxes = ebitda * tax_f
+            capex = rev * re_f
+            fcf = ebitda - taxes - capex
+            
+            proyecciones.append({
+                "Año": año,
+                "Rev ($B)": rev,
+                "EBITDA ($B)": ebitda,
+                "FCF ($B)": fcf
+            })
 
-        # 2. TABLA: Convertimos Año a string para que no tenga decimales ni comas
+        df_fwd = pd.DataFrame(proyecciones)
+
+        # 2. TABLA: Formateada para lectura financiera
         df_display = df_fwd.copy()
         df_display["Año"] = df_display["Año"].astype(str)
         st.table(df_display.style.format({
             "Rev ($B)": "{:,.2f}", 
-            "EBITDA ($B)": "{:,.2f}"
+            "EBITDA ($B)": "{:,.2f}",
+            "FCF ($B)": "{:,.2f}"
         }))
 
-        # 3. GRÁFICO: Forzamos el eje X a ser discreto y sin formato decimal
-        fig_fwd = px.line(df_fwd, x="Año", y="Rev ($B)", markers=True, title="Trayectoria Proyectada de Ingresos")
+        # 3. GRÁFICO: Trayectoria de Free Cash Flow
+        fig_fwd = px.line(
+            df_fwd, 
+            x="Año", 
+            y="FCF ($B)", 
+            markers=True, 
+            title="Proyección de Generación de Caja Libre (FCF)",
+            line_shape="spline", # Hace la línea más suave/estética
+            color_discrete_sequence=["#005BAA"] # Azul Costco
+        )
+        
         fig_fwd.update_layout(
             xaxis=dict(
                 tickmode='linear',
-                dtick=1,        # Salto de 1 en 1
-                tickformat='d'  # 'd' de dígito entero (sin comas ni decimales)
+                dtick=1,        
+                tickformat='d'  
             ),
-            yaxis_tickformat="$,.0f", # Aprovechamos para poner comas y $ en el eje Y
-            template="plotly_dark"
+            yaxis_tickformat="$,.1f", 
+            template="plotly_dark",
+            hovermode="x unified"
         )
+        
+        # Añadir un área sombreada bajo la línea para darle peso visual
+        fig_fwd.update_traces(fill='tozeroy')
+        
         st.plotly_chart(fig_fwd, use_container_width=True)
         
 # -------------------------------------------------------------------------
