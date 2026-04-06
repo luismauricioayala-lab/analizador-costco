@@ -186,7 +186,7 @@ st.markdown("""
 class InstitutionalDataService:
     """Clase maestra para la adquisición y normalización de datos auditados COST."""
     
-@staticmethod
+    @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_verified_payload(ticker):
         """Descarga masiva de datos optimizada para yfinance 1.2.0+."""
