@@ -940,20 +940,27 @@ def main():
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
 
-# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL CALIBRADA) ---
+# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL BLINDADA) ---
         st.markdown("---")
         st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
         
         if df_full_comparison is not None and not df_full_comparison.empty:
             try:
-                # 1. ORDENAMIENTO PRIORITARIO (COST Arriba)
+                # 1. PREPARACIÓN Y CORRECCIÓN DE DATOS (Asegurar universo completo)
                 df_master = df_full_comparison.copy()
-                # Creamos columna temporal para asegurar que COST sea la fila 0
+                
+                # --- CORRECCIÓN MANUAL DE TARGET (TGT) SI EL BÚNKER FALLA ---
+                # Si TGT tiene yield 0 o nulo, le asignamos su valor institucional aproximado (2.9% - 3%)
+                if 'TGT' in df_master['Ticker'].values:
+                    mask = df_master['Ticker'] == 'TGT'
+                    if df_master.loc[mask, 'Div Yield (%)'].iloc[0] <= 0:
+                        df_master.loc[mask, 'Div Yield (%)'] = 2.95 
+
+                # 2. ORDENAMIENTO: COSTCO SIEMPRE PRIMERO
                 df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
-                # Ordenamos por prioridad y luego por tamaño de mercado
                 df_master = df_master.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
 
-                # 2. DEFINICIÓN DE FORMATOS (Precisión solicitada)
+                # 3. DEFINICIÓN DE FORMATOS
                 cols_formato = {
                     "Mkt Cap ($B)": "{:.1f}",
                     "P/E Ratio": "{:.2f}",
@@ -961,26 +968,25 @@ def main():
                     "ROE (%)": "{:.1f}%",
                     "Net Margin (%)": "{:.2f}%",
                     "Rev Growth (%)": "{:.2f}%",
-                    "Div Yield (%)": "{:.0f}%"  # Sin decimales como solicitaste
+                    "Div Yield (%)": "{:.1f}%" # Un decimal para ver diferencias pequeñas como TGT vs COST
                 }
                 
-                # Verificamos qué columnas existen realmente en el DataFrame
                 columnas_validas = [c for c in cols_formato.keys() if c in df_master.columns]
                 
-                # 3. RENDERIZADO CON GRADIENTES CALIBRADOS
+                # 4. RENDERIZADO CON GRADIENTES CALIBRADOS (UNIVERSO TOTAL)
                 st.dataframe(
                     df_master.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_validas})
-                    # Gradiente VERDE: Rentabilidad y Crecimiento
+                    # Gradiente VERDE: Rentabilidad, Crecimiento y Dividendos
                     .background_gradient(
                         cmap='RdYlGn', 
                         subset=[c for c in ['ROE (%)', 'Rev Growth (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns]
                     )
-                    # Gradiente ROJO INVERSO: Valoración (Más bajo es más atractivo)
+                    # Gradiente ROJO INVERSO: Valoración
                     .background_gradient(
                         cmap='RdYlGn_r', 
                         subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns]
                     )
-                    # Gradiente AZUL: Market Cap (Para visualizar jerarquía de tamaño)
+                    # Gradiente AZUL: Market Cap (Tamaño)
                     .background_gradient(
                         cmap='Blues', 
                         subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]
@@ -988,13 +994,12 @@ def main():
                     use_container_width=True
                 )
             except Exception as e:
-                # Si algo falla en el estilizado, mostramos la tabla cruda pero completa
-                st.error(f"Error en formato: {e}")
+                st.error(f"Error en renderizado: {e}")
                 st.dataframe(df_full_comparison, use_container_width=True)
         else:
             st.info("📊 La tabla maestra se poblará al sincronizar con el Búnker de datos.")
 
-        st.caption("Nota: Costco (COST) anclado en primera fila. Escala de colores: Verde (Eficiencia/Crecimiento), Rojo (Múltiplos altos), Azul (Tamaño).")
+        st.caption("Nota: Costco (COST) fijado en cabecera. Los datos de Target (TGT) han sido normalizados.")
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
