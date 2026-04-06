@@ -751,16 +751,38 @@ def main():
         c_p1, c_p2 = st.columns(2)
         
         with c_p1:
-            st.write("**P/E Ratio vs ROE (%)**")
-            fig_scat = px.scatter(
-                df_full_comparison, x="P/E Ratio", y="ROE (%)", 
-                size="Mkt Cap ($B)", color="Nombre", text="Ticker",
-                template="plotly_dark", size_max=40
-            )
-            # Líneas de promedio dinámicas según la selección
-            fig_scat.add_vline(x=df_full_comparison["P/E Ratio"].mean(), line_dash="dot", opacity=0.5)
-            fig_scat.add_hline(y=df_full_comparison["ROE (%)"].mean(), line_dash="dot", opacity=0.5)
-            st.plotly_chart(fig_scat, use_container_width=True)
+# --- BLOQUE DE SEGURIDAD PARA GRÁFICO DE DISPERSIÓN (Línea ~755) ---
+        st.write(f"**Análisis de Valoración Relativa: P/E vs ROE**")
+        
+        # 1. Verificamos que el DataFrame exista
+        if df_full_comparison is not None and not df_full_comparison.empty:
+            
+            # 2. LIMPIEZA CRÍTICA: Eliminamos filas con datos faltantes en ejes o tamaño
+            # Esto evita que Plotly explote (ValueError) si Yahoo no devolvió números
+            cols_grafico = ["P/E Ratio", "ROE (%)", "Mkt Cap ($B)"]
+            df_plot = df_full_comparison.dropna(subset=cols_grafico)
+            
+            # 3. Solo graficamos si después de limpiar aún quedan empresas
+            if not df_plot.empty:
+                try:
+                    fig_scat = px.scatter(
+                        df_plot, # Usamos el DataFrame limpio
+                        x="P/E Ratio", 
+                        y="ROE (%)",
+                        size="Mkt Cap ($B)", 
+                        color="Nombre", 
+                        text="Ticker",
+                        template="plotly_dark", 
+                        size_max=40
+                    )
+                    fig_scat.update_layout(height=500)
+                    st.plotly_chart(fig_scat, use_container_width=True)
+                except Exception as e:
+                    st.info("📊 Los datos actuales no permiten generar la comparativa visual.")
+            else:
+                st.warning("⚠️ Sin datos numéricos suficientes para el gráfico (Modo Búnker limitado).")
+        else:
+            st.info("📊 Esperando datos de competidores para generar comparativa.")
             
         with c_p2:
             st.write("**Eficiencia Operativa: EV/EBITDA**")
