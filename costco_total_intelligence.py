@@ -915,30 +915,60 @@ def main():
             else:
                 st.info("📊 Esperando datos de mercado...")
 
-        # --- SECCIÓN: MATRIZ DE CORRELACIÓN ---
+# --- MATRIZ DE CORRELACIÓN: FILTRADA POR SELECCIÓN (DINÁMICA) ---
         st.markdown("---")
         st.write("**🧩 Matriz de Correlación de Retornos Diarios (1Y)**")
-        with st.expander("Ver Análisis de Correlación"):
-            # Verificamos si perf_df (descargado antes) tiene datos
+        with st.expander("Ver Análisis de Correlación", expanded=False):
+            # 1. Verificamos que existan datos de precios y selección del usuario
             if 'perf_df' in locals() and perf_df is not None and not perf_df.empty:
                 try:
-                    returns_df = perf_df.pct_change().dropna()
-                    # Usamos el mapeo institucional para las columnas
-                    returns_df.columns = [nombres_pro.get(col, col) for col in returns_df.columns]
-                    corr_matrix = returns_df.corr()
+                    # 2. Definimos mapeo de nombres (incluyendo parches de SPY/QQQ)
+                    nombres_pro_corr = nombres_pro.copy()
+                    nombres_pro_corr.update({"^GSPC": "S&P 500 (SPY)", "^IXIC": "Nasdaq 100 (QQQ)"})
                     
-                    fig_corr = px.imshow(
-                        corr_matrix, 
-                        text_auto=".2f", 
-                        color_continuous_scale='RdBu_r',
-                        template="plotly_dark", 
-                        aspect="auto"
-                    )
-                    st.plotly_chart(fig_corr, use_container_width=True)
-                except Exception:
-                    st.info("📈 No se pudo calcular la correlación (datos insuficientes).")
+                    # 3. Calculamos retornos y renombramos columnas del DataFrame original
+                    returns_all = perf_df.pct_change().dropna()
+                    returns_all.columns = [nombres_pro_corr.get(col, col) for col in returns_all.columns]
+                    
+                    # --- FILTRO CRÍTICO: Solo lo seleccionado en 'selected_labels' ---
+                    # 'selected_labels' viene del st.multiselect superior
+                    columnas_filtradas = [c for c in returns_all.columns if c in selected_labels]
+                    
+                    if len(columnas_filtradas) > 1:
+                        # Creamos la matriz solo con los activos elegidos
+                        corr_matrix = returns_all[columnas_filtradas].corr()
+
+                        # 4. REORDENAMIENTO: Costco (COST) siempre en la esquina superior izquierda
+                        costco_label = nombres_pro.get("COST", "Costco (COST)")
+                        if costco_label in corr_matrix.columns:
+                            reorder = [costco_label] + [c for c in corr_matrix.columns if c != costco_label]
+                            corr_matrix = corr_matrix.reindex(index=reorder, columns=reorder)
+                        
+                        # 5. RENDERIZADO VISUAL
+                        fig_corr = px.imshow(
+                            corr_matrix, 
+                            text_auto=".2f", 
+                            color_continuous_scale='RdBu_r',
+                            zmin=-1, zmax=1,
+                            template="plotly_dark", 
+                            aspect="auto"
+                        )
+                        
+                        # Ajuste de altura dinámico para que no se vea gigante con pocos activos
+                        din_height = max(400, 150 + (len(columnas_filtradas) * 35))
+                        
+                        fig_corr.update_layout(
+                            height=din_height, 
+                            margin=dict(l=40, r=40, t=40, b=40)
+                        )
+                        st.plotly_chart(fig_corr, use_container_width=True)
+                    else:
+                        st.info("💡 Selecciona al menos dos activos en el menú superior (ej. Costco y Amazon) para generar la matriz.")
+                        
+                except Exception as e:
+                    st.warning(f"Ajustando visualización de correlación... ({e})")
             else:
-                st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
+                st.info("📉 La matriz requiere que el historial de mercado esté cargado.")
 
 # --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL BLINDADA) ---
         st.markdown("---")
