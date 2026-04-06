@@ -752,7 +752,7 @@ def main():
         
         with c_p1:
 # --- BLOQUE DE SEGURIDAD PARA GRÁFICO DE DISPERSIÓN (Línea ~755) ---
-        st.write(f"**Análisis de Valoración Relativa: P/E vs ROE**")
+       st.write(f"**Análisis de Valoración Relativa: P/E vs ROE**")
         
         # 1. Verificamos que el DataFrame exista
         if df_full_comparison is not None and not df_full_comparison.empty:
