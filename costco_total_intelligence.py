@@ -940,33 +940,32 @@ def main():
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
 
-# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL BLINDADA) ---
+# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN AUTÓNOMA TOTAL) ---
         st.markdown("---")
         st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
         
+        # Usamos df_full_comparison para garantizar que NADA lo filtre antes de llegar aquí
         if df_full_comparison is not None and not df_full_comparison.empty:
             try:
-                # 1. LIMPIEZA Y NORMALIZACIÓN DE DATOS
+                # 1. TRABAJAMOS SOBRE UNA COPIA LIMPIA DEL BÚNKER
                 df_master = df_full_comparison.copy()
                 
-                # --- CORRECCIÓN DE DIVIDEND YIELD (Target y otros) ---
-                # Si el yield es > 20%, asumimos error de escala y dividimos por 100
+                # --- LIMPIEZA DE DATOS (Target Yield Fix) ---
                 if 'Div Yield (%)' in df_master.columns:
+                    # Si el yield es > 20, es un error de decimales del recolector
                     df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(
                         lambda x: x/100 if x > 20 else x
                     )
-                    # Corrección específica manual para Target si persiste el error
+                    # Forzado manual para Target (TGT) por seguridad
                     df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
 
-                # 2. ASEGURAR UNIVERSO COMPLETO (Si faltan empresas del CSV)
-                # Si por alguna razón el filtrado previo quitó empresas, aquí las recuperamos
-                # (Asegúrate de que df_full_comparison no haya sido filtrado antes de este bloque)
-
-                # 3. ORDENAMIENTO PRIORITARIO: COSTCO SIEMPRE ARRIBA
+                # 2. ORDENAMIENTO: COSTCO (COST) SIEMPRE EN LA FILA 1
+                # Creamos una columna invisible de prioridad
                 df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
+                # Ordenamos por prioridad y luego por tamaño de mercado (Market Cap)
                 df_master = df_master.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
 
-                # 4. DEFINICIÓN DE FORMATOS
+                # 3. DEFINICIÓN DE FORMATOS (Bloomberg Standard)
                 cols_formato = {
                     "Mkt Cap ($B)": "{:.1f}",
                     "P/E Ratio": "{:.2f}",
@@ -974,25 +973,26 @@ def main():
                     "ROE (%)": "{:.1f}%",
                     "Net Margin (%)": "{:.2f}%",
                     "Rev Growth (%)": "{:.2f}%",
-                    "Div Yield (%)": "{:.2f}%" 
+                    "Div Yield (%)": "{:.2f}%"  # Dos decimales para captar el 2.95% de Target
                 }
                 
+                # Identificamos qué columnas están presentes en tu CSV
                 columnas_presentes = [c for c in cols_formato.keys() if c in df_master.columns]
                 
-                # 5. RENDERIZADO CON MAPA DE CALOR INSTITUCIONAL
+                # 4. RENDERIZADO CON MAPA DE CALOR INSTITUCIONAL
                 st.dataframe(
                     df_master.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_presentes})
-                    # Gradiente VERDE: Rentabilidad y Dividendos
+                    # Gradiente VERDE (Más es mejor): Rentabilidad, Margen y Dividendos
                     .background_gradient(
                         cmap='RdYlGn', 
                         subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns]
                     )
-                    # Gradiente ROJO INVERSO: Valoración (P/E y EV/EBITDA)
+                    # Gradiente ROJO INVERSO (Menos es más barato): Valoración
                     .background_gradient(
                         cmap='RdYlGn_r', 
                         subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns]
                     )
-                    # Gradiente AZUL: Market Cap
+                    # Gradiente AZUL (Jerarquía de tamaño): Market Cap
                     .background_gradient(
                         cmap='Blues', 
                         subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]
@@ -1000,12 +1000,13 @@ def main():
                     use_container_width=True
                 )
             except Exception as e:
-                st.error(f"Error en matriz: {e}")
+                # En caso de error, mostramos la tabla básica para no perder la información
+                st.error(f"Error visual en matriz: {e}")
                 st.dataframe(df_full_comparison, use_container_width=True)
         else:
             st.info("📊 La tabla maestra se poblará al sincronizar con el Búnker de datos.")
 
-        st.caption("Nota: Costco (COST) fijado en cabecera. Datos de Yield normalizados para Target (TGT) y pares.")
+        st.caption("Nota: Esta matriz muestra el universo completo del Búnker independientemente de los filtros del gráfico.")
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
