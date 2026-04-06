@@ -885,60 +885,76 @@ def main():
                 st.info("📊 Esperando datos de competidores...")
 
         with c_p2:
-            st.write("**Eficiencia Operativa: Margen Neto**")
+            st.write("**Valoración y Eficiencia Operativa**")
             try:
-                # 1. Carga de datos
-                df_ef = pd.read_csv("peers_stats.csv") if os.path.exists("peers_stats.csv") else df_full_comparison
-                
-                # 2. LIMPIEZA FORZADA (Basado en tu imagen de Excel)
-                # Buscamos la columna 'Net Margin (%)'
-                target_col = "Net Margin (%)"
-                
-                if target_col in df_ef.columns:
-                    # Convertimos a número quitando cualquier cosa que no sea dígito o punto
-                    df_ef[target_col] = pd.to_numeric(
-                        df_ef[target_col].astype(str).str.replace(r'[^0-9.]', '', regex=True), 
-                        errors='coerce'
-                    )
+                # 1. Carga de datos del búnker (Prioridad al CSV local)
+                if os.path.exists("peers_stats.csv"):
+                    df_ef = pd.read_csv("peers_stats.csv")
+                else:
+                    df_ef = df_full_comparison.copy() if df_full_comparison is not None else pd.DataFrame()
+
+                if not df_ef.empty:
+                    # --- FUNCIÓN DE LIMPIEZA AGRESIVA ---
+                    # Esto asegura que "2.98%" se convierta en 2.98 numérico
+                    def clean_val(col_name):
+                        return pd.to_numeric(
+                            df_ef[col_name].astype(str).str.replace(r'[^0-9.]', '', regex=True), 
+                            errors='coerce'
+                        )
+
+                    # 2. IDENTIFICACIÓN DE MÉTRICAS (Radar de nombres)
+                    col_ev = [c for c in df_ef.columns if "EV" in str(c).upper() and "EBITDA" in str(c).upper()]
+                    col_margin = [c for c in df_ef.columns if "MARGIN" in str(c).upper() or "MARGEN" in str(c).upper()]
                     
-                    # 3. Filtrado de activos (Quitamos Benchmarks)
+                    # 3. SELECCIÓN DE JERARQUÍA: EV/EBITDA > Net Margin (%)
+                    if col_ev and clean_val(col_ev[0]).sum() > 0:
+                        metrica, label, es_pct = col_ev[0], "Múltiplo: EV/EBITDA", False
+                    elif col_margin and clean_val(col_margin[0]).sum() > 0:
+                        metrica, label, es_pct = col_margin[0], "Margen Neto (%)", True
+                    else:
+                        # Fallback final si el CSV está muy vacío
+                        metrica, label, es_pct = "P/E Ratio", "P/E Ratio (Fallback)", False
+
+                    # 4. PREPARACIÓN DE DATOS PARA EL GRÁFICO
                     df_plt = df_ef[~df_ef['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
-                    df_plt = df_plt.dropna(subset=[target_col])
-                    df_plt = df_plt[df_plt[target_col] > 0].sort_values(target_col)
+                    df_plt[metrica] = clean_val(metrica)
+                    df_plt = df_plt.dropna(subset=[metrica]).sort_values(metrica)
 
                     if not df_plt.empty:
-                        # Color: Costco Azul, el resto Gris
+                        # Colores: Costco Azul (#005BAA), el resto Gris (#444444)
                         colors = ["#005BAA" if str(t).upper() == "COST" else "#444444" for t in df_plt['Ticker']]
                         
-                        fig_m = px.bar(
-                            df_plt, x="Ticker", y=target_col,
-                            text_auto='.2f',
+                        fig_v = px.bar(
+                            df_plt, x="Ticker", y=metrica,
                             template="plotly_dark",
-                            title="Métrica: Margen Neto (%)"
+                            title=f"Análisis: {label}"
                         )
                         
-                        fig_m.update_traces(
+                        # Formato de etiquetas sobre las barras (Solución al error de textsuffix)
+                        # %{y:.2f}% para porcentajes, %{y:.1f} para múltiplos
+                        formato_etiqueta = "%{y:.2f}%" if es_pct else "%{y:.1f}"
+                        
+                        fig_v.update_traces(
                             marker_color=colors, 
                             textposition='outside',
-                            textsuffix='%'
+                            texttemplate=formato_etiqueta
                         )
                         
-                        fig_m.update_layout(
+                        fig_v.update_layout(
                             height=400, 
                             showlegend=False, 
                             margin=dict(l=10, r=10, t=40, b=10),
-                            yaxis_title="Margen Neto (%)"
+                            yaxis_title=label
                         )
                         
-                        st.plotly_chart(fig_m, use_container_width=True)
+                        st.plotly_chart(fig_v, use_container_width=True)
                     else:
-                        st.warning("⚠️ Los valores de margen parecen ser cero o inválidos.")
+                        st.info("📊 Esperando datos numéricos para el gráfico...")
                 else:
-                    # Si por alguna razón el nombre cambió ligeramente
-                    st.info(f"📊 Buscando columna '{target_col}'... No detectada. Columnas actuales: {list(df_ef.columns)}")
+                    st.warning("⚠️ No se encontraron datos en peers_stats.csv")
 
             except Exception as e:
-                st.error(f"Error técnico: {e}")
+                st.error(f"Error en bloque de valoración: {e}")
                 
 # --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
         st.markdown("---")
@@ -988,6 +1004,7 @@ def main():
                     st.info(f"📈 No se pudo calcular la correlación: {e}")
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
+                
 # --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL BLINDADA) ---
         st.markdown("---")
         st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
