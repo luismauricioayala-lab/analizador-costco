@@ -885,55 +885,45 @@ def main():
                 st.info("📊 Esperando datos de competidores...")
 
         with c_p2:
-            st.write("**Valoración y Generación de Caja**")
+            st.write("**Valoración Profesional (Enterprise Value)**")
             try:
-                # 1. Carga de datos del búnker
-                df_bunker = pd.read_csv("peers_stats.csv") if os.path.exists("peers_stats.csv") else df_full_comparison
+                # 1. Intentamos leer del CSV para evitar fallos de Yahoo
+                df_ev = pd.read_csv("peers_stats.csv") if os.path.exists("peers_stats.csv") else df_full_comparison
                 
-                # 2. LÓGICA DE PRIORIDAD ÁCIDA
-                # Buscamos columnas de EV/EBITDA o EV/FCF
-                col_ev_ebitda = [c for c in df_bunker.columns if "EV" in c and "EBITDA" in c]
-                col_ev_fcf = [c for c in df_bunker.columns if "EV" in c and "FCF" in c]
+                # 2. Jerarquía de Múltiplos de Valoración
+                col_ebitda = [c for c in df_ev.columns if "EBITDA" in c]
+                col_fcf = [c for c in df_ev.columns if "FCF" in c]
                 
-                if col_ev_ebitda and df_bunker[col_ev_ebitda[0]].astype(float).sum() > 0:
-                    metrica = col_ev_ebitda[0]
-                    titulo_display = "Múltiplo: EV/EBITDA"
-                    es_pct = False
-                elif col_ev_fcf and df_bunker[col_ev_fcf[0]].astype(float).sum() > 0:
-                    metrica = col_ev_fcf[0]
-                    titulo_display = "Múltiplo: EV/FCF (Flujo de Caja Libre)"
-                    es_pct = False
+                if col_ebitda and df_ev[col_ebitda[0]].astype(float).sum() > 0:
+                    m_activa, m_label = col_ebitda[0], "EV/EBITDA"
+                elif col_fcf and df_ev[col_fcf[0]].astype(float).sum() > 0:
+                    m_activa, m_label = col_fcf[0], "EV/FCF (Cash Flow)"
                 else:
-                    metrica = "Net Margin (%)"
-                    titulo_display = "Eficiencia: Margen Neto (%)"
-                    es_pct = True
+                    m_activa, m_label = "P/E Ratio", "P/E Ratio (Fallback)"
 
-                # 3. Preparación de datos para el gráfico
-                df_plt = df_bunker[~df_bunker['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
-                df_plt[metrica] = pd.to_numeric(df_plt[metrica], errors='coerce')
-                df_plt = df_plt[df_plt[metrica] > 0].sort_values(metrica)
+                # 3. Limpieza de Benchmarks (Solo empresas)
+                df_plt = df_ev[~df_ev['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
+                df_plt[m_activa] = pd.to_numeric(df_plt[m_activa], errors='coerce')
+                df_plt = df_plt[df_plt[m_activa] > 0].sort_values(m_activa)
 
                 if not df_plt.empty:
-                    # 4. Renderizado Plotly con Costco resaltado
+                    # Costco en Azul, resto en Gris
                     fig_v = px.bar(
-                        df_plt, x="Ticker", y=metrica,
-                        text_auto='.1f' if not es_pct else '.2f',
-                        template="plotly_dark",
-                        title=f"Métrica Actual: {titulo_display}"
+                        df_plt, x="Ticker", y=m_activa,
+                        text_auto='.1f', template="plotly_dark",
+                        title=f"Métrica: {m_label}"
                     )
                     
-                    # Aplicar colores (Costco Azul, resto Gris)
                     colors = ["#005BAA" if t == "COST" else "#444444" for t in df_plt['Ticker']]
                     fig_v.update_traces(marker_color=colors, textposition='outside')
-                    if es_pct: fig_v.update_traces(textsuffix='%')
-                    
                     fig_v.update_layout(height=400, showlegend=False, margin=dict(l=10, r=10, t=40, b=10))
+                    
                     st.plotly_chart(fig_v, use_container_width=True)
                 else:
-                    st.info("📊 Sincronizando métricas de flujo de caja...")
-
+                    st.info("📊 Esperando datos de valoración del búnker...")
+            
             except Exception as e:
-                st.info("📈 Cargando búnker de valoración...")
+                st.warning("📈 Sincronizando métricas de Enterprise Value...")
 
 # --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
         st.markdown("---")
