@@ -895,117 +895,80 @@ def main():
             else:
                 st.info("📊 Esperando datos de mercado...")
 
-# --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
+        # --- SECCIÓN: MATRIZ DE CORRELACIÓN ---
         st.markdown("---")
         st.write("**🧩 Matriz de Correlación de Retornos Diarios (1Y)**")
         with st.expander("Ver Análisis de Correlación"):
-            # Verificamos si perf_df tiene datos
+            # Verificamos si perf_df (descargado antes) tiene datos
             if 'perf_df' in locals() and perf_df is not None and not perf_df.empty:
                 try:
-                    # 1. Calculamos retornos y renombramos índices de mercado a símbolos de ETF
-                    # Aseguramos que el mapeo use SPY y QQQ para los nombres
-                    nombres_pro_corr = nombres_pro.copy()
-                    nombres_pro_corr.update({"^GSPC": "S&P 500 (SPY)", "^IXIC": "Nasdaq 100 (QQQ)"})
-                    
                     returns_df = perf_df.pct_change().dropna()
-                    
-                    # 2. Renombrar columnas ANTES de calcular la correlación
-                    returns_df.columns = [nombres_pro_corr.get(col, col) for col in returns_df.columns]
+                    # Usamos el mapeo institucional para las columnas
+                    returns_df.columns = [nombres_pro.get(col, col) for col in returns_df.columns]
                     corr_matrix = returns_df.corr()
-
-                    # 3. ORDENAMIENTO PERSONALIZADO: Costco (COST) siempre primero
-                    # Buscamos el nombre exacto que tiene Costco en el mapeo
-                    costco_label = nombres_pro.get("COST", "Costco (COST)")
                     
-                    if costco_label in corr_matrix.columns:
-                        # Reordenamos las columnas y filas para que Costco sea el índice 0
-                        cols = [costco_label] + [c for c in corr_matrix.columns if c != costco_label]
-                        corr_matrix = corr_matrix.reindex(index=cols, columns=cols)
-                    
-                    # 4. RENDERIZADO DEL HEATMAP
                     fig_corr = px.imshow(
                         corr_matrix, 
                         text_auto=".2f", 
-                        color_continuous_scale='RdBu_r', # Rojo (Correlación +) vs Azul (Correlación -)
-                        zmin=-1, zmax=1, # Escala fija de correlación
+                        color_continuous_scale='RdBu_r',
                         template="plotly_dark", 
                         aspect="auto"
                     )
-                    
-                    fig_corr.update_layout(
-                        height=600,
-                        margin=dict(l=20, r=20, t=20, b=20)
-                    )
-                    
                     st.plotly_chart(fig_corr, use_container_width=True)
-                    
-                except Exception as e:
-                    st.info(f"📈 No se pudo calcular la correlación: {e}")
+                except Exception:
+                    st.info("📈 No se pudo calcular la correlación (datos insuficientes).")
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
 
-# --- TABLA MAESTRA: REESTRUCTURACIÓN FINAL (SEGURIDAD TOTAL) ---
+# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL REESTRUCTURADA) ---
         st.markdown("---")
-        st.write("### 🏛️ Matriz Competitiva y de Benchmarks (Sync 2026)")
-
+        st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
+        
+        # 1. CARGA DIRECTA DEL BÚNKER (Para asegurar los 13+ tickers)
         try:
-            # 1. CARGA INDEPENDIENTE (Aislada en df_final para no tocar df_full_comparison)
             if os.path.exists("peers_stats.csv"):
-                df_final = pd.read_csv("peers_stats.csv")
+                # Leemos directo del archivo para saltarnos filtros de multiselect
+                df_master = pd.read_csv("peers_stats.csv")
             else:
-                # Fallback solo si no hay CSV
-                df_final = df_full_comparison.copy() if 'df_full_comparison' in locals() else None
+                df_master = df_full_comparison.copy()
 
-            if df_final is not None and not df_final.empty:
-                # 2. LIMPIEZA DE DATOS (Target Fix y Escalas)
-                if 'Div Yield (%)' in df_final.columns:
-                    # Ajuste de escala (Evitar el 379%)
-                    df_final['Div Yield (%)'] = df_final['Div Yield (%)'].apply(lambda x: x/100 if x > 20 else x)
-                    # Forzado manual para Target (TGT)
-                    df_final.loc[df_final['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
+            if df_master is not None and not df_master.empty:
+                # 2. LIMPIEZA DE DATOS (Target Fix)
+                if 'Div Yield (%)' in df_master.columns:
+                    # Si el yield es > 20%, corregimos escala (Target 379% -> 3.79%)
+                    df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(lambda x: x/100 if x > 20 else x)
+                    # Forzado manual de seguridad para Target
+                    df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
 
-                # 3. ORDENAMIENTO POR CERCANÍA ESTRATÉGICA
-                # Definimos el orden exacto solicitado
-                def asignar_rango(t):
-                    if t == 'COST': return 0
-                    if t == 'WMT':  return 1
-                    if t == 'BJ':   return 2
-                    if t == 'TGT':  return 3
-                    if t in ['HD', 'LOW', 'SFM', 'KR', 'DG', 'DLTR']: return 4
-                    return 5 # AMZN, SPY, QQQ
+                # 3. ORDENAMIENTO: COSTCO AL TRONO
+                df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
+                df_master = df_master.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
 
-                df_final['Priority'] = df_final['Ticker'].apply(asignar_rango)
-                # Ordenamos por prioridad y luego por Market Cap para el resto
-                df_final = df_final.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
-
-                # 4. MAPEO DE FORMATOS (Bloomberg Standard)
-                fmt_bloom = {
-                    "Mkt Cap ($B)": "{:.1f}", 
-                    "P/E Ratio": "{:.2f}", 
+                # 4. DEFINICIÓN DE FORMATOS
+                cols_formato = {
+                    "Mkt Cap ($B)": "{:.1f}",
+                    "P/E Ratio": "{:.2f}",
                     "EV/EBITDA": "{:.2f}",
-                    "ROE (%)": "{:.1f}%", 
-                    "Net Margin (%)": "{:.2f}%", 
-                    "Rev Growth (%)": "{:.2f}%", 
-                    "Div Yield (%)": "{:.2f}%"
+                    "ROE (%)": "{:.1f}%",
+                    "Net Margin (%)": "{:.2f}%",
+                    "Rev Growth (%)": "{:.2f}%",
+                    "Div Yield (%)": "{:.2f}%" 
                 }
-                
-                # Identificamos columnas presentes en el CSV actual
-                cols_v = [c for c in fmt_bloom.keys() if c in df_final.columns]
+                columnas_presentes = [c for c in cols_formato.keys() if c in df_master.columns]
 
-                # 5. RENDERIZADO CON ESTILO AISLADO
+                # 5. RENDERIZADO CON MAPA DE CALOR
                 st.dataframe(
-                    df_final.set_index("Ticker").style.format({c: fmt_bloom[c] for c in cols_v})
-                    .background_gradient(cmap='RdYlGn', subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_final.columns])
-                    .background_gradient(cmap='RdYlGn_r', subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_final.columns])
-                    .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_final.columns]),
+                    df_master.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_presentes})
+                    .background_gradient(cmap='RdYlGn', subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns])
+                    .background_gradient(cmap='RdYlGn_r', subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns])
+                    .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]),
                     use_container_width=True
                 )
             else:
-                st.info("📊 Esperando datos del búnker para la matriz...")
+                st.info("📊 Sincronizando búnker de datos...")
 
         except Exception as e:
-            # Error silencioso para no arruinar la experiencia del usuario
-            st.warning(f"Actualizando matriz competitiva... ({e})")
+            st.error(f"Error en matriz: {e}")
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
