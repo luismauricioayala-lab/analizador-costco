@@ -695,10 +695,19 @@ def main():
             # Descarga de métricas fundamentales
             df_full_comparison = InstitutionalDataService.fetch_peer_group_data(full_ticker_list)
             
-            # Limpieza de nombres para que en las gráficas se vea el nombre amigable, no solo el ticker
-            reverse_map = {v: k.split(" (")[0] for k, v in market_map.items()}
-            reverse_map["COST"] = "Costco"
-            df_full_comparison['Nombre'] = df_full_comparison['Ticker'].map(reverse_map)
+    # --- BLOQUE DE SEGURIDAD PARA MODO BÚNKER ---
+            # Solo intentamos limpiar nombres si el DataFrame tiene datos reales
+            if df_full_comparison is not None and not df_full_comparison.empty and 'Ticker' in df_full_comparison.columns:
+                reverse_map = {v: k.split(" (")[0] for k, v in market_map.items()}
+                reverse_map["COST"] = "Costco"
+                df_full_comparison['Nombre'] = df_full_comparison['Ticker'].map(reverse_map)
+            else:
+                # Si estamos en modo Búnker y no hay peers, creamos un aviso visual amigable
+                st.warning("⚠️ Análisis comparativo limitado: Modo Búnker activo (Sin conexión a Peers)")
+                # Creamos un DataFrame mínimo para que el resto del código no falle
+                if df_full_comparison is None or df_full_comparison.empty:
+                    df_full_comparison = pd.DataFrame(columns=['Ticker', 'Nombre', 'Mkt Cap ($B)', 'P/E Ratio'])
+            # --------------------------------------------
 
         # --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO DINÁMICO ---
         st.write(f"**Rendimiento Normalizado 1Y: COST vs Selección de Mercado**")
