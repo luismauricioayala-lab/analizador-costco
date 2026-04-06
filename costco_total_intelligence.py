@@ -27,7 +27,7 @@ pio.templates.default = "bloomberg_fix"
 # =============================================================================
 
 st.set_page_config(
-    page_title="COST Institutional Master Terminal v43.0",
+    page_title="COST Institutional Master Terminal Build: v2026.04.06 | Stable Release",
     page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="expanded"
