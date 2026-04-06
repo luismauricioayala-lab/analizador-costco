@@ -211,7 +211,7 @@ class InstitutionalDataService:
             st.warning(f"⚠️ Yahoo restringido para {ticker}. Accediendo al Búnker local...")
             
 # FALLBACK: Carga desde el búnker de archivos que descargaste
-if os.path.exists(archivo_local):
+        if os.path.exists(archivo_local):
             st.info(f"🏛️ Modo Offline Activado: Usando {archivo_local}")
             
             df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
@@ -249,6 +249,7 @@ if os.path.exists(archivo_local):
                 },
                 "analysts": {"key": "BUY", "score": 2.0, "target": 1060.0, "count": 37}
             }
+    
         # Procesamiento de Cuadro de 3 Años (Mantenemos tu lógica exacta)
         is_3y = is_stmt.iloc[:, :3]
         hist_years = is_3y.columns.year.astype(str).tolist()
