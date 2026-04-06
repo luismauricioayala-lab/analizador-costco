@@ -200,7 +200,7 @@ class InstitutionalDataService:
                 st.error("Error Crítico: No se pudieron recuperar estados financieros.")
                 return None
             
-            # --- Aquí es donde debe ir el Cálculo de FCF ---
+            # --- LÍNEA 273 (CORREGIDA): Cálculo de FCF ---
             fcf_raw = (cf.loc['Operating Cash Flow'] + cf.loc['Capital Expenditure'])
             fcf_now = fcf_raw.iloc[0] / 1e9
             
@@ -212,7 +212,7 @@ class InstitutionalDataService:
             ni_vals = (is_3y.loc['Net Income'] / 1e9).tolist()
             eps_vals = info.get('trailingEps', 16.5)
 
-            # Resumen LTM
+            # Resumen LTM (Last Twelve Months)
             acc_summary = {
                 "Revenue ($B)": info.get('totalRevenue', 0) / 1e9,
                 "EBITDA ($B)": info.get('ebitda', 0) / 1e9,
