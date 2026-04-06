@@ -884,36 +884,66 @@ def main():
                 st.info("📊 Esperando datos de competidores...")
 
         with c_p2:
-            # --- BLOQUE DE SEGURIDAD PARA GRÁFICO EV/EBITDA ---
+# --- BLOQUE DE SEGURIDAD PARA GRÁFICO EV/EBITDA (REESTRUCTURADO) ---
             st.write("**Eficiencia Operativa: EV/EBITDA**")
             
-            if df_full_comparison is not None and not df_full_comparison.empty:
-                if "EV/EBITDA" in df_full_comparison.columns:
-                    # Filtramos índices y valores nulos/negativos para el gráfico
-                    df_plot_ev = df_full_comparison[~df_full_comparison['Ticker'].isin(['SPY', 'QQQ'])]
-                    df_plot_ev = df_plot_ev.dropna(subset=["EV/EBITDA"])
-                    df_plot_ev = df_plot_ev[df_plot_ev["EV/EBITDA"] > 0].sort_values("EV/EBITDA")
-                    
-                    if not df_plot_ev.empty:
-                        try:
+            # 1. Intentamos recuperar los datos directamente del búnker para asegurar la columna
+            try:
+                if os.path.exists("peers_stats.csv"):
+                    df_ev_source = pd.read_csv("peers_stats.csv")
+                else:
+                    df_ev_source = df_full_comparison.copy() if df_full_comparison is not None else None
+
+                if df_ev_source is not None and not df_ev_source.empty:
+                    # 2. LIMPIEZA: Buscamos la columna (por si tiene espacios o mayúsculas distintas)
+                    # Creamos una lista de posibles nombres por si acaso
+                    posibles_cols = [c for c in df_ev_source.columns if "EV" in c and "EBITDA" in c]
+                    col_target = posibles_cols[0] if posibles_cols else "EV/EBITDA"
+
+                    if col_target in df_ev_source.columns:
+                        # Filtramos Benchmarks y valores basura (0 o negativos no sirven para múltiplos)
+                        df_plot_ev = df_ev_source[~df_ev_source['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
+                        
+                        # Convertimos a numérico por seguridad y quitamos NAs
+                        df_plot_ev[col_target] = pd.to_numeric(df_plot_ev[col_target], errors='coerce')
+                        df_plot_ev = df_plot_ev.dropna(subset=[col_target])
+                        df_plot_ev = df_plot_ev[df_plot_ev[col_target] > 0].sort_values(col_target, ascending=True)
+
+                        if not df_plot_ev.empty:
+                            # 3. RENDERIZADO PLOTLY
                             fig_ev = px.bar(
                                 df_plot_ev, 
                                 x="Ticker", 
-                                y="EV/EBITDA", 
-                                color="Nombre", 
+                                y=col_target, 
+                                color="Ticker",
+                                # Colores institucionales: Costco en Azul, el resto en grisáceo/escala
+                                color_discrete_map={"COST": "#005BAA"},
                                 text_auto='.1f', 
-                                template="plotly_dark"
+                                template="plotly_dark",
+                                title="Múltiplo EV/EBITDA (Menor = Más 'Barato' en relación a generación de caja)"
                             )
-                            fig_ev.update_layout(height=450, showlegend=False)
+                            
+                            fig_ev.update_layout(
+                                height=450, 
+                                showlegend=False,
+                                xaxis_title="Compañía",
+                                yaxis_title="Múltiplo EV/EBITDA",
+                                margin=dict(l=20, r=20, t=40, b=20)
+                            )
+                            
+                            # Resaltar la barra de Costco si existe
+                            fig_ev.update_traces(textposition='outside')
+                            
                             st.plotly_chart(fig_ev, use_container_width=True)
-                        except Exception:
-                            st.info("📊 Error al generar gráfico EV/EBITDA.")
+                        else:
+                            st.warning("⚠️ El búnker no contiene valores de EV/EBITDA positivos.")
                     else:
-                        st.warning("⚠️ Sin datos de EV/EBITDA válidos en el búnker.")
+                        st.info("📊 La columna EV/EBITDA no existe en peers_stats.csv. Verifique el recolector.")
                 else:
-                    st.info("📊 Datos de eficiencia no disponibles (Verifique peers_stats.csv).")
-            else:
-                st.info("📊 Esperando datos de mercado...")
+                    st.info("📊 Esperando sincronización de datos de eficiencia...")
+            
+            except Exception as e:
+                st.error(f"Error técnico en gráfico EV/EBITDA: {e}")
 
 # --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
         st.markdown("---")
