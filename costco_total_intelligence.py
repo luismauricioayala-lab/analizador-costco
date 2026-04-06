@@ -28,10 +28,15 @@ pio.templates.default = "bloomberg_fix"
 # =============================================================================
 
 st.set_page_config(
-    page_title="COST Institutional Master Terminal Build: v2026.04.06 | Stable Release",
+    page_title="COST Institutional Terminal",
     page_icon="🏛️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': None,
+        'Report a bug': None,
+        'About': "Terminal Institucional Costco v2026.04"
+    }
 )
 
 # Inyección de CSS de Grado Bancario: Soporte Total Temas Light/Dark
@@ -739,20 +744,30 @@ def main():
             "SPY": "S&P 500", "QQQ": "Nasdaq 100"
         }
 
-        # Intentamos crear el mapeo dinámico desde los datos de mercado
-        if df_full_comparison is not None and not df_full_comparison.empty and 'Ticker' in df_full_comparison.columns:
-            try:
-                reverse_map = {v: k.split(" (")[0] for k, v in market_map.items()}
-                reverse_map["COST"] = "Costco"
-                df_full_comparison['Nombre'] = df_full_comparison['Ticker'].map(reverse_map)
-            except:
-                reverse_map = bunker_names
+        # --- NORMALIZACIÓN DE DATOS COMPARATIVOS ---
+        if df_full_comparison is not None and not df_full_comparison.empty:
+            # 1. Limpieza de Duplicados (Evita las barras dobles de COST)
+            df_full_comparison = df_full_comparison.drop_duplicates(subset=['Ticker'])
+            
+            # 2. Mapeo de Nombres (Prioriza nombres reales, usa Ticker como respaldo)
+            # Intentamos usar el market_map o el bunker_names, si no, dejamos el Ticker
+            all_names = {**bunker_names, **{v: k.split(" (")[0] for k, v in market_map.items()}}
+            df_full_comparison['Nombre'] = df_full_comparison['Ticker'].map(all_names).fillna(df_full_comparison['Ticker'])
+            
+            # 3. Asegurar que COST esté presente para el análisis de Valoración
+            if "COST" not in df_full_comparison['Ticker'].values:
+                cost_row = pd.DataFrame([{
+                    "Ticker": "COST", "Nombre": "Costco Wholesale",
+                    "Mkt Cap ($B)": payload.get('mkt_cap_b', 450),
+                    "P/E Ratio": payload['info'].get('trailingPE', 53.0),
+                    "ROE (%)": payload['acc_summary'].get('ROE (%)', 30.0),
+                    "EV/EBITDA": 33.0
+                }])
+                df_full_comparison = pd.concat([df_full_comparison, cost_row], ignore_index=True)
         else:
-            # Si estamos en modo Búnker, activamos el mapeo de emergencia
-            st.warning("⚠️ Análisis comparativo limitado: Modo Búnker activo (Sin conexión a Peers)")
-            reverse_map = bunker_names
-            if df_full_comparison is None or df_full_comparison.empty:
-                df_full_comparison = pd.DataFrame(columns=['Ticker', 'Nombre', 'Mkt Cap ($B)', 'P/E Ratio'])
+            # Fallback total si no hay NADA de datos
+            st.warning("⚠️ Terminal en modo de emergencia: Sin datos comparativos disponibles.")
+            df_full_comparison = pd.DataFrame(columns=['Ticker', 'Nombre', 'Mkt Cap ($B)', 'P/E Ratio', 'ROE (%)', 'EV/EBITDA'])
         # --------------------------------------------
 
         # --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO DINÁMICO ---
