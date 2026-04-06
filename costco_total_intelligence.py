@@ -10,6 +10,7 @@ import io
 import datetime
 from plotly.subplots import make_subplots
 import plotly.io as pio
+from curl_cffi import requests # <--- INTEGRACIÓN FASE 2: SUPLANTACIÓN DE NAVEGADOR
 
 pd.options.display.float_format = '{:,.2f}'.format
 pio.templates["bloomberg_fix"] = pio.templates["plotly_dark"]
@@ -188,9 +189,12 @@ class InstitutionalDataService:
     @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_verified_payload(ticker):
-        """Descarga masiva de datos para el ticker principal (COST)."""
+        """Descarga masiva de datos con suplantación de Chrome para evitar Rate Limit."""
         try:
-            asset = yf.Ticker(ticker)
+            # INTEGRACIÓN FASE 2: SESIÓN STEALTH
+            session = requests.Session(impersonate="chrome")
+            asset = yf.Ticker(ticker, session=session) # Inyectamos sesión en yfinance
+            
             info = asset.info
             cf = asset.cashflow
             is_stmt = asset.financials
@@ -243,17 +247,19 @@ class InstitutionalDataService:
                 }
             }
         except Exception as e:
-            st.error(f"Fallo en Servicio de Datos: {e}")
+            st.error(f"Fallo en Servicio de Datos: {e}. Rate limited. Try after a while.")
             return None
 
     @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_peer_group_data(ticker_list):
-        """Descarga métricas clave para una lista de competidores en tiempo real."""
+        """Descarga métricas con suplantación de Chrome para lista de competidores."""
         peer_results = []
+        # INTEGRACIÓN FASE 2: SESIÓN STEALTH PARA PEERS
+        session = requests.Session(impersonate="chrome")
         for t in ticker_list:
             try:
-                asset = yf.Ticker(t)
+                asset = yf.Ticker(t, session=session)
                 info = asset.info
                 peer_results.append({
                     "Ticker": t,
@@ -271,7 +277,6 @@ class InstitutionalDataService:
 
 class ValuationOracle:
     """Implementación de modelos financieros DCF y Black-Scholes."""
-    
     @staticmethod
     def run_macro_dcf(fcf, g1, g2, wacc, tg=0.025, shares=443.6, cash=22.0, debt=9.0, macro_adj=0.0):
         # 1. VALIDACIÓN DE CONVERGENCIA
