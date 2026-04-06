@@ -1,24 +1,21 @@
 [theme]
+# Colores institucionales de Costco
 primaryColor = "#005BAA"
-backgroundColor = "#FFFFFF" 
-secondaryBackgroundColor = "#F0F2F6"
-textColor = "#1C1C1C"
+# Dejamos que Streamlit gestione el fondo para permitir el Dark Mode nativo
+# Si borras 'backgroundColor' y 'textColor', el usuario podrá elegir el modo
 font = "sans serif"
 
 [server]
 headless = true
 enableCORS = false
 enableXsrfProtection = false
-# NUEVO: Maximiza la velocidad de subida de datos pesados
 maxUploadSize = 200 
 
 [browser]
-# NUEVO: Esto devuelve el menú de "Settings" y "Dark Mode" que perdiste
-# Al ponerlo en 'true', recuperas el control manual del usuario
-gatherUsageStats = true
+gatherUsageStats = false
 
 [client]
-# NUEVO: Evita que la app se refresque sola si dejas de usarla un momento
-# Muy útil para no gastar peticiones de API en segundo plano
+# 'developer' muestra todas las opciones, incluyendo el cambio de tema
+# 'minimal' a veces oculta el selector de modo oscuro en versiones nuevas
+toolbarMode = "developer" 
 showSidebarNavigation = true
-toolbarMode = "minimal"
