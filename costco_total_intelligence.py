@@ -887,32 +887,33 @@ def main():
         with c_p2:
             st.write("**Valoración y Eficiencia Operativa**")
             try:
-                # 1. Carga de datos del búnker (CSV o DataFrame actual)
+                # 1. Carga de datos
                 df_ef = pd.read_csv("peers_stats.csv") if os.path.exists("peers_stats.csv") else df_full_comparison
                 
-                # 2. Selección de métrica: Prioridad EV/EBITDA -> Fallback Net Margin
-                # Buscamos variaciones de nombre para EV/EBITDA
+                # 2. Identificación de Columnas con Radar Insensitivo (Mayúsculas/Minúsculas)
                 col_ev = [c for c in df_ef.columns if "EV" in str(c).upper() and "EBITDA" in str(c).upper()]
-                # Buscamos variaciones de nombre para Margen Neto
                 col_margin = [c for c in df_ef.columns if "MARGIN" in str(c).upper() or "MARGEN" in str(c).upper()]
                 
-                if col_ev and pd.to_numeric(df_ef[col_ev[0]], errors='coerce').sum() > 0:
-                    metrica, label = col_ev[0], "Múltiplo: EV/EBITDA"
-                    es_pct = False
-                elif col_margin and pd.to_numeric(df_ef[col_margin[0]], errors='coerce').sum() != 0:
-                    metrica, label = col_margin[0], "Margen Neto (%)"
-                    es_pct = True
-                else:
-                    metrica, label = "P/E Ratio", "P/E Ratio (Fallback)"
-                    es_pct = False
+                # --- FUNCIÓN DE LIMPIEZA INTERNA ---
+                def clean_numeric(series):
+                    """Limpia símbolos de % y convierte a float"""
+                    return pd.to_numeric(series.astype(str).str.replace('%', '').str.replace(',', ''), errors='coerce')
 
-                # 3. Filtrado de activos (Quitamos índices para comparar empresas)
+                # 3. Selección de Métrica con Validación Real
+                metrica, label, es_pct = "P/E Ratio", "P/E Ratio (Fallback)", False
+                
+                if col_ev and clean_numeric(df_ef[col_ev[0]]).sum() > 0:
+                    metrica, label, es_pct = col_ev[0], "Múltiplo: EV/EBITDA", False
+                elif col_margin and clean_numeric(df_ef[col_margin[0]]).abs().sum() > 0:
+                    metrica, label, es_pct = col_margin[0], "Margen Neto (%)", True
+
+                # 4. Preparación del DataFrame para el gráfico
                 df_plt = df_ef[~df_ef['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
-                df_plt[metrica] = pd.to_numeric(df_plt[metrica], errors='coerce')
+                df_plt[metrica] = clean_numeric(df_plt[metrica])
                 df_plt = df_plt.dropna(subset=[metrica]).sort_values(metrica)
 
                 if not df_plt.empty:
-                    # 4. Gráfico con Costco resaltado en Azul
+                    # Costco Azul (#005BAA), el resto Gris
                     colors = ["#005BAA" if str(t).upper() == "COST" else "#444444" for t in df_plt['Ticker']]
                     
                     fig_v = px.bar(
@@ -937,11 +938,10 @@ def main():
                     
                     st.plotly_chart(fig_v, use_container_width=True)
                 else:
-                    st.info("📊 Sincronizando métricas operativas...")
+                    st.info("📊 Esperando datos numéricos de eficiencia...")
 
             except Exception as e:
-                st.warning("📈 Cargando búnker de fundamentales...")
-
+                st.warning(f"📈 Ajustando visualización... (Revisar formato de datos)")
 # --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
         st.markdown("---")
         st.write("**🧩 Matriz de Correlación de Retornos Diarios (1Y)**")
