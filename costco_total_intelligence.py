@@ -884,47 +884,56 @@ def main():
                 st.info("📊 Esperando datos de competidores...")
 
         with c_p2:
-            # --- BLOQUE DINÁMICO DE VALORACIÓN (EV/EBITDA o P/E) ---
+with c_p2:
+            st.write("**Valoración y Generación de Caja**")
             try:
-                # 1. Cargamos datos frescos
-                df_ev_source = pd.read_csv("peers_stats.csv") if os.path.exists("peers_stats.csv") else df_full_comparison.copy()
+                # 1. Carga de datos del búnker
+                df_bunker = pd.read_csv("peers_stats.csv") if os.path.exists("peers_stats.csv") else df_full_comparison
                 
-                # 2. Determinamos qué métrica usar (Prioridad: EV/EBITDA, Respaldo: P/E Ratio)
-                if "EV/EBITDA" in df_ev_source.columns and df_ev_source["EV/EBITDA"].sum() > 0:
-                    metrica_activa = "EV/EBITDA"
-                    titulo_graf = "Eficiencia: EV/EBITDA (Menor = Mejor)"
+                # 2. LÓGICA DE PRIORIDAD ÁCIDA
+                # Buscamos columnas de EV/EBITDA o EV/FCF
+                col_ev_ebitda = [c for c in df_bunker.columns if "EV" in c and "EBITDA" in c]
+                col_ev_fcf = [c for c in df_bunker.columns if "EV" in c and "FCF" in c]
+                
+                if col_ev_ebitda and df_bunker[col_ev_ebitda[0]].astype(float).sum() > 0:
+                    metrica = col_ev_ebitda[0]
+                    titulo_display = "Múltiplo: EV/EBITDA"
+                    es_pct = False
+                elif col_ev_fcf and df_bunker[col_ev_fcf[0]].astype(float).sum() > 0:
+                    metrica = col_ev_fcf[0]
+                    titulo_display = "Múltiplo: EV/FCF (Flujo de Caja Libre)"
+                    es_pct = False
                 else:
-                    metrica_activa = "P/E Ratio"
-                    titulo_graf = "Valoración: P/E Ratio (Múltiplo de Beneficios)"
+                    metrica = "Net Margin (%)"
+                    titulo_display = "Eficiencia: Margen Neto (%)"
+                    es_pct = True
 
-                st.write(f"**{titulo_graf}**")
+                # 3. Preparación de datos para el gráfico
+                df_plt = df_bunker[~df_bunker['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
+                df_plt[metrica] = pd.to_numeric(df_plt[metrica], errors='coerce')
+                df_plt = df_plt[df_plt[metrica] > 0].sort_values(metrica)
 
-                # 3. Limpieza y Filtrado
-                df_plot_val = df_ev_source[~df_ev_source['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
-                df_plot_val[metrica_activa] = pd.to_numeric(df_plot_val[metrica_activa], errors='coerce')
-                df_plot_val = df_plot_val[df_plot_val[metrica_activa] > 0].sort_values(metrica_activa)
-
-                if not df_plot_val.empty:
-                    # Color map para que COST siempre destaque
-                    colors = {t: "#444444" for t in df_plot_val['Ticker']}
-                    if "COST" in colors: colors["COST"] = "#005BAA"
-
-                    fig_val = px.bar(
-                        df_plot_val,
-                        x="Ticker",
-                        y=metrica_activa,
-                        color="Ticker",
-                        color_discrete_map=colors,
-                        text_auto='.1f',
-                        template="plotly_dark"
+                if not df_plt.empty:
+                    # 4. Renderizado Plotly con Costco resaltado
+                    fig_v = px.bar(
+                        df_plt, x="Ticker", y=metrica,
+                        text_auto='.1f' if not es_pct else '.2f',
+                        template="plotly_dark",
+                        title=f"Métrica Actual: {titulo_display}"
                     )
-                    fig_val.update_layout(height=400, showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
-                    st.plotly_chart(fig_val, use_container_width=True)
+                    
+                    # Aplicar colores (Costco Azul, resto Gris)
+                    colors = ["#005BAA" if t == "COST" else "#444444" for t in df_plt['Ticker']]
+                    fig_v.update_traces(marker_color=colors, textposition='outside')
+                    if es_pct: fig_v.update_traces(textsuffix='%')
+                    
+                    fig_v.update_layout(height=400, showlegend=False, margin=dict(l=10, r=10, t=40, b=10))
+                    st.plotly_chart(fig_v, use_container_width=True)
                 else:
-                    st.info("📊 Esperando datos de valoración del búnker...")
+                    st.info("📊 Sincronizando métricas de flujo de caja...")
 
             except Exception as e:
-                st.error(f"Error en bloque de valoración: {e}")
+                st.info("📈 Cargando búnker de valoración...")
 
 # --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
         st.markdown("---")
