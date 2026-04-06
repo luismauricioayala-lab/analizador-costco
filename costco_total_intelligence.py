@@ -770,29 +770,78 @@ def main():
             df_full_comparison = pd.DataFrame(columns=['Ticker', 'Nombre', 'Mkt Cap ($B)', 'P/E Ratio', 'ROE (%)', 'EV/EBITDA'])
         # --------------------------------------------
 
-        # --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO DINÁMICO ---
-        st.write(f"**Rendimiento Normalizado 1Y: COST vs Selección de Mercado**")
+# --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO DINÁMICO (UNIVERSO EXTENDIDO) ---
+        st.write(f"**Rendimiento Normalizado 1Y: COST vs Ecosistema de Retail & Mercado**")
         
-        try:
-            # Intentamos descargar el rendimiento (esto puede fallar si no hay internet)
-            perf_df = yf.download(full_ticker_list, period="1y")['Close']
-            
-            if not perf_df.empty:
-                perf_norm = (perf_df / perf_df.iloc[0]) * 100
-                
-                # REEMPLAZO SEGURO: Usamos el reverse_map garantizado arriba
-                perf_norm.columns = [reverse_map.get(col, col) for col in perf_norm.columns]
-                
-                fig_perf = px.line(perf_norm, template="plotly_dark")
-                fig_perf.update_layout(height=450, hovermode="x unified", yaxis_title="Rendimiento (Base 100)")
-                st.plotly_chart(fig_perf, use_container_width=True)
-            else:
-                st.info("📉 Datos de rendimiento no disponibles en modo offline.")
-                
-        except Exception as e:
-            # Si yfinance falla, mostramos una nota informativa en lugar de un error rojo
-            st.info("📉 Nota: El gráfico de rendimiento dinámico requiere conexión activa. Mostrando terminal en modo estable.")
+        archivo_historia = "market_history.csv"
+        perf_df = None
 
+        # Definimos el mapeo institucional completo
+        nombres_pro = {
+            "COST": "Costco (COST)",
+            "SPY": "S&P 500 (Market)",
+            "QQQ": "Nasdaq 100 (Tech)",
+            "WMT": "Walmart (WMT)",
+            "TGT": "Target (TGT)",
+            "BJ": "BJ's Wholesale (BJ)",
+            "KR": "Kroger (KR)",
+            "AMZN": "Amazon (AMZN)",
+            "HD": "Home Depot (HD)",
+            "LOW": "Lowe's (LOW)",
+            "SFM": "Sprouts (SFM)",
+            "DLTR": "Dollar Tree (DLTR)",
+            "DG": "Dollar General (DG)",
+            "^GSPC": "S&P 500 (Index)", # Backup por si usaste el índice directo
+            "^IXIC": "Nasdaq (Index)"    # Backup por si usaste el índice directo
+        }
+
+        try:
+            # 1. INTENTO ONLINE: Descarga del universo completo
+            tickers_universo = list(nombres_pro.keys())
+            with st.spinner("Sincronizando universo de inversión..."):
+                perf_df = yf.download(tickers_universo, period="1y", progress=False)['Close']
+            
+            if perf_df is None or perf_df.empty:
+                raise ValueError("API Yahoo Offline")
+                
+        except Exception:
+            # 2. FALLBACK OFFLINE: Rescate desde el Búnker market_history.csv
+            if os.path.exists(archivo_historia):
+                perf_df = pd.read_csv(archivo_historia, index_col=0, parse_dates=True)
+                st.sidebar.info("🏛️ Universo extendido cargado desde el Búnker Local.")
+            else:
+                st.info("📉 Nota: Modo offline activo. Cargue 'market_history.csv' para ver comparativas.")
+
+        # --- RENDERIZADO DEL GRÁFICO ---
+        if perf_df is not None and not perf_df.empty:
+            # Normalización Base 100
+            perf_norm = (perf_df / perf_df.iloc[0]) * 100
+            
+            # Limpiamos columnas: solo dejamos las que están en nuestro mapeo y existen en el DF
+            columnas_finales = [c for c in perf_norm.columns if c in nombres_pro]
+            perf_norm = perf_norm[columnas_finales]
+            
+            # Renombramos columnas para la leyenda profesional
+            perf_norm.columns = [nombres_pro.get(col, col) for col in perf_norm.columns]
+            
+            fig_perf = px.line(perf_norm, template="plotly_dark")
+            
+            # Destacamos a COST con una línea más gruesa
+            fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=4, color="#005BAA"))
+            
+            fig_perf.update_layout(
+                height=550, # Un poco más alto para acomodar tantas leyendas
+                hovermode="x unified", 
+                yaxis_title="Rendimiento (Base 100)",
+                legend=dict(
+                    orientation="h", 
+                    yanchor="bottom", 
+                    y=-0.5, # Bajamos la leyenda para que no tape el gráfico
+                    xanchor="center", 
+                    x=0.5
+                )
+            )
+            st.plotly_chart(fig_perf, use_container_width=True)
 # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
         
