@@ -885,45 +885,47 @@ def main():
                 st.info("📊 Esperando datos de competidores...")
 
         with c_p2:
-            st.write("**Valoración Profesional (Enterprise Value)**")
+            st.write("**Valoración: Ventas y Eficiencia**")
             try:
-                # 1. Intentamos leer del CSV para evitar fallos de Yahoo
-                df_ev = pd.read_csv("peers_stats.csv") if os.path.exists("peers_stats.csv") else df_full_comparison
+                # 1. Cargamos datos del búnker
+                df_val = pd.read_csv("peers_stats.csv") if os.path.exists("peers_stats.csv") else df_full_comparison
                 
-                # 2. Jerarquía de Múltiplos de Valoración
-                col_ebitda = [c for c in df_ev.columns if "EBITDA" in c]
-                col_fcf = [c for c in df_ev.columns if "FCF" in c]
+                # 2. Selección de Métrica (Prioridad Ácida -> Price/Revenue como base sólida)
+                # Buscamos Price/Sales o Revenue en las columnas
+                col_ps = [c for c in df_val.columns if "Price" in c and ("Sales" in c or "Revenue" in c)]
+                col_ev = [c for c in df_val.columns if "EV" in c and "EBITDA" in c]
                 
-                if col_ebitda and df_ev[col_ebitda[0]].astype(float).sum() > 0:
-                    m_activa, m_label = col_ebitda[0], "EV/EBITDA"
-                elif col_fcf and df_ev[col_fcf[0]].astype(float).sum() > 0:
-                    m_activa, m_label = col_fcf[0], "EV/FCF (Cash Flow)"
+                if col_ev and df_val[col_ev[0]].astype(float).sum() > 0:
+                    m_activa, m_label = col_ev[0], "EV/EBITDA"
+                elif col_ps and df_val[col_ps[0]].astype(float).sum() > 0:
+                    m_activa, m_label = col_ps[0], "Price / Revenue (P/S)"
                 else:
-                    m_activa, m_label = "P/E Ratio", "P/E Ratio (Fallback)"
+                    # Si no detecta el nombre, lo forzamos si sabemos que existe como 'P/S Ratio' o similar
+                    m_activa, m_label = "P/E Ratio", "P/E Ratio (Respaldo)"
 
-                # 3. Limpieza de Benchmarks (Solo empresas)
-                df_plt = df_ev[~df_ev['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
-                df_plt[m_activa] = pd.to_numeric(df_plt[m_activa], errors='coerce')
-                df_plt = df_plt[df_plt[m_activa] > 0].sort_values(m_activa)
+                # 3. Limpieza de Benchmarks
+                df_p = df_val[~df_val['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
+                df_p[m_activa] = pd.to_numeric(df_p[m_activa], errors='coerce')
+                df_p = df_p[df_p[m_activa] > 0].sort_values(m_activa)
 
-                if not df_plt.empty:
-                    # Costco en Azul, resto en Gris
-                    fig_v = px.bar(
-                        df_plt, x="Ticker", y=m_activa,
-                        text_auto='.1f', template="plotly_dark",
+                if not df_p.empty:
+                    # Mapa de colores: Costco Azul, resto Gris
+                    colors = ["#005BAA" if t == "COST" else "#444444" for t in df_p['Ticker']]
+                    
+                    fig_ps = px.bar(
+                        df_p, x="Ticker", y=m_activa,
+                        text_auto='.2f', template="plotly_dark",
                         title=f"Métrica: {m_label}"
                     )
+                    fig_ps.update_traces(marker_color=colors, textposition='outside')
+                    fig_ps.update_layout(height=400, showlegend=False, margin=dict(l=10, r=10, t=40, b=10))
                     
-                    colors = ["#005BAA" if t == "COST" else "#444444" for t in df_plt['Ticker']]
-                    fig_v.update_traces(marker_color=colors, textposition='outside')
-                    fig_v.update_layout(height=400, showlegend=False, margin=dict(l=10, r=10, t=40, b=10))
-                    
-                    st.plotly_chart(fig_v, use_container_width=True)
+                    st.plotly_chart(fig_ps, use_container_width=True)
                 else:
-                    st.info("📊 Esperando datos de valoración del búnker...")
-            
+                    st.info("📊 Esperando métricas de ventas...")
+
             except Exception as e:
-                st.warning("📈 Sincronizando métricas de Enterprise Value...")
+                st.warning("📈 Sincronizando múltiplos de ingresos...")
 
 # --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
         st.markdown("---")
