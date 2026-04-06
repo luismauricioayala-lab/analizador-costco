@@ -300,27 +300,21 @@ class InstitutionalDataService:
         # Agregamos COST a la lista de búsqueda para que no se pierda en el búnker
         full_search_list = ticker_list + ["COST"]
         
-        # --- 1. RASTREADOR DE RUTAS ---
-        if not os.path.exists(archivo_offline):
-            posibles_rutas = [archivo_offline, f"./{archivo_offline}", f"analizador-costco/{archivo_offline}"]
-            for ruta in posibles_rutas:
-                if os.path.exists(ruta):
-                    archivo_offline = ruta
-                    break
-        
-        # --- 2. CARGA FORZOSA DEL BÚNKER ---
+# --- 2. CARGA FORZOSA DEL BÚNKER ---
         df_final = None
         if os.path.exists(archivo_offline):
             try:
                 df_final = pd.read_csv(archivo_offline)
                 # Limpieza de columnas y tickers
                 df_final.columns = df_final.columns.str.strip()
-                df_final['Ticker'] = df_final['Ticker'].str.strip()
+                if 'Ticker' in df_final.columns:
+                    df_final['Ticker'] = df_final['Ticker'].astype(str).str.strip()
                 
                 if not df_final.empty:
                     # FILTRADO CRUCIAL: Ahora incluimos a Costco
                     df_final = df_final[df_final['Ticker'].isin(full_search_list)]
-                    return df_final
+                    if not df_final.empty:
+                        return df_final
             except Exception as e:
                 st.error(f"❌ Error en Búnker: {e}")
 
@@ -330,7 +324,8 @@ class InstitutionalDataService:
             for t in full_search_list:
                 asset = yf.Ticker(t)
                 info = asset.info
-                if info and 'marketCap' in info:
+                # Verificamos que info exista y tenga datos mínimos para no romper el DataFrame
+                if info and isinstance(info, dict) and 'marketCap' in info:
                     peer_results.append({
                         "Ticker": t,
                         "Nombre": info.get('shortName', t),
@@ -344,7 +339,8 @@ class InstitutionalDataService:
             
             if peer_results:
                 return pd.DataFrame(peer_results)
-        except:
+        except Exception as e:
+            # Silenciamos el error para que no bloquee la UI si Yahoo falla
             pass
 
         return df_final
