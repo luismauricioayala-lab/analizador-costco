@@ -887,38 +887,39 @@ def main():
         with c_p2:
             st.write("**Valoración y Eficiencia Operativa**")
             try:
-                # 1. Carga de datos del búnker
+                # 1. Carga de datos del búnker (CSV o DataFrame actual)
                 df_ef = pd.read_csv("peers_stats.csv") if os.path.exists("peers_stats.csv") else df_full_comparison
                 
-                # 2. Lógica de selección: EV/EBITDA > Net Margin
-                col_ev = [c for c in df_ef.columns if "EV" in c and "EBITDA" in c]
-                col_margin = [c for c in df_ef.columns if "Margin" in c or "Margen" in c]
+                # 2. Selección de métrica: Prioridad EV/EBITDA -> Fallback Net Margin
+                # Buscamos variaciones de nombre para EV/EBITDA
+                col_ev = [c for c in df_ef.columns if "EV" in str(c).upper() and "EBITDA" in str(c).upper()]
+                # Buscamos variaciones de nombre para Margen Neto
+                col_margin = [c for c in df_ef.columns if "MARGIN" in str(c).upper() or "MARGEN" in str(c).upper()]
                 
-                if col_ev and df_ef[col_ev[0]].astype(float).sum() > 0:
+                if col_ev and pd.to_numeric(df_ef[col_ev[0]], errors='coerce').sum() > 0:
                     metrica, label = col_ev[0], "Múltiplo: EV/EBITDA"
                     es_pct = False
-                elif col_margin and df_ef[col_margin[0]].astype(float).sum() != 0:
+                elif col_margin and pd.to_numeric(df_ef[col_margin[0]], errors='coerce').sum() != 0:
                     metrica, label = col_margin[0], "Margen Neto (%)"
                     es_pct = True
                 else:
                     metrica, label = "P/E Ratio", "P/E Ratio (Fallback)"
                     es_pct = False
 
-                # 3. Filtrado de Benchmarks (Solo comparables directos)
+                # 3. Filtrado de activos (Quitamos índices para comparar empresas)
                 df_plt = df_ef[~df_ef['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
                 df_plt[metrica] = pd.to_numeric(df_plt[metrica], errors='coerce')
                 df_plt = df_plt.dropna(subset=[metrica]).sort_values(metrica)
 
                 if not df_plt.empty:
-                    # 4. Configuración del Gráfico
-                    # Costco Azul, el resto Gris
-                    colors = ["#005BAA" if t == "COST" else "#444444" for t in df_plt['Ticker']]
+                    # 4. Gráfico con Costco resaltado en Azul
+                    colors = ["#005BAA" if str(t).upper() == "COST" else "#444444" for t in df_plt['Ticker']]
                     
                     fig_v = px.bar(
                         df_plt, x="Ticker", y=metrica,
                         text_auto='.1f' if not es_pct else '.2f',
                         template="plotly_dark",
-                        title=f"Métrica: {label}"
+                        title=f"Métrica Actual: {label}"
                     )
                     
                     fig_v.update_traces(
@@ -936,10 +937,10 @@ def main():
                     
                     st.plotly_chart(fig_v, use_container_width=True)
                 else:
-                    st.info("📊 Sincronizando búnker de métricas...")
+                    st.info("📊 Sincronizando métricas operativas...")
 
             except Exception as e:
-                st.warning("📈 Cargando análisis fundamental...")
+                st.warning("📈 Cargando búnker de fundamentales...")
 
 # --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
         st.markdown("---")
