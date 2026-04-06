@@ -337,6 +337,7 @@ class InstitutionalDataService:
                         "Mkt Cap ($B)": info.get('marketCap', 0) / 1e9,
                         "P/E Ratio": info.get('trailingPE', 0),
                         "EV/EBITDA": info.get('enterpriseToEbitda', 0),
+                        "EV/FCF": info.get('enterpriseValue') / info.get('freeCashflow'),
                         "ROE (%)": info.get('returnOnEquity', 0) * 100,
                         "Net Margin (%)": info.get('profitMargins', 0) * 100,
                         "Rev Growth (%)": info.get('revenueGrowth', 0) * 100
@@ -1013,6 +1014,7 @@ def main():
                     "Mkt Cap ($B)": "{:.1f}",
                     "P/E Ratio": "{:.2f}",
                     "EV/EBITDA": "{:.2f}",
+                    "EV/FCF": "{:.2f}",
                     "ROE (%)": "{:.1f}%",
                     "Net Margin (%)": "{:.2f}%",
                     "Rev Growth (%)": "{:.2f}%",
