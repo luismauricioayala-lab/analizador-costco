@@ -915,60 +915,60 @@ def main():
             else:
                 st.info("📊 Esperando datos de mercado...")
 
-# --- MATRIZ DE CORRELACIÓN: FILTRADA POR SELECCIÓN (DINÁMICA) ---
+# --- MATRIZ DE CORRELACIÓN: VERSIÓN ULTRA-COMPATIBLE ---
         st.markdown("---")
         st.write("**🧩 Matriz de Correlación de Retornos Diarios (1Y)**")
-        with st.expander("Ver Análisis de Correlación", expanded=False):
-            # 1. Verificamos que existan datos de precios y selección del usuario
+        with st.expander("Ver Análisis de Correlación", expanded=True): # Lo abrimos por defecto para probar
+            
+            # 1. Verificamos datos de precios
             if 'perf_df' in locals() and perf_df is not None and not perf_df.empty:
                 try:
-                    # 2. Definimos mapeo de nombres (incluyendo parches de SPY/QQQ)
+                    # Mapeo de nombres para la matriz
                     nombres_pro_corr = nombres_pro.copy()
                     nombres_pro_corr.update({"^GSPC": "S&P 500 (SPY)", "^IXIC": "Nasdaq 100 (QQQ)"})
                     
-                    # 3. Calculamos retornos y renombramos columnas del DataFrame original
+                    # 2. Calculamos retornos
                     returns_all = perf_df.pct_change().dropna()
+                    
+                    # Renombramos columnas del DataFrame para que coincidan con el Multiselect
                     returns_all.columns = [nombres_pro_corr.get(col, col) for col in returns_all.columns]
                     
-                    # --- FILTRO CRÍTICO: Solo lo seleccionado en 'selected_labels' ---
-                    # 'selected_labels' viene del st.multiselect superior
-                    columnas_filtradas = [c for c in returns_all.columns if c in selected_labels]
+                    # 3. FILTRO: Solo lo que el usuario seleccionó
+                    # IMPORTANTE: selected_labels debe contener ["Costco (COST)", "Amazon (AMZN)"]
+                    columnas_finales = [c for c in returns_all.columns if c in selected_labels]
                     
-                    if len(columnas_filtradas) > 1:
-                        # Creamos la matriz solo con los activos elegidos
-                        corr_matrix = returns_all[columnas_filtradas].corr()
-
-                        # 4. REORDENAMIENTO: Costco (COST) siempre en la esquina superior izquierda
-                        costco_label = nombres_pro.get("COST", "Costco (COST)")
-                        if costco_label in corr_matrix.columns:
-                            reorder = [costco_label] + [c for c in corr_matrix.columns if c != costco_label]
-                            corr_matrix = corr_matrix.reindex(index=reorder, columns=reorder)
+                    if len(columnas_finales) > 1:
+                        # Calculamos la matriz solo de los seleccionados
+                        df_corr = returns_all[columnas_finales].corr()
                         
-                        # 5. RENDERIZADO VISUAL
+                        # Reordenar para que Costco sea el primero
+                        costco_label = nombres_pro.get("COST", "Costco (COST)")
+                        if costco_label in df_corr.columns:
+                            reorder = [costco_label] + [c for c in df_corr.columns if c != costco_label]
+                            df_corr = df_corr.reindex(index=reorder, columns=reorder)
+                        
+                        # 4. DIBUJAR MATRIZ
                         fig_corr = px.imshow(
-                            corr_matrix, 
-                            text_auto=".2f", 
+                            df_corr,
+                            text_auto=".2f",
                             color_continuous_scale='RdBu_r',
                             zmin=-1, zmax=1,
-                            template="plotly_dark", 
+                            template="plotly_dark",
                             aspect="auto"
                         )
                         
-                        # Ajuste de altura dinámico para que no se vea gigante con pocos activos
-                        din_height = max(400, 150 + (len(columnas_filtradas) * 35))
-                        
                         fig_corr.update_layout(
-                            height=din_height, 
-                            margin=dict(l=40, r=40, t=40, b=40)
+                            height=450,
+                            margin=dict(l=20, r=20, t=20, b=20)
                         )
                         st.plotly_chart(fig_corr, use_container_width=True)
                     else:
-                        st.info("💡 Selecciona al menos dos activos en el menú superior (ej. Costco y Amazon) para generar la matriz.")
+                        st.info("💡 Por favor, selecciona al menos dos activos en el menú superior para comparar su correlación.")
                         
                 except Exception as e:
-                    st.warning(f"Ajustando visualización de correlación... ({e})")
+                    st.error(f"Error técnico en matriz: {e}")
             else:
-                st.info("📉 La matriz requiere que el historial de mercado esté cargado.")
+                st.info("📉 No hay datos históricos disponibles para calcular la correlación.")
 
 # --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL BLINDADA) ---
         st.markdown("---")
