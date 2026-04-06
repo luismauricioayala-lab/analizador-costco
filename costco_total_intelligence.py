@@ -721,7 +721,7 @@ def main():
         # 2. Selector On-Demand (Incluyendo Índices)
         selected_labels = st.multiselect(
         "Selecciona activos y benchmarks para el análisis comparativo:",
-        options=list(nombres_pro.values()),
+        options=list(market_map.keys()),
         default=[
         "Costco (COST)", 
         "S&P 500 (Market)", 
