@@ -188,7 +188,7 @@ class InstitutionalDataService:
     @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_verified_payload(ticker):
-        """Descarga masiva de datos con lógica de protección total contra KeyErrors."""
+        """Descarga masiva de datos para el ticker principal (COST)."""
         try:
             asset = yf.Ticker(ticker)
             info = asset.info
@@ -199,11 +199,58 @@ class InstitutionalDataService:
             if cf.empty or is_stmt.empty:
                 st.error("Error Crítico: No se pudieron recuperar estados financieros auditados.")
                 return None
+            
+            # Cálculo de FCF Real (Billones $)
+            fcf_raw = (cf.loc['Operating Cash Flow'] + cf.loc['Capital Expenditure'])
+            fcf_now = fcf_raw.iloc[0] / 1e9
+            
+            # Preparación de Cuadro de 3 Años
+            is_3y = is_stmt.iloc[:, :3]
+            hist_years = is_3y.columns.year.astype(str).tolist()
+            rev_vals = (is_3y.loc['Total Revenue'] / 1e9).tolist()
+            ebitda_vals = (is_3y.loc['EBITDA'] / 1e9).tolist()
+            ni_vals = (is_3y.loc['Net Income'] / 1e9).tolist()
+            eps_vals = info.get('trailingEps', 16.5)
+
+            # Resumen LTM
+            acc_summary = {
+                "Revenue ($B)": info.get('totalRevenue', 0) / 1e9,
+                "EBITDA ($B)": info.get('ebitda', 0) / 1e9,
+                "Net Income ($B)": info.get('netIncomeToCommon', 0) / 1e9,
+                "ROE (%)": info.get('returnOnEquity', 0.28) * 100,
+                "Debt/Equity": info.get('debtToEquity', 45.0),
+                "Current Ratio": info.get('currentRatio', 1.05),
+                "Operating Margin (%)": info.get('operatingMargins', 0.035) * 100
+            }
+
+            return {
+                "info": info, "is": is_stmt, "bs": bs, "cf": cf,
+                "fcf_now_b": fcf_now, "fcf_hist_b": fcf_raw / 1e9,
+                "price": info.get('currentPrice', 1014.96),
+                "mkt_cap_b": info.get('marketCap', 450e9) / 1e9,
+                "beta": info.get('beta', 0.978),
+                "shares_m": info.get('sharesOutstanding', 443e6) / 1e6,
+                "cash_b": info.get('totalCash', 22e9) / 1e9,
+                "debt_b": info.get('totalDebt', 9e9) / 1e9,
+                "hist_years": hist_years, "rev_vals": rev_vals, 
+                "ebitda_vals": ebitda_vals, "ni_vals": ni_vals, "eps_vals": eps_vals,
+                "acc_summary": acc_summary,
+                "analysts": {
+                    "key": info.get('recommendationKey', 'BUY').upper(),
+                    "score": info.get('recommendationMean', 2.0),
+                    "target": info.get('targetMeanPrice', 1067.59),
+                    "count": info.get('numberOfAnalystOpinions', 37)
+                }
+            }
+        except Exception as e:
+            # ESTE ES EL BLOQUE QUE FALTABA O ESTABA MAL IDENTADO
+            st.error(f"Fallo en Servicio de Datos: {e}")
+            return None
 
     @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_peer_group_data(ticker_list):
-        """ NUEVO: Descarga métricas clave para una lista de competidores en tiempo real. Ideal para la TAB 3: Peer Analysis. """
+        """Descarga métricas clave para una lista de competidores en tiempo real."""
         peer_results = []
         for t in ticker_list:
             try:
