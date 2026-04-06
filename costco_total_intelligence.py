@@ -186,14 +186,13 @@ st.markdown("""
 class InstitutionalDataService:
     """Clase maestra para la adquisición y normalización de datos auditados COST."""
     
-    @staticmethod
+@staticmethod
     @st.cache_data(ttl=3600)
     def fetch_verified_payload(ticker):
-        """Descarga masiva de datos con suplantación de Chrome para evitar Rate Limit."""
+        """Descarga masiva de datos optimizada para yfinance 1.2.0+."""
         try:
-            # INTEGRACIÓN FASE 2: SESIÓN STEALTH
-            session = requests.Session(impersonate="chrome")
-            asset = yf.Ticker(ticker, session=session) # Inyectamos sesión en yfinance
+            # En v1.2.0, yfinance gestiona curl_cffi internamente si está instalada
+            asset = yf.Ticker(ticker)
             
             info = asset.info
             cf = asset.cashflow
@@ -204,7 +203,7 @@ class InstitutionalDataService:
                 st.error("Error Crítico: No se pudieron recuperar estados financieros.")
                 return None
             
-            # Cálculo de FCF Real (Billones $)
+            # Cálculo de FCF Real (Billones $) - Mantenemos tu lógica exacta
             fcf_raw = (cf.loc['Operating Cash Flow'] + cf.loc['Capital Expenditure'])
             fcf_now = fcf_raw.iloc[0] / 1e9
             
@@ -247,19 +246,19 @@ class InstitutionalDataService:
                 }
             }
         except Exception as e:
-            st.error(f"Fallo en Servicio de Datos: {e}. Rate limited. Try after a while.")
+            # Mensaje simplificado ya que la v1.2.0 reduce drásticamente el Rate Limiting
+            st.error(f"Fallo en Servicio de Datos: {e}")
             return None
 
     @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_peer_group_data(ticker_list):
-        """Descarga métricas con suplantación de Chrome para lista de competidores."""
+        """Descarga métricas optimizada para lista de competidores."""
         peer_results = []
-        # INTEGRACIÓN FASE 2: SESIÓN STEALTH PARA PEERS
-        session = requests.Session(impersonate="chrome")
         for t in ticker_list:
             try:
-                asset = yf.Ticker(t, session=session)
+                # Eliminamos la gestión manual de session para mayor estabilidad
+                asset = yf.Ticker(t)
                 info = asset.info
                 peer_results.append({
                     "Ticker": t,
