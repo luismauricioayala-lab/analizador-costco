@@ -413,7 +413,7 @@ def main():
 
     # 4. Cabecera con Lógica Beta Neutro
     st.title(f"🏛️ {data['info'].get('longName')} Institutional Terminal")
-    st.caption(f"Sync SEC 2026 | Auditoría Alpha v43.0 | GDP Blended: {blended_gdp*100:.3f}% | WACC: {final_wacc*100:.2f}%")
+    st.caption(f"Sync SEC 2026 | Build: v2026.04.06 | GDP Blended: {blended_gdp*100:.3f}% | WACC: {final_wacc*100:.2f}%")
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("P/E TTM", f"{data['info'].get('trailingPE', 52.9):.1f}x", "Premium Valuation")
