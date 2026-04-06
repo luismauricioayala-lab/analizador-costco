@@ -200,7 +200,7 @@ class InstitutionalDataService:
                 st.error("Error Crítico: No se pudieron recuperar estados financieros.")
                 return None
             
-            # --- LÍNEA 273 (CORREGIDA): Cálculo de FCF ---
+            # Cálculo de FCF Real (Billones $)
             fcf_raw = (cf.loc['Operating Cash Flow'] + cf.loc['Capital Expenditure'])
             fcf_now = fcf_raw.iloc[0] / 1e9
             
@@ -212,7 +212,7 @@ class InstitutionalDataService:
             ni_vals = (is_3y.loc['Net Income'] / 1e9).tolist()
             eps_vals = info.get('trailingEps', 16.5)
 
-            # Resumen LTM (Last Twelve Months)
+            # Resumen LTM
             acc_summary = {
                 "Revenue ($B)": info.get('totalRevenue', 0) / 1e9,
                 "EBITDA ($B)": info.get('ebitda', 0) / 1e9,
@@ -229,7 +229,7 @@ class InstitutionalDataService:
                 "price": info.get('currentPrice', 1014.96),
                 "mkt_cap_b": info.get('marketCap', 450e9) / 1e9,
                 "beta": info.get('beta', 0.978),
-                "shares_m": info.get('sharesOutstanding', 443e6) / 1e6,
+                "shares_m": info.get('sharesOutstanding', 443.6e6) / 1e6,
                 "cash_b": info.get('totalCash', 22e9) / 1e9,
                 "debt_b": info.get('totalDebt', 9e9) / 1e9,
                 "hist_years": hist_years, "rev_vals": rev_vals, 
@@ -268,64 +268,14 @@ class InstitutionalDataService:
             except:
                 continue
         return pd.DataFrame(peer_results)
-            
-            # Cálculo de FCF Real (Billones $)
-            fcf_raw = (cf.loc['Operating Cash Flow'] + cf.loc['Capital Expenditure'])
-            fcf_now = fcf_raw.iloc[0] / 1e9
-            
-            # Preparación de Cuadro de 3 Años (2023-2025)
-            # Forzamos nombres de años limpios (strings) para evitar decimales
-            is_3y = is_stmt.iloc[:, :3]
-            hist_years = is_3y.columns.year.astype(str).tolist()
-            rev_vals = (is_3y.loc['Total Revenue'] / 1e9).tolist()
-            ebitda_vals = (is_3y.loc['EBITDA'] / 1e9).tolist()
-            ni_vals = (is_3y.loc['Net Income'] / 1e9).tolist()
-            eps_vals = info.get('trailingEps', 16.5)
-
-            # Resumen LTM
-            acc_summary = {
-                "Revenue ($B)": info.get('totalRevenue', 0) / 1e9,
-                "EBITDA ($B)": info.get('ebitda', 0) / 1e9,
-                "Net Income ($B)": info.get('netIncomeToCommon', 0) / 1e9,
-                "ROE (%)": info.get('returnOnEquity', 0.28) * 100,
-                "Debt/Equity": info.get('debtToEquity', 45.0),
-                "Current Ratio": info.get('currentRatio', 1.05),
-                "Operating Margin (%)": info.get('operatingMargins', 0.035) * 100
-            }
-
-            return {
-                "info": info, "is": is_stmt, "bs": bs, "cf": cf,
-                "fcf_now_b": fcf_now, "fcf_hist_b": fcf_raw / 1e9,
-                "price": info.get('currentPrice', 1014.96),
-                "mkt_cap_b": info.get('marketCap', 450e9) / 1e9,
-                "beta": info.get('beta', 0.978),
-                "shares_m": info.get('sharesOutstanding', 443e6) / 1e6,
-                "cash_b": info.get('totalCash', 22e9) / 1e9,
-                "debt_b": info.get('totalDebt', 9e9) / 1e9,
-                "hist_years": hist_years, "rev_vals": rev_vals, 
-                "ebitda_vals": ebitda_vals, "ni_vals": ni_vals, "eps_vals": eps_vals,
-                "acc_summary": acc_summary,
-                "analysts": {
-                    "key": info.get('recommendationKey', 'BUY').upper(),
-                    "score": info.get('recommendationMean', 2.0),
-                    "target": info.get('targetMeanPrice', 1067.59),
-                    "count": info.get('numberOfAnalystOpinions', 37)
-                }
-            }
-        except Exception as e:
-            st.error(f"Fallo en Servicio de Datos: {e}")
-            return None
 
 class ValuationOracle:
     """Implementación de modelos financieros DCF y Black-Scholes."""
     
     @staticmethod
     def run_macro_dcf(fcf, g1, g2, wacc, tg=0.025, shares=443.6, cash=22.0, debt=9.0, macro_adj=0.0):
-        # 1. VALIDACIÓN CRÍTICA DE CONVERGENCIA
-        # Si el WACC es menor o igual al crecimiento terminal (tg), 
-        # el denominador (wacc - tg) es <= 0, invalidando el cálculo.
+        # 1. VALIDACIÓN DE CONVERGENCIA
         if wacc <= tg:
-            # Devolvemos NaN para el precio y ceros para los componentes financieros
             return float('nan'), 0.0, 0.0, []
 
         # 2. Ajuste inicial por entorno macro
@@ -333,7 +283,7 @@ class ValuationOracle:
         projs, df_flows = [], []
         curr = adj_base
         
-        # 3. Proyección de flujos (Etapa 1: años 1-5 | Etapa 2: años 6-10)
+        # 3. Proyección de flujos (10 años)
         for i in range(1, 6):
             curr *= (1 + g1)
             projs.append(curr)
@@ -346,19 +296,13 @@ class ValuationOracle:
             
         # 4. Cálculos de Valor Presente
         pv_f = sum(df_flows)
-        
-        # Aquí es donde la validación inicial previene la división por cero
         tv = (projs[-1] * (1 + tg)) / (wacc - tg)
         pv_t = tv / (1 + wacc)**10
         
-        # 5. Valor de Capital (Equity Value) y Precio por Acción
-        # Nota: Multiplicamos por 1000 si tus flujos base están en Billones ($B) 
-        # y quieres el precio en dólares nominales.
+        # 5. Equity Value y Precio Fair Value
         equity_v = pv_f + pv_t + cash - debt
         fair_p = (equity_v / shares) * 1000
         
-        # --- RETORNO ÍNTEGRO SEGÚN TU ESTRUCTURA ---
-        # (Precio, VP Flujos, VP Terminal, Lista de Proyecciones)
         return fair_p, pv_f, pv_t, projs
         
     @staticmethod
@@ -368,12 +312,14 @@ class ValuationOracle:
         d1 = (np.log(S/K) + (r + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
         d2 = d1 - sigma*np.sqrt(T)
         cp = 1 if o_type == 'call' else -1
+        
         price = cp * (S * norm.cdf(cp * d1) - K * np.exp(-r * T) * norm.cdf(cp * d2))
         delta = norm.cdf(d1) if o_type == 'call' else norm.cdf(d1) - 1
         gamma = norm.pdf(d1) / (S * sigma * np.sqrt(T))
         vega = (S * np.sqrt(T) * norm.pdf(d1)) / 100
         theta = (-(S * norm.pdf(d1) * sigma / (2 * np.sqrt(T))) - r * K * np.exp(-r * T) * norm.cdf(cp * d2)) / 365
-        return {"price": price, "delta": delta, "gamma": gamma, "vega": vega, "theta": theta}
+        
+        return {"price": price, "delta": delta, "gamma": gamma, "vega": vega, "theta": theta}  
 
 # =============================================================================
 # 4. INTERFAZ DE USUARIO Y CONTROL DE PANELES (MAIN)
