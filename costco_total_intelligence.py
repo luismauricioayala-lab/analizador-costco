@@ -210,47 +210,50 @@ class InstitutionalDataService:
         except Exception as e:
             st.warning(f"⚠️ Yahoo restringido para {ticker}. Accediendo al Búnker local...")
             
-# FALLBACK: Carga desde el búnker de archivos que descargaste
-        if os.path.exists(archivo_local):
-            st.info(f"🏛️ Modo Offline Activado: Usando {archivo_local}")
-            
-            df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
-            ultimo_precio = float(df_bunker['Close'].iloc[-1])
-            
-            # Calculamos el min y max real de tu archivo CSV para la barra
-            min_52w = float(df_bunker['Low'].tail(252).min()) # 252 días = 1 año bursátil
-            max_52w = float(df_bunker['High'].tail(252).max())
+            # FALLBACK: Carga desde el búnker de archivos que descargaste
+            if os.path.exists(archivo_local):
+                st.info(f"🏛️ Modo Offline Activado: Usando {archivo_local}")
+                
+                df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
+                ultimo_precio = float(df_bunker['Close'].iloc[-1])
+                
+                # Calculamos el min y max real de tu archivo CSV para la barra
+                min_52w = float(df_bunker['Low'].tail(252).min()) # 252 días = 1 año bursátil
+                max_52w = float(df_bunker['High'].tail(252).max())
 
-            return {
-                "info": {
-                    "currentPrice": ultimo_precio, 
-                    "shortName": "Costco Wholesale", 
-                    "symbol": ticker, # <-- Esto arregla el "None" en el título
-                    "trailingEps": 16.5,
-                    "fiftyTwoWeekLow": min_52w,  # <-- Esto arregla la barra
-                    "fiftyTwoWeekHigh": max_52w  # <-- Esto arregla la barra
-                },
-                "price": ultimo_precio,
-                "mkt_cap_b": 450.0,
-                "fcf_now_b": 9.5,
-                "fcf_hist_b": pd.Series([8.0, 8.5, 9.0, 9.5]),
-                "beta": 0.98,
-                "shares_m": 443.6,
-                "cash_b": 22.0,
-                "debt_b": 9.0,
-                "hist_years": ["2023", "2024", "2025"],
-                "rev_vals": [220, 240, 250],
-                "ebitda_vals": [15, 17, 18],
-                "ni_vals": [6, 7, 8],
-                "eps_vals": 16.5,
-                "acc_summary": {
-                    "Revenue ($B)": 250.0, "EBITDA ($B)": 18.0, "Net Income ($B)": 8.0,
-                    "ROE (%)": 28.0, "Debt/Equity": 45.0, "Current Ratio": 1.05, "Operating Margin (%)": 3.5
-                },
-                "analysts": {"key": "BUY", "score": 2.0, "target": 1060.0, "count": 37}
-            }
-    
-        # Procesamiento de Cuadro de 3 Años (Mantenemos tu lógica exacta)
+                return {
+                    "info": {
+                        "currentPrice": ultimo_precio, 
+                        "shortName": "Costco Wholesale", 
+                        "symbol": ticker,
+                        "trailingEps": 16.5,
+                        "fiftyTwoWeekLow": min_52w, 
+                        "fiftyTwoWeekHigh": max_52w 
+                    },
+                    "price": ultimo_precio,
+                    "mkt_cap_b": 450.0,
+                    "fcf_now_b": 9.5,
+                    "fcf_hist_b": pd.Series([8.0, 8.5, 9.0, 9.5]),
+                    "beta": 0.98,
+                    "shares_m": 443.6,
+                    "cash_b": 22.0,
+                    "debt_b": 9.0,
+                    "hist_years": ["2023", "2024", "2025"],
+                    "rev_vals": [220, 240, 250],
+                    "ebitda_vals": [15, 17, 18],
+                    "ni_vals": [6, 7, 8],
+                    "eps_vals": 16.5,
+                    "acc_summary": {
+                        "Revenue ($B)": 250.0, "EBITDA ($B)": 18.0, "Net Income ($B)": 8.0,
+                        "ROE (%)": 28.0, "Debt/Equity": 45.0, "Current Ratio": 1.05, "Operating Margin (%)": 3.5
+                    },
+                    "analysts": {"key": "BUY", "score": 2.0, "target": 1060.0, "count": 37}
+                }
+            else:
+                st.error(f"❌ Error crítico: No se encontraron datos para {ticker}")
+                return None
+
+        # Procesamiento de Cuadro de 3 Años (Mantenemos tu lógica exacta si el try tiene éxito)
         is_3y = is_stmt.iloc[:, :3]
         hist_years = is_3y.columns.year.astype(str).tolist()
         rev_vals = (is_3y.loc['Total Revenue'] / 1e9).tolist()
@@ -310,7 +313,7 @@ class InstitutionalDataService:
             except:
                 continue
         return pd.DataFrame(peer_results)
-
+        
 class ValuationOracle:
     """Implementación de modelos financieros DCF y Black-Scholes."""
     @staticmethod
