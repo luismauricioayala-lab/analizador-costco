@@ -291,7 +291,7 @@ class InstitutionalDataService:
             }
         }
 
-@staticmethod
+    @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_peer_group_data(ticker_list):
         """Descarga métricas optimizada con Fallback Automático a Búnker Local."""
