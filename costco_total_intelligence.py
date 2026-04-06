@@ -884,66 +884,47 @@ def main():
                 st.info("📊 Esperando datos de competidores...")
 
         with c_p2:
-# --- BLOQUE DE SEGURIDAD PARA GRÁFICO EV/EBITDA (REESTRUCTURADO) ---
-            st.write("**Eficiencia Operativa: EV/EBITDA**")
-            
-            # 1. Intentamos recuperar los datos directamente del búnker para asegurar la columna
+            # --- BLOQUE DINÁMICO DE VALORACIÓN (EV/EBITDA o P/E) ---
             try:
-                if os.path.exists("peers_stats.csv"):
-                    df_ev_source = pd.read_csv("peers_stats.csv")
+                # 1. Cargamos datos frescos
+                df_ev_source = pd.read_csv("peers_stats.csv") if os.path.exists("peers_stats.csv") else df_full_comparison.copy()
+                
+                # 2. Determinamos qué métrica usar (Prioridad: EV/EBITDA, Respaldo: P/E Ratio)
+                if "EV/EBITDA" in df_ev_source.columns and df_ev_source["EV/EBITDA"].sum() > 0:
+                    metrica_activa = "EV/EBITDA"
+                    titulo_graf = "Eficiencia: EV/EBITDA (Menor = Mejor)"
                 else:
-                    df_ev_source = df_full_comparison.copy() if df_full_comparison is not None else None
+                    metrica_activa = "P/E Ratio"
+                    titulo_graf = "Valoración: P/E Ratio (Múltiplo de Beneficios)"
 
-                if df_ev_source is not None and not df_ev_source.empty:
-                    # 2. LIMPIEZA: Buscamos la columna (por si tiene espacios o mayúsculas distintas)
-                    # Creamos una lista de posibles nombres por si acaso
-                    posibles_cols = [c for c in df_ev_source.columns if "EV" in c and "EBITDA" in c]
-                    col_target = posibles_cols[0] if posibles_cols else "EV/EBITDA"
+                st.write(f"**{titulo_graf}**")
 
-                    if col_target in df_ev_source.columns:
-                        # Filtramos Benchmarks y valores basura (0 o negativos no sirven para múltiplos)
-                        df_plot_ev = df_ev_source[~df_ev_source['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
-                        
-                        # Convertimos a numérico por seguridad y quitamos NAs
-                        df_plot_ev[col_target] = pd.to_numeric(df_plot_ev[col_target], errors='coerce')
-                        df_plot_ev = df_plot_ev.dropna(subset=[col_target])
-                        df_plot_ev = df_plot_ev[df_plot_ev[col_target] > 0].sort_values(col_target, ascending=True)
+                # 3. Limpieza y Filtrado
+                df_plot_val = df_ev_source[~df_ev_source['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
+                df_plot_val[metrica_activa] = pd.to_numeric(df_plot_val[metrica_activa], errors='coerce')
+                df_plot_val = df_plot_val[df_plot_val[metrica_activa] > 0].sort_values(metrica_activa)
 
-                        if not df_plot_ev.empty:
-                            # 3. RENDERIZADO PLOTLY
-                            fig_ev = px.bar(
-                                df_plot_ev, 
-                                x="Ticker", 
-                                y=col_target, 
-                                color="Ticker",
-                                # Colores institucionales: Costco en Azul, el resto en grisáceo/escala
-                                color_discrete_map={"COST": "#005BAA"},
-                                text_auto='.1f', 
-                                template="plotly_dark",
-                                title="Múltiplo EV/EBITDA (Menor = Más 'Barato' en relación a generación de caja)"
-                            )
-                            
-                            fig_ev.update_layout(
-                                height=450, 
-                                showlegend=False,
-                                xaxis_title="Compañía",
-                                yaxis_title="Múltiplo EV/EBITDA",
-                                margin=dict(l=20, r=20, t=40, b=20)
-                            )
-                            
-                            # Resaltar la barra de Costco si existe
-                            fig_ev.update_traces(textposition='outside')
-                            
-                            st.plotly_chart(fig_ev, use_container_width=True)
-                        else:
-                            st.warning("⚠️ El búnker no contiene valores de EV/EBITDA positivos.")
-                    else:
-                        st.info("📊 La columna EV/EBITDA no existe en peers_stats.csv. Verifique el recolector.")
+                if not df_plot_val.empty:
+                    # Color map para que COST siempre destaque
+                    colors = {t: "#444444" for t in df_plot_val['Ticker']}
+                    if "COST" in colors: colors["COST"] = "#005BAA"
+
+                    fig_val = px.bar(
+                        df_plot_val,
+                        x="Ticker",
+                        y=metrica_activa,
+                        color="Ticker",
+                        color_discrete_map=colors,
+                        text_auto='.1f',
+                        template="plotly_dark"
+                    )
+                    fig_val.update_layout(height=400, showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
+                    st.plotly_chart(fig_val, use_container_width=True)
                 else:
-                    st.info("📊 Esperando sincronización de datos de eficiencia...")
-            
+                    st.info("📊 Esperando datos de valoración del búnker...")
+
             except Exception as e:
-                st.error(f"Error técnico en gráfico EV/EBITDA: {e}")
+                st.error(f"Error en bloque de valoración: {e}")
 
 # --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
         st.markdown("---")
