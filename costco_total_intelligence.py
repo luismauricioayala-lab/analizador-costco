@@ -940,73 +940,53 @@ def main():
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
 
-# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN AUTÓNOMA TOTAL) ---
-        st.markdown("---")
-        st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
+# --- TABLA MAESTRA INDEPENDIENTE (FUERZA BRUTA PARA MOSTRAR TODO) ---
+st.markdown("---")
+st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
+
+try:
+    # RECARGA TOTAL: Leemos el archivo original para saltarnos cualquier filtro de arriba
+    if os.path.exists("peers_stats.csv"):
+        df_bunker_total = pd.read_csv("peers_stats.csv")
+    else:
+        # Si no existe el CSV, usamos lo que haya en memoria
+        df_bunker_total = df_full_comparison.copy()
+
+    if df_bunker_total is not None and not df_bunker_total.empty:
+        # --- LIMPIEZA DE DATOS CRÍTICA ---
+        # 1. Target Yield Fix (Ese 379% a 2.95%)
+        if 'Div Yield (%)' in df_bunker_total.columns:
+            df_bunker_total['Div Yield (%)'] = df_bunker_total['Div Yield (%)'].apply(
+                lambda x: x/100 if x > 20 else x
+            )
+            df_bunker_total.loc[df_bunker_total['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
+
+        # 2. ORDENAMIENTO (Costco arriba, el resto por Market Cap)
+        df_bunker_total['Priority'] = df_bunker_total['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
+        df_bunker_total = df_bunker_total.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
+
+        # 3. FORMATOS BLOOMBERG
+        cols_fmt = {
+            "Mkt Cap ($B)": "{:.1f}", "P/E Ratio": "{:.2f}", "EV/EBITDA": "{:.2f}",
+            "ROE (%)": "{:.1f}%", "Net Margin (%)": "{:.2f}%", "Rev Growth (%)": "{:.2f}%",
+            "Div Yield (%)": "{:.2f}%"
+        }
         
-        # Usamos df_full_comparison para garantizar que NADA lo filtre antes de llegar aquí
-        if df_full_comparison is not None and not df_full_comparison.empty:
-            try:
-                # 1. TRABAJAMOS SOBRE UNA COPIA LIMPIA DEL BÚNKER
-                df_master = df_full_comparison.copy()
-                
-                # --- LIMPIEZA DE DATOS (Target Yield Fix) ---
-                if 'Div Yield (%)' in df_master.columns:
-                    # Si el yield es > 20, es un error de decimales del recolector
-                    df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(
-                        lambda x: x/100 if x > 20 else x
-                    )
-                    # Forzado manual para Target (TGT) por seguridad
-                    df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
+        columnas_visibles = [c for c in cols_fmt.keys() if c in df_bunker_total.columns]
 
-                # 2. ORDENAMIENTO: COSTCO (COST) SIEMPRE EN LA FILA 1
-                # Creamos una columna invisible de prioridad
-                df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
-                # Ordenamos por prioridad y luego por tamaño de mercado (Market Cap)
-                df_master = df_master.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
+        # 4. RENDERIZADO TOTAL (Sin filtros de multiselect)
+        st.dataframe(
+            df_bunker_total.set_index("Ticker").style.format({c: cols_fmt[c] for c in columnas_visibles})
+            .background_gradient(cmap='RdYlGn', subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_bunker_total.columns])
+            .background_gradient(cmap='RdYlGn_r', subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_bunker_total.columns])
+            .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_bunker_total.columns]),
+            use_container_width=True
+        )
+    else:
+        st.info("📊 No se encontraron datos en el Búnker (peers_stats.csv).")
 
-                # 3. DEFINICIÓN DE FORMATOS (Bloomberg Standard)
-                cols_formato = {
-                    "Mkt Cap ($B)": "{:.1f}",
-                    "P/E Ratio": "{:.2f}",
-                    "EV/EBITDA": "{:.2f}",
-                    "ROE (%)": "{:.1f}%",
-                    "Net Margin (%)": "{:.2f}%",
-                    "Rev Growth (%)": "{:.2f}%",
-                    "Div Yield (%)": "{:.2f}%"  # Dos decimales para captar el 2.95% de Target
-                }
-                
-                # Identificamos qué columnas están presentes en tu CSV
-                columnas_presentes = [c for c in cols_formato.keys() if c in df_master.columns]
-                
-                # 4. RENDERIZADO CON MAPA DE CALOR INSTITUCIONAL
-                st.dataframe(
-                    df_master.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_presentes})
-                    # Gradiente VERDE (Más es mejor): Rentabilidad, Margen y Dividendos
-                    .background_gradient(
-                        cmap='RdYlGn', 
-                        subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns]
-                    )
-                    # Gradiente ROJO INVERSO (Menos es más barato): Valoración
-                    .background_gradient(
-                        cmap='RdYlGn_r', 
-                        subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns]
-                    )
-                    # Gradiente AZUL (Jerarquía de tamaño): Market Cap
-                    .background_gradient(
-                        cmap='Blues', 
-                        subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]
-                    ),
-                    use_container_width=True
-                )
-            except Exception as e:
-                # En caso de error, mostramos la tabla básica para no perder la información
-                st.error(f"Error visual en matriz: {e}")
-                st.dataframe(df_full_comparison, use_container_width=True)
-        else:
-            st.info("📊 La tabla maestra se poblará al sincronizar con el Búnker de datos.")
-
-        st.caption("Nota: Esta matriz muestra el universo completo del Búnker independientemente de los filtros del gráfico.")
+except Exception as e:
+    st.error(f"Error al cargar la matriz completa: {e}")
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
