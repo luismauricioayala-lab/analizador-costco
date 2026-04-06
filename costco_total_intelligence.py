@@ -720,21 +720,10 @@ def main():
 
         # 2. Selector On-Demand (Incluyendo Índices)
         selected_labels = st.multiselect(
-        "Selecciona activos y benchmarks para el análisis comparativo:",
-        options=list(market_map.keys()),
-        default=[
-        "Costco (COST)", 
-        "S&P 500 (Market)", 
-        "Nasdaq 100 (Tech)", 
-        "Walmart (WMT)", 
-        "Target (TGT)", 
-        "BJ's Wholesale (BJ)",
-        "Amazon (AMZN)",     # <-- Agregado
-        "Home Depot (HD)",   # <-- Agregado
-        "Sprouts (SFM)",     # <-- Agregado
-        "Kroger (KR)"        # <-- Agregado
-        ],
-        help="Puedes agregar índices de mercado o competidores específicos para recalcular la terminal."
+            "Selecciona activos y benchmarks para el análisis comparativo:",
+            options=list(market_map.keys()),
+            default=["S&P 500 (Market)", "Nasdaq 100 (Tech)", "Walmart (WMT)", "Target (TGT)", "BJ's Wholesale (BJ)"],
+            help="Puedes agregar índices de mercado o competidores específicos para recalcular la terminal."
         )
 
         # Traducimos etiquetas a tickers para la API, siempre incluyendo a COST
