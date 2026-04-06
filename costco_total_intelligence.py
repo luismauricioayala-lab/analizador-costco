@@ -887,41 +887,42 @@ def main():
         with c_p2:
             st.write("**Valoración y Eficiencia Operativa**")
             try:
-                # 1. Carga de datos del búnker (Prioridad al CSV local)
+                # 1. Carga de datos del búnker
                 if os.path.exists("peers_stats.csv"):
                     df_ef = pd.read_csv("peers_stats.csv")
                 else:
                     df_ef = df_full_comparison.copy() if df_full_comparison is not None else pd.DataFrame()
 
                 if not df_ef.empty:
-                    # --- FUNCIÓN DE LIMPIEZA AGRESIVA ---
-                    # Esto asegura que "2.98%" se convierta en 2.98 numérico
+                    # --- FUNCIÓN DE LIMPIEZA ---
                     def clean_val(col_name):
                         return pd.to_numeric(
                             df_ef[col_name].astype(str).str.replace(r'[^0-9.]', '', regex=True), 
                             errors='coerce'
                         )
 
-                    # 2. IDENTIFICACIÓN DE MÉTRICAS (Radar de nombres)
+                    # 2. IDENTIFICACIÓN DE MÉTRICAS (Radar por prioridades)
                     col_ev = [c for c in df_ef.columns if "EV" in str(c).upper() and "EBITDA" in str(c).upper()]
+                    col_rev = [c for c in df_ef.columns if "PRICE / REVENUE" in str(c).upper() or "P/S" in str(c).upper()]
                     col_margin = [c for c in df_ef.columns if "MARGIN" in str(c).upper() or "MARGEN" in str(c).upper()]
                     
-                    # 3. SELECCIÓN DE JERARQUÍA: EV/EBITDA > Net Margin (%)
+                    # 3. SELECCIÓN DE JERARQUÍA: EV/EBITDA > Price/Revenue > Net Margin
                     if col_ev and clean_val(col_ev[0]).sum() > 0:
                         metrica, label, es_pct = col_ev[0], "Múltiplo: EV/EBITDA", False
+                    elif col_rev and clean_val(col_rev[0]).sum() > 0:
+                        metrica, label, es_pct = col_rev[0], "Múltiplo: Price / Revenue", False
                     elif col_margin and clean_val(col_margin[0]).sum() > 0:
                         metrica, label, es_pct = col_margin[0], "Margen Neto (%)", True
                     else:
-                        # Fallback final si el CSV está muy vacío
                         metrica, label, es_pct = "P/E Ratio", "P/E Ratio (Fallback)", False
 
-                    # 4. PREPARACIÓN DE DATOS PARA EL GRÁFICO
+                    # 4. PREPARACIÓN DE DATOS
                     df_plt = df_ef[~df_ef['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
                     df_plt[metrica] = clean_val(metrica)
                     df_plt = df_plt.dropna(subset=[metrica]).sort_values(metrica)
 
                     if not df_plt.empty:
-                        # Colores: Costco Azul (#005BAA), el resto Gris (#444444)
+                        # Colores: Costco Azul, el resto Gris
                         colors = ["#005BAA" if str(t).upper() == "COST" else "#444444" for t in df_plt['Ticker']]
                         
                         fig_v = px.bar(
@@ -930,9 +931,8 @@ def main():
                             title=f"Análisis: {label}"
                         )
                         
-                        # Formato de etiquetas sobre las barras (Solución al error de textsuffix)
-                        # %{y:.2f}% para porcentajes, %{y:.1f} para múltiplos
-                        formato_etiqueta = "%{y:.2f}%" if es_pct else "%{y:.1f}"
+                        # Formato dinámico según el tipo de métrica
+                        formato_etiqueta = "%{y:.2f}%" if es_pct else "%{y:.2f}x"
                         
                         fig_v.update_traces(
                             marker_color=colors, 
@@ -949,9 +949,9 @@ def main():
                         
                         st.plotly_chart(fig_v, use_container_width=True)
                     else:
-                        st.info("📊 Esperando datos numéricos para el gráfico...")
+                        st.info("📊 Sincronizando métricas de valoración...")
                 else:
-                    st.warning("⚠️ No se encontraron datos en peers_stats.csv")
+                    st.warning("⚠️ No se detectan datos en el Búnker.")
 
             except Exception as e:
                 st.error(f"Error en bloque de valoración: {e}")
