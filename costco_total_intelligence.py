@@ -895,28 +895,52 @@ def main():
             else:
                 st.info("📊 Esperando datos de mercado...")
 
-        # --- SECCIÓN: MATRIZ DE CORRELACIÓN ---
+# --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
         st.markdown("---")
         st.write("**🧩 Matriz de Correlación de Retornos Diarios (1Y)**")
         with st.expander("Ver Análisis de Correlación"):
-            # Verificamos si perf_df (descargado antes) tiene datos
+            # Verificamos si perf_df tiene datos
             if 'perf_df' in locals() and perf_df is not None and not perf_df.empty:
                 try:
-                    returns_df = perf_df.pct_change().dropna()
-                    # Usamos el mapeo institucional para las columnas
-                    returns_df.columns = [nombres_pro.get(col, col) for col in returns_df.columns]
-                    corr_matrix = returns_df.corr()
+                    # 1. Calculamos retornos y renombramos índices de mercado a símbolos de ETF
+                    # Aseguramos que el mapeo use SPY y QQQ para los nombres
+                    nombres_pro_corr = nombres_pro.copy()
+                    nombres_pro_corr.update({"^GSPC": "S&P 500 (SPY)", "^IXIC": "Nasdaq 100 (QQQ)"})
                     
+                    returns_df = perf_df.pct_change().dropna()
+                    
+                    # 2. Renombrar columnas ANTES de calcular la correlación
+                    returns_df.columns = [nombres_pro_corr.get(col, col) for col in returns_df.columns]
+                    corr_matrix = returns_df.corr()
+
+                    # 3. ORDENAMIENTO PERSONALIZADO: Costco (COST) siempre primero
+                    # Buscamos el nombre exacto que tiene Costco en el mapeo
+                    costco_label = nombres_pro.get("COST", "Costco (COST)")
+                    
+                    if costco_label in corr_matrix.columns:
+                        # Reordenamos las columnas y filas para que Costco sea el índice 0
+                        cols = [costco_label] + [c for c in corr_matrix.columns if c != costco_label]
+                        corr_matrix = corr_matrix.reindex(index=cols, columns=cols)
+                    
+                    # 4. RENDERIZADO DEL HEATMAP
                     fig_corr = px.imshow(
                         corr_matrix, 
                         text_auto=".2f", 
-                        color_continuous_scale='RdBu_r',
+                        color_continuous_scale='RdBu_r', # Rojo (Correlación +) vs Azul (Correlación -)
+                        zmin=-1, zmax=1, # Escala fija de correlación
                         template="plotly_dark", 
                         aspect="auto"
                     )
+                    
+                    fig_corr.update_layout(
+                        height=600,
+                        margin=dict(l=20, r=20, t=20, b=20)
+                    )
+                    
                     st.plotly_chart(fig_corr, use_container_width=True)
-                except Exception:
-                    st.info("📈 No se pudo calcular la correlación (datos insuficientes).")
+                    
+                except Exception as e:
+                    st.info(f"📈 No se pudo calcular la correlación: {e}")
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
 
