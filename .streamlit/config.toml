@@ -1,5 +1,6 @@
 [theme]
-# Solo dejamos el color primario para los acentos (botones/links)
+# Solo dejamos el color de acento. Al NO definir el resto, 
+# Streamlit habilita el switch de Light/Dark para el usuario.
 primaryColor = "#005BAA"
 font = "sans serif"
 
@@ -7,10 +8,12 @@ font = "sans serif"
 headless = true
 enableCORS = false
 enableXsrfProtection = false
+maxUploadSize = 200
 
 [browser]
 gatherUsageStats = true
 
 [client]
-# 'developer' asegura que el menú de hamburguesa muestre todas las opciones
+# 'developer' es vital para que el menú de hamburguesa no sea 'minimal'
 toolbarMode = "developer"
+showSidebarNavigation = true
