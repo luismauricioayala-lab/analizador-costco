@@ -197,10 +197,10 @@ class InstitutionalDataService:
             bs = asset.balance_sheet
             
             if cf.empty or is_stmt.empty:
-                st.error("Error Crítico: No se pudieron recuperar estados financieros auditados.")
+                st.error("Error Crítico: No se pudieron recuperar estados financieros.")
                 return None
             
-            # Cálculo de FCF Real (Billones $)
+            # --- Aquí es donde debe ir el Cálculo de FCF ---
             fcf_raw = (cf.loc['Operating Cash Flow'] + cf.loc['Capital Expenditure'])
             fcf_now = fcf_raw.iloc[0] / 1e9
             
@@ -243,7 +243,6 @@ class InstitutionalDataService:
                 }
             }
         except Exception as e:
-            # ESTE ES EL BLOQUE QUE FALTABA O ESTABA MAL IDENTADO
             st.error(f"Fallo en Servicio de Datos: {e}")
             return None
 
