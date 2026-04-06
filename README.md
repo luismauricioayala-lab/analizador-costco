@@ -24,4 +24,4 @@ Si deseas ejecutar la terminal en tu máquina:
 3. Lanza la app: `streamlit run costco_total_intelligence.py`
 
 ## 📄 Metodología
-La metodología completa se encuentra detallada en el documento [Guía Metodológica COST v43.2](./Guia_Metodologica_COST.pdf).
+La metodología completa se encuentra detallada en el documento [Guía Metodológica COST](./Guia_Metodologica_COST.pdf).
