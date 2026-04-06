@@ -1,8 +1,8 @@
 [theme]
-# Colores institucionales de Costco
+# Color azul corporativo de Costco para botones y acentos
 primaryColor = "#005BAA"
-# Dejamos que Streamlit gestione el fondo para permitir el Dark Mode nativo
-# Si borras 'backgroundColor' y 'textColor', el usuario podrá elegir el modo
+# NO definimos backgroundColor ni textColor para que Streamlit 
+# active automáticamente el selector de Dark Mode.
 font = "sans serif"
 
 [server]
@@ -12,10 +12,10 @@ enableXsrfProtection = false
 maxUploadSize = 200 
 
 [browser]
-gatherUsageStats = false
+# Esto habilita las estadísticas y ayuda a que el menú sea estándar
+gatherUsageStats = true
 
 [client]
-# 'developer' muestra todas las opciones, incluyendo el cambio de tema
-# 'minimal' a veces oculta el selector de modo oscuro en versiones nuevas
+# 'developer' es la clave: fuerza a que aparezca el menú completo arriba a la derecha
 toolbarMode = "developer" 
 showSidebarNavigation = true
