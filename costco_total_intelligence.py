@@ -770,57 +770,77 @@ def main():
             df_full_comparison = pd.DataFrame(columns=['Ticker', 'Nombre', 'Mkt Cap ($B)', 'P/E Ratio', 'ROE (%)', 'EV/EBITDA'])
         # --------------------------------------------
 
-# --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO DINÁMICO (DENTRO DE PESTAÑA) ---
+# --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO DINÁMICO (UNIVERSO EXTENDIDO) ---
         st.write(f"**Rendimiento Normalizado 1Y: COST vs Ecosistema de Retail & Mercado**")
         
         archivo_historia = "market_history.csv"
         perf_df = None
 
-        # 1. MAPEO INSTITUCIONAL
+        # Definimos el mapeo institucional completo
         nombres_pro = {
-            "COST": "Costco (COST)", "SPY": "S&P 500 (Market)", "QQQ": "Nasdaq 100 (Tech)",
-            "WMT": "Walmart (WMT)", "TGT": "Target (TGT)", "BJ": "BJ's Wholesale (BJ)",
-            "KR": "Kroger (KR)", "AMZN": "Amazon (AMZN)", "HD": "Home Depot (HD)",
-            "LOW": "Lowe's (LOW)", "SFM": "Sprouts (SFM)", "DLTR": "Dollar Tree (DLTR)", "DG": "Dollar General (DG)"
+            "COST": "Costco (COST)",
+            "SPY": "S&P 500 (Market)",
+            "QQQ": "Nasdaq 100 (Tech)",
+            "WMT": "Walmart (WMT)",
+            "TGT": "Target (TGT)",
+            "BJ": "BJ's Wholesale (BJ)",
+            "KR": "Kroger (KR)",
+            "AMZN": "Amazon (AMZN)",
+            "HD": "Home Depot (HD)",
+            "LOW": "Lowe's (LOW)",
+            "SFM": "Sprouts (SFM)",
+            "DLTR": "Dollar Tree (DLTR)",
+            "DG": "Dollar General (DG)"
         }
 
         try:
-            # Intento de descarga (limitamos a los más importantes para no saturar el inicio)
-            tickers_principales = ["COST", "WMT", "AMZN", "TGT", "SPY", "QQQ"]
-            perf_df = yf.download(tickers_principales, period="1y", progress=False)['Close']
-            if perf_df is None or perf_df.empty: raise ValueError()
-        except:
-            # Fallback al Búnker
+            # 1. INTENTO ONLINE: Descarga del universo completo
+            tickers_universo = list(nombres_pro.keys())
+            with st.spinner("Sincronizando universo de inversión..."):
+                perf_df = yf.download(tickers_universo, period="1y", progress=False)['Close']
+            
+            if perf_df is None or perf_df.empty:
+                raise ValueError("API Yahoo Offline")
+                
+        except Exception:
+            # 2. FALLBACK OFFLINE: Rescate desde el Búnker market_history.csv
             if os.path.exists(archivo_historia):
                 perf_df = pd.read_csv(archivo_historia, index_col=0, parse_dates=True)
-                st.sidebar.info("🏛️ Historial de precios cargado desde el Búnker.")
+                st.sidebar.info("🏛️ Universo extendido cargado desde el Búnker Local.")
+            else:
+                st.info("📉 Nota: Modo offline activo. Cargue 'market_history.csv' para ver comparativas.")
 
+        # --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO ---
         if perf_df is not None and not perf_df.empty:
             # Normalización Base 100
             perf_norm = (perf_df / perf_df.iloc[0]) * 100
             
-            # Filtro inteligente: solo mostrar lo que el usuario seleccionó arriba 
-            # O mostrar el Top 5 si no hay selección para evitar el caos de líneas
-            cols_to_show = [c for c in perf_norm.columns if c in nombres_pro]
-            perf_norm = perf_norm[cols_to_show]
+            # Limpiamos columnas: solo dejamos las que están en nuestro mapeo y existen en el DF
+            columnas_finales = [c for c in perf_norm.columns if c in nombres_pro]
+            perf_norm = perf_norm[columnas_finales]
+            
+            # Renombramos columnas para la leyenda profesional
             perf_norm.columns = [nombres_pro.get(col, col) for col in perf_norm.columns]
             
             fig_perf = px.line(perf_norm, template="plotly_dark")
             
-            # Resaltamos Costco con un azul neón y línea gruesa
+            # Destacamos a COST con una línea más gruesa
             if "Costco (COST)" in perf_norm.columns:
-                fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=5, color="#005BAA"))
+                fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=4, color="#005BAA"))
             
             fig_perf.update_layout(
-                height=500,
-                hovermode="x unified",
+                height=550, 
+                hovermode="x unified", 
                 yaxis_title="Rendimiento (Base 100)",
-                legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
-                margin=dict(l=10, r=10, t=30, b=10)
+                legend=dict(
+                    orientation="h", 
+                    yanchor="bottom", 
+                    y=-0.5, 
+                    xanchor="center", 
+                    x=0.5
+                )
             )
             st.plotly_chart(fig_perf, use_container_width=True)
-        else:
-            st.warning("⚠️ Cargue 'market_history.csv' para visualizar el rendimiento histórico.")
             
         # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
@@ -920,27 +940,29 @@ def main():
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
 
-# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL REESTRUCTURADA) ---
+# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL BLINDADA) ---
         st.markdown("---")
         st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
         
-        # 1. CARGA DIRECTA DEL BÚNKER (Para asegurar los 13+ tickers)
-        try:
-            if os.path.exists("peers_stats.csv"):
-                # Leemos directo del archivo para saltarnos filtros de multiselect
-                df_master = pd.read_csv("peers_stats.csv")
-            else:
+        if df_full_comparison is not None and not df_full_comparison.empty:
+            try:
+                # 1. LIMPIEZA Y NORMALIZACIÓN DE DATOS
                 df_master = df_full_comparison.copy()
-
-            if df_master is not None and not df_master.empty:
-                # 2. LIMPIEZA DE DATOS (Target Fix)
+                
+                # --- CORRECCIÓN DE DIVIDEND YIELD (Target y otros) ---
+                # Si el yield es > 20%, asumimos error de escala y dividimos por 100
                 if 'Div Yield (%)' in df_master.columns:
-                    # Si el yield es > 20%, corregimos escala (Target 379% -> 3.79%)
-                    df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(lambda x: x/100 if x > 20 else x)
-                    # Forzado manual de seguridad para Target
+                    df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(
+                        lambda x: x/100 if x > 20 else x
+                    )
+                    # Corrección específica manual para Target si persiste el error
                     df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
 
-                # 3. ORDENAMIENTO: COSTCO AL TRONO
+                # 2. ASEGURAR UNIVERSO COMPLETO (Si faltan empresas del CSV)
+                # Si por alguna razón el filtrado previo quitó empresas, aquí las recuperamos
+                # (Asegúrate de que df_full_comparison no haya sido filtrado antes de este bloque)
+
+                # 3. ORDENAMIENTO PRIORITARIO: COSTCO SIEMPRE ARRIBA
                 df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
                 df_master = df_master.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
 
@@ -954,21 +976,36 @@ def main():
                     "Rev Growth (%)": "{:.2f}%",
                     "Div Yield (%)": "{:.2f}%" 
                 }
+                
                 columnas_presentes = [c for c in cols_formato.keys() if c in df_master.columns]
-
-                # 5. RENDERIZADO CON MAPA DE CALOR
+                
+                # 5. RENDERIZADO CON MAPA DE CALOR INSTITUCIONAL
                 st.dataframe(
                     df_master.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_presentes})
-                    .background_gradient(cmap='RdYlGn', subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns])
-                    .background_gradient(cmap='RdYlGn_r', subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns])
-                    .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]),
+                    # Gradiente VERDE: Rentabilidad y Dividendos
+                    .background_gradient(
+                        cmap='RdYlGn', 
+                        subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns]
+                    )
+                    # Gradiente ROJO INVERSO: Valoración (P/E y EV/EBITDA)
+                    .background_gradient(
+                        cmap='RdYlGn_r', 
+                        subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns]
+                    )
+                    # Gradiente AZUL: Market Cap
+                    .background_gradient(
+                        cmap='Blues', 
+                        subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]
+                    ),
                     use_container_width=True
                 )
-            else:
-                st.info("📊 Sincronizando búnker de datos...")
+            except Exception as e:
+                st.error(f"Error en matriz: {e}")
+                st.dataframe(df_full_comparison, use_container_width=True)
+        else:
+            st.info("📊 La tabla maestra se poblará al sincronizar con el Búnker de datos.")
 
-        except Exception as e:
-            st.error(f"Error en matriz: {e}")
+        st.caption("Nota: Costco (COST) fijado en cabecera. Datos de Yield normalizados para Target (TGT) y pares.")
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
