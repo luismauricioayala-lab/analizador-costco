@@ -940,39 +940,59 @@ def main():
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
 
-        # --- TABLA MAESTRA CON FORMATO BLOOMBERG (ESTRUCTURA ORIGINAL COMPLETA) ---
+# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN INSTITUCIONAL 2026) ---
         st.markdown("---")
         st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
         
         if df_full_comparison is not None and not df_full_comparison.empty:
             try:
-                # Definimos el formato original exacto para cada columna
+                # 1. FORZAMOS A COSTCO AL PRINCIPIO DE LA TABLA
+                # Creamos una columna auxiliar para ordenar: COST arriba, el resto abajo
+                df_master = df_full_comparison.copy()
+                df_master['Order'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
+                df_master = df_master.sort_values(['Order', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Order', axis=1)
+
+                # 2. DEFINICIÓN DE FORMATOS (Precisión de decimales)
                 cols_formato = {
                     "Mkt Cap ($B)": "{:.1f}",
                     "P/E Ratio": "{:.2f}",
                     "EV/EBITDA": "{:.2f}",
                     "ROE (%)": "{:.1f}%",
                     "Net Margin (%)": "{:.2f}%",
-                    "Rev Growth (%)": "{:.2f}%"
+                    "Rev Growth (%)": "{:.2f}%",
+                    "Div Yield (%)": "{:.2f}%"  # Calibrado a dos decimales
                 }
                 
-                # Identificamos qué columnas están presentes para aplicar el estilo
-                columnas_validas = [c for c in cols_formato.keys() if c in df_full_comparison.columns]
+                # Identificamos columnas presentes
+                columnas_presentes = [c for c in cols_formato.keys() if c in df_master.columns]
                 
-                # Renderizado de la tabla con gradientes (Incluye SPY y QQQ)
+                # 3. RENDERIZADO CON GRADIENTES DE COLOR CALIBRADOS
                 st.dataframe(
-                    df_full_comparison.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_validas})
-                    .background_gradient(cmap='RdYlGn', subset=[c for c in ['ROE (%)', 'Rev Growth (%)'] if c in df_full_comparison.columns])
-                    .background_gradient(cmap='RdYlGn_r', subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_full_comparison.columns]),
+                    df_master.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_presentes})
+                    # Gradiente VERDE (Más es mejor): Rentabilidad, Crecimiento y Dividendos
+                    .background_gradient(
+                        cmap='RdYlGn', 
+                        subset=[c for c in ['ROE (%)', 'Rev Growth (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns]
+                    )
+                    # Gradiente ROJO INVERSO (Menos es mejor/más barato): Múltiplos de Valoración
+                    .background_gradient(
+                        cmap='RdYlGn_r', 
+                        subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns]
+                    )
+                    # Gradiente AZUL/PLATINO: Tamaño de Mercado
+                    .background_gradient(
+                        cmap='Blues', 
+                        subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]
+                    ),
                     use_container_width=True
                 )
             except Exception as e:
-                # Fallback a tabla simple si el estilizado falla
+                # Fallback a tabla limpia si el estilizado encuentra un conflicto
                 st.dataframe(df_full_comparison, use_container_width=True)
         else:
             st.info("📊 La tabla maestra se poblará al sincronizar con el Búnker de datos.")
 
-        st.caption("Nota: Las métricas de los índices se basan en los estados financieros y precios de sus ETFs representativos (SPY y QQQ).")
+        st.caption("Nota: Datos normalizados. Costco (COST) fijado en cabecera para análisis comparativo directo.")
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
