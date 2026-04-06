@@ -855,10 +855,9 @@ def main():
             else:
                 st.info("📊 Esperando datos de mercado...")
 
-        # --- SECCIÓN: MATRIZ DE CORRELACIÓN ---
+    # --- SECCIÓN: MATRIZ DE CORRELACIÓN ---
         st.markdown("---")
         st.write("**🧩 Matriz de Correlación de Retornos Diarios (1Y)**")
-
         with st.expander("Ver Análisis de Correlación"):
             # Verificamos si perf_df (descargado antes) tiene datos
             if 'perf_df' in locals() and perf_df is not None and not perf_df.empty:
