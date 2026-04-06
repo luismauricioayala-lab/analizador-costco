@@ -915,60 +915,71 @@ def main():
             else:
                 st.info("📊 Esperando datos de mercado...")
 
-# --- MATRIZ DE CORRELACIÓN: VERSIÓN ULTRA-COMPATIBLE ---
+# --- MATRIZ DE CORRELACIÓN: VERSIÓN BLINDADA ---
         st.markdown("---")
         st.write("**🧩 Matriz de Correlación de Retornos Diarios (1Y)**")
-        with st.expander("Ver Análisis de Correlación", expanded=True): # Lo abrimos por defecto para probar
+        with st.expander("Ver Análisis de Correlación", expanded=True):
             
-            # 1. Verificamos datos de precios
             if 'perf_df' in locals() and perf_df is not None and not perf_df.empty:
                 try:
-                    # Mapeo de nombres para la matriz
-                    nombres_pro_corr = nombres_pro.copy()
-                    nombres_pro_corr.update({"^GSPC": "S&P 500 (SPY)", "^IXIC": "Nasdaq 100 (QQQ)"})
+                    # 1. Calculamos retornos diarios
+                    returns_raw = perf_df.pct_change().dropna()
                     
-                    # 2. Calculamos retornos
-                    returns_all = perf_df.pct_change().dropna()
+                    # 2. Identificamos qué Tickers seleccionó el usuario arriba
+                    # Extraemos el Ticker de labels como "Costco (COST)" usando split
+                    tickers_seleccionados = []
+                    for label in selected_labels:
+                        if "(" in label and ")" in label:
+                            ticker = label.split('(')[-1].replace(')', '').strip()
+                            tickers_seleccionados.append(ticker)
+                        else:
+                            # Por si acaso el label es solo el ticker (SPY, QQQ)
+                            tickers_seleccionados.append(label)
+
+                    # 3. Filtramos el DataFrame original usando los TICKERS
+                    # Solo tomamos las columnas que existen en returns_raw y están seleccionadas
+                    cols_finales = [c for c in returns_raw.columns if c in tickers_seleccionados]
                     
-                    # Renombramos columnas del DataFrame para que coincidan con el Multiselect
-                    returns_all.columns = [nombres_pro_corr.get(col, col) for col in returns_all.columns]
-                    
-                    # 3. FILTRO: Solo lo que el usuario seleccionó
-                    # IMPORTANTE: selected_labels debe contener ["Costco (COST)", "Amazon (AMZN)"]
-                    columnas_finales = [c for c in returns_all.columns if c in selected_labels]
-                    
-                    if len(columnas_finales) > 1:
-                        # Calculamos la matriz solo de los seleccionados
-                        df_corr = returns_all[columnas_finales].corr()
+                    if len(cols_finales) > 1:
+                        # Calculamos matriz
+                        df_corr = returns_raw[cols_finales].corr()
+                        
+                        # 4. Renombramos para que el gráfico se vea bonito (Nombres Pro)
+                        # Usamos el diccionario nombres_pro que ya definimos arriba
+                        nombres_beauty = {
+                            "COST": "Costco (COST)", "AMZN": "Amazon (AMZN)", 
+                            "WMT": "Walmart (WMT)", "TGT": "Target (TGT)",
+                            "SPY": "S&P 500 (SPY)", "QQQ": "Nasdaq 100 (QQQ)",
+                            "BJ": "BJ's Wholesale (BJ)", "HD": "Home Depot (HD)",
+                            "LOW": "Lowe's (LOW)", "SFM": "Sprouts (SFM)",
+                            "KR": "Kroger (KR)", "DG": "Dollar General (DG)", "DLTR": "Dollar Tree (DLTR)"
+                        }
+                        df_corr.columns = [nombres_beauty.get(x, x) for x in df_corr.columns]
+                        df_corr.index = [nombres_beauty.get(x, x) for x in df_corr.index]
                         
                         # Reordenar para que Costco sea el primero
-                        costco_label = nombres_pro.get("COST", "Costco (COST)")
+                        costco_label = nombres_beauty.get("COST", "Costco (COST)")
                         if costco_label in df_corr.columns:
                             reorder = [costco_label] + [c for c in df_corr.columns if c != costco_label]
                             df_corr = df_corr.reindex(index=reorder, columns=reorder)
-                        
-                        # 4. DIBUJAR MATRIZ
+
+                        # 5. DIBUJAR
                         fig_corr = px.imshow(
                             df_corr,
                             text_auto=".2f",
                             color_continuous_scale='RdBu_r',
                             zmin=-1, zmax=1,
-                            template="plotly_dark",
-                            aspect="auto"
+                            template="plotly_dark"
                         )
-                        
-                        fig_corr.update_layout(
-                            height=450,
-                            margin=dict(l=20, r=20, t=20, b=20)
-                        )
+                        fig_corr.update_layout(height=450, margin=dict(l=20, r=20, t=20, b=20))
                         st.plotly_chart(fig_corr, use_container_width=True)
                     else:
-                        st.info("💡 Por favor, selecciona al menos dos activos en el menú superior para comparar su correlación.")
-                        
+                        st.info("💡 Selecciona al menos dos activos (ej. Costco y Amazon) en el selector superior.")
+                
                 except Exception as e:
-                    st.error(f"Error técnico en matriz: {e}")
+                    st.error(f"Error al procesar matriz: {e}")
             else:
-                st.info("📉 No hay datos históricos disponibles para calcular la correlación.")
+                st.info("📉 No hay datos históricos suficientes para la matriz.")
 
 # --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL BLINDADA) ---
         st.markdown("---")
