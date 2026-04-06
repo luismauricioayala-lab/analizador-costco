@@ -294,50 +294,58 @@ class InstitutionalDataService:
     @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_peer_group_data(ticker_list):
-        """Carga de datos de competidores con prioridad absoluta al Búnker local."""
+        """Versión de Diagnóstico y Carga Blindada."""
         archivo_offline = "peers_stats.csv"
         
-        # 1. VERIFICACIÓN PREVENTIVA DEL BÚNKER
-        # Si el archivo existe, lo cargamos de inmediato para asegurar que los gráficos tengan datos
-        df_local = None
+        # --- 1. RASTREADOR DE ARCHIVOS (DIAGNÓSTICO) ---
+        if not os.path.exists(archivo_offline):
+            # Si el archivo no existe en la raíz, lo buscamos en el directorio actual
+            posibles_rutas = [archivo_offline, f"./{archivo_offline}", f"analizador-costco/{archivo_offline}"]
+            for ruta in posibles_rutas:
+                if os.path.exists(ruta):
+                    archivo_offline = ruta
+                    break
+        
+        # --- 2. CARGA FORZOSA DEL BÚNKER ---
+        df_final = None
         if os.path.exists(archivo_offline):
             try:
-                df_local = pd.read_csv(archivo_offline)
-                # Si el CSV está sano, lo dejamos listo
-                if not df_local.empty:
-                    st.toast("🏛️ Datos de competidores cargados desde el Búnker Local.")
+                df_final = pd.read_csv(archivo_offline)
+                # Limpieza de seguridad: quitar espacios en nombres de columnas
+                df_final.columns = df_final.columns.str.strip()
+                
+                if not df_final.empty:
+                    # Si tiene datos, filtramos por los tickers que queremos
+                    df_final = df_final[df_final['Ticker'].isin(ticker_list)]
+                    st.success(f"✅ Búnker Local Detectado: {len(df_final)} empresas cargadas.")
+                    return df_final
             except Exception as e:
-                print(f"Error leyendo CSV local: {e}")
+                st.error(f"❌ Error leyendo CSV: {e}")
 
-        # 2. INTENTO ONLINE (Opcional si hay red)
-        peer_results = []
+        # --- 3. INTENTO ONLINE (SOLO SI EL BÚNKER FALLÓ) ---
         try:
-            # Solo intentamos Yahoo si no tenemos datos locales o queremos refrescar
-            # Pero para evitar bloqueos, si ya tenemos df_local, podemos saltar esto
+            peer_results = []
             for t in ticker_list:
                 asset = yf.Ticker(t)
                 info = asset.info
-                if not info or 'marketCap' not in info:
-                    raise ValueError("Yahoo offline")
-                
-                peer_results.append({
-                    "Ticker": t,
-                    "Nombre": info.get('shortName', t),
-                    "Mkt Cap ($B)": info.get('marketCap', 0) / 1e9,
-                    "P/E Ratio": info.get('trailingPE', 0),
-                    "EV/EBITDA": info.get('enterpriseToEbitda', 0),
-                    "ROE (%)": info.get('returnOnEquity', 0) * 100,
-                    "Net Margin (%)": info.get('profitMargins', 0) * 100,
-                    "Rev Growth (%)": info.get('revenueGrowth', 0) * 100
-                })
-            return pd.DataFrame(peer_results)
+                if info and 'marketCap' in info:
+                    peer_results.append({
+                        "Ticker": t,
+                        "Nombre": info.get('shortName', t),
+                        "Mkt Cap ($B)": info.get('marketCap', 0) / 1e9,
+                        "P/E Ratio": info.get('trailingPE', 0),
+                        "EV/EBITDA": info.get('enterpriseToEbitda', 0),
+                        "ROE (%)": info.get('returnOnEquity', 0) * 100,
+                        "Net Margin (%)": info.get('profitMargins', 0) * 100,
+                        "Rev Growth (%)": info.get('revenueGrowth', 0) * 100
+                    })
             
-        except Exception:
-            # 3. EMERGENCIA: Si Yahoo falla, devolvemos el Búnker que leímos al principio
-            if df_local is not None:
-                return df_local[df_local['Ticker'].isin(ticker_list)]
-        
-        return df_local # Retorno final de seguridad
+            if peer_results:
+                return pd.DataFrame(peer_results)
+        except:
+            pass
+
+        return df_final # Retornará el DF local si nada más funcionó
         
 class ValuationOracle:
     """Implementación de modelos financieros DCF y Black-Scholes."""
