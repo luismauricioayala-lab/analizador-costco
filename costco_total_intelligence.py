@@ -556,7 +556,7 @@ def main():
             with c_sc1:
                 st.markdown(f"""<div class="scenario-card-detailed bear-pro">
                     <div class="scenario-label-sober">Escenario Bajista (Bear)</div>
-                    <div class="price-hero-sober" style="color:#f85149">${v_bear:.0f}</div>
+                    <div class="price-hero-sober" style="color:#f85149">${v_bear:,.0f}</div>
                     <div class="driver-list-sober">
                         • <b>WACC:</b> {bear_wacc*100:.2f}% (Riesgo ↑)<br>
                         • <b>Crec. 1-5Y:</b> {bear_g1*100:.1f}%<br>
