@@ -722,7 +722,7 @@ def main():
         selected_labels = st.multiselect(
             "Selecciona activos y benchmarks para el análisis comparativo:",
             options=list(market_map.keys()),
-            default=["S&P 500 (Market)", "Nasdaq 100 (Tech)", "Walmart (WMT)", "Target (TGT)", "BJ's Wholesale (BJ)"],
+            default=["S&P 500 (Market)", "Nasdaq 100 (Tech)", "Walmart (WMT)", "Target (TGT)", "BJ's Wholesale (BJ)","KR": "Kroger (KR)"],
             help="Puedes agregar índices de mercado o competidores específicos para recalcular la terminal."
         )
 
