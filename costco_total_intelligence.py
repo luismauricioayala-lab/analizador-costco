@@ -964,11 +964,27 @@ def main():
                     # Forzado manual de seguridad para Target
                     df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
 
-                # 3. ORDENAMIENTO: COSTCO AL TRONO
-                df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
-                df_master = df_master.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
+    # 3. ORDENAMIENTO POR CERCANÍA COMPETITIVA
+                # Nivel 0: Costco (El Rey)
+                # Nivel 1: Pares Cercanos (WMT, TGT, BJ)
+                # Nivel 2: Soft Retail / Especializados (HD, LOW, SFM, KR, DG, DLTR)
+                # Nivel 3: Benchmarks y Otros (AMZN, SPY, QQQ)
+                
+                def asignar_prioridad(ticker):
+                    if ticker == 'COST': return 0
+                    if ticker in ['WMT', 'TGT', 'BJ']: return 1
+                    if ticker in ['HD', 'LOW', 'SFM', 'KR', 'DG', 'DLTR']: return 2
+                    return 3
 
-                # 4. DEFINICIÓN DE FORMATOS
+                df_master['Closeness'] = df_master['Ticker'].apply(asignar_prioridad)
+                
+                # Ordenamos por Cercanía primero, y dentro de cada grupo por Tamaño (Mkt Cap)
+                df_master = df_master.sort_values(
+                    ['Closeness', 'Mkt Cap ($B)'], 
+                    ascending=[True, False]
+                ).drop('Closeness', axis=1)
+
+                # 4. DEFINICIÓN DE FORMATOS (Sin cambios, se mantiene tu estructura)
                 cols_formato = {
                     "Mkt Cap ($B)": "{:.1f}",
                     "P/E Ratio": "{:.2f}",
