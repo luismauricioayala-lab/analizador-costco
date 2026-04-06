@@ -19,7 +19,3 @@ font = "sans serif"
 headless = true
 enableCORS = false
 enableXsrfProtection = false
-
-[browser]
-# Quitar el menú de Streamlit para que parezca una app nativa
-gatherUsageStats = false
