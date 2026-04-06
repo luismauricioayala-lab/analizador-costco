@@ -616,38 +616,47 @@ def main():
             fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=450, template="plotly_dark")
             st.plotly_chart(fig_radar, use_container_width=True)
 
-    # -------------------------------------------------------------------------
-    # TAB 3: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE DINÁMICO)
+# -------------------------------------------------------------------------
+    # TAB 2: PEER ANALYSIS & MARKET BENCHMARKING (DINÁMICO + INTERACTIVO)
     # -------------------------------------------------------------------------
     with tabs[2]:
         st.subheader("🔬 Peer Analysis & Market Benchmarking (Real-Time)")
         
-        # 1. Definimos los competidores y los índices
-        peer_tickers = ["COST", "WMT", "TGT", "BJ", "KR"] # Agregamos Kroger (KR) para más profundidad
+        # --- NUEVA SECCIÓN: SELECTOR ON-DEMAND ---
+        available_options = ["WMT", "TGT", "BJ", "KR", "AMZN", "HD", "LOW", "SFM", "DLTR", "DG"]
+        default_selection = ["WMT", "TGT", "BJ", "KR"]
+        
+        selected_peers = st.multiselect(
+            "Selecciona competidores para benchmarking dinámico:",
+            options=available_options,
+            default=default_selection,
+            help="Agrega o quita tickers para recalcular la comparativa de mercado."
+        )
+
+        # Unificamos COST con la selección del usuario
+        peer_tickers = ["COST"] + selected_peers 
         benchmark_tickers = {"S&P 500": "SPY", "Nasdaq 100": "QQQ"}
 
         with st.spinner("Sincronizando datos de mercado..."):
-            # 2. Descargamos datos de competidores
+            # 2. Descargamos datos de competidores (Ahora depende de 'peer_tickers')
             df_peers = InstitutionalDataService.fetch_peer_group_data(peer_tickers)
             
-            # 3. Descargamos datos de Benchmarks (Solo métricas básicas para comparar)
+            # 3. Descargamos datos de Benchmarks
             df_benchs = InstitutionalDataService.fetch_peer_group_data(list(benchmark_tickers.values()))
-            # Renombramos tickers de benchmarks para que en el gráfico digan "S&P 500" etc.
             df_benchs['Nombre'] = list(benchmark_tickers.keys())
             
             # Unimos todo para la comparativa final
             df_full_comparison = pd.concat([df_peers, df_benchs], ignore_index=True)
 
-        # --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO ---
-        st.write("**Rendimiento Normalizado 1Y (COST vs Benchmarks)**")
-        # Reutilizamos la lógica de descarga de precios 1Y
-        perf_df = yf.download(["COST", "SPY", "QQQ"], period="1y")['Close']
+        # --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO (DINÁMICO) ---
+        st.write(f"**Rendimiento Normalizado 1Y (Base 100)**")
+        # Ahora descarga COST + Peers seleccionados + Benchmarks
+        tickers_to_perf = peer_tickers + ["SPY", "QQQ"]
+        perf_df = yf.download(tickers_to_perf, period="1y")['Close']
         perf_norm = (perf_df / perf_df.iloc[0]) * 100
-        perf_norm.columns = ["Costco", "Nasdaq 100", "S&P 500"]
         
-        fig_perf = px.line(perf_norm, template="plotly_dark", 
-                           color_discrete_map={"Costco": "#005BAA", "S&P 500": "#3fb950", "Nasdaq 100": "#f6e05e"})
-        fig_perf.update_layout(height=400, hovermode="x unified")
+        fig_perf = px.line(perf_norm, template="plotly_dark")
+        fig_perf.update_layout(height=400, hovermode="x unified", yaxis_title="Crecimiento %")
         st.plotly_chart(fig_perf, use_container_width=True)
 
         # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
@@ -660,6 +669,9 @@ def main():
                 size="Mkt Cap ($B)", color="Nombre", text="Ticker",
                 template="plotly_dark", size_max=40
             )
+            # Líneas guía de promedios
+            fig_scat.add_vline(x=df_full_comparison["P/E Ratio"].mean(), line_dash="dot", opacity=0.5)
+            fig_scat.add_hline(y=df_full_comparison["ROE (%)"].mean(), line_dash="dot", opacity=0.5)
             st.plotly_chart(fig_scat, use_container_width=True)
             
         with c_p2:
@@ -670,10 +682,29 @@ def main():
             )
             st.plotly_chart(fig_ev, use_container_width=True)
 
+        # --- NUEVA SECCIÓN: MATRIZ DE CORRELACIÓN (SUGERENCIA PRO) ---
+        st.markdown("---")
+        st.write("**🧩 Matriz de Correlación Cruzada (1Y Historical)**")
+        with st.expander("Ver Análisis de Correlación Sectorial"):
+            # Calculamos retornos diarios
+            returns_df = perf_df.pct_change().dropna()
+            corr_matrix = returns_df.corr()
+            
+            fig_corr = px.imshow(
+                corr_matrix, 
+                text_auto=".2f", 
+                color_continuous_scale='RdBu_r',
+                aspect="auto",
+                template="plotly_dark",
+                title="Correlación de Retornos Diarios (COST vs Peers vs Benchmarks)"
+            )
+            st.plotly_chart(fig_corr, use_container_width=True)
+            st.caption("Una correlación cercana a 1.00 indica que los activos se mueven en la misma dirección.")
+
         # --- TABLA MAESTRA CON FORMATO BLOOMBERG ---
+        st.markdown("---")
         st.write("**Matriz Competitiva Dinámica (Sync 2026)**")
         
-        # Formateamos para que use el punto decimal que pediste (1014.96)
         st.dataframe(
             df_full_comparison.style.format({
                 "Mkt Cap ($B)": "{:.1f}",
@@ -683,6 +714,8 @@ def main():
                 "Net Margin (%)": "{:.2f}%",
                 "Rev Growth (%)": "{:.2f}%"
             }).background_gradient(cmap='RdYlGn', subset=['ROE (%)', 'Rev Growth (%)'])
+              .background_gradient(cmap='RdYlGn_r', subset=['P/E Ratio', 'EV/EBITDA']),
+            use_container_width=True
         )
 
         st.caption("Nota: Los datos de índices (S&P 500 / Nasdaq) se obtienen a través de sus ETFs representativos (SPY/QQQ).")
