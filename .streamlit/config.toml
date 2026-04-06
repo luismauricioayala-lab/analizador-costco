@@ -1,21 +1,16 @@
 [theme]
-# Color azul corporativo de Costco para botones y acentos
+# Solo dejamos el color primario para los acentos (botones/links)
 primaryColor = "#005BAA"
-# NO definimos backgroundColor ni textColor para que Streamlit 
-# active automáticamente el selector de Dark Mode.
 font = "sans serif"
 
 [server]
 headless = true
 enableCORS = false
 enableXsrfProtection = false
-maxUploadSize = 200 
 
 [browser]
-# Esto habilita las estadísticas y ayuda a que el menú sea estándar
 gatherUsageStats = true
 
 [client]
-# 'developer' es la clave: fuerza a que aparezca el menú completo arriba a la derecha
-toolbarMode = "developer" 
-showSidebarNavigation = true
+# 'developer' asegura que el menú de hamburguesa muestre todas las opciones
+toolbarMode = "developer"
