@@ -940,53 +940,55 @@ def main():
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
 
-# --- TABLA MAESTRA INDEPENDIENTE (FUERZA BRUTA PARA MOSTRAR TODO) ---
-st.markdown("---")
-st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
-
-try:
-    # RECARGA TOTAL: Leemos el archivo original para saltarnos cualquier filtro de arriba
-    if os.path.exists("peers_stats.csv"):
-        df_bunker_total = pd.read_csv("peers_stats.csv")
-    else:
-        # Si no existe el CSV, usamos lo que haya en memoria
-        df_bunker_total = df_full_comparison.copy()
-
-    if df_bunker_total is not None and not df_bunker_total.empty:
-        # --- LIMPIEZA DE DATOS CRÍTICA ---
-        # 1. Target Yield Fix (Ese 379% a 2.95%)
-        if 'Div Yield (%)' in df_bunker_total.columns:
-            df_bunker_total['Div Yield (%)'] = df_bunker_total['Div Yield (%)'].apply(
-                lambda x: x/100 if x > 20 else x
-            )
-            df_bunker_total.loc[df_bunker_total['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
-
-        # 2. ORDENAMIENTO (Costco arriba, el resto por Market Cap)
-        df_bunker_total['Priority'] = df_bunker_total['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
-        df_bunker_total = df_bunker_total.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
-
-        # 3. FORMATOS BLOOMBERG
-        cols_fmt = {
-            "Mkt Cap ($B)": "{:.1f}", "P/E Ratio": "{:.2f}", "EV/EBITDA": "{:.2f}",
-            "ROE (%)": "{:.1f}%", "Net Margin (%)": "{:.2f}%", "Rev Growth (%)": "{:.2f}%",
-            "Div Yield (%)": "{:.2f}%"
-        }
+# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL REESTRUCTURADA) ---
+        st.markdown("---")
+        st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
         
-        columnas_visibles = [c for c in cols_fmt.keys() if c in df_bunker_total.columns]
+        # 1. CARGA DIRECTA DEL BÚNKER (Para asegurar los 13+ tickers)
+        try:
+            if os.path.exists("peers_stats.csv"):
+                # Leemos directo del archivo para saltarnos filtros de multiselect
+                df_master = pd.read_csv("peers_stats.csv")
+            else:
+                df_master = df_full_comparison.copy()
 
-        # 4. RENDERIZADO TOTAL (Sin filtros de multiselect)
-        st.dataframe(
-            df_bunker_total.set_index("Ticker").style.format({c: cols_fmt[c] for c in columnas_visibles})
-            .background_gradient(cmap='RdYlGn', subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_bunker_total.columns])
-            .background_gradient(cmap='RdYlGn_r', subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_bunker_total.columns])
-            .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_bunker_total.columns]),
-            use_container_width=True
-        )
-    else:
-        st.info("📊 No se encontraron datos en el Búnker (peers_stats.csv).")
+            if df_master is not None and not df_master.empty:
+                # 2. LIMPIEZA DE DATOS (Target Fix)
+                if 'Div Yield (%)' in df_master.columns:
+                    # Si el yield es > 20%, corregimos escala (Target 379% -> 3.79%)
+                    df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(lambda x: x/100 if x > 20 else x)
+                    # Forzado manual de seguridad para Target
+                    df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
 
-except Exception as e:
-    st.error(f"Error al cargar la matriz completa: {e}")
+                # 3. ORDENAMIENTO: COSTCO AL TRONO
+                df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
+                df_master = df_master.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
+
+                # 4. DEFINICIÓN DE FORMATOS
+                cols_formato = {
+                    "Mkt Cap ($B)": "{:.1f}",
+                    "P/E Ratio": "{:.2f}",
+                    "EV/EBITDA": "{:.2f}",
+                    "ROE (%)": "{:.1f}%",
+                    "Net Margin (%)": "{:.2f}%",
+                    "Rev Growth (%)": "{:.2f}%",
+                    "Div Yield (%)": "{:.2f}%" 
+                }
+                columnas_presentes = [c for c in cols_formato.keys() if c in df_master.columns]
+
+                # 5. RENDERIZADO CON MAPA DE CALOR
+                st.dataframe(
+                    df_master.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_presentes})
+                    .background_gradient(cmap='RdYlGn', subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns])
+                    .background_gradient(cmap='RdYlGn_r', subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns])
+                    .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]),
+                    use_container_width=True
+                )
+            else:
+                st.info("📊 Sincronizando búnker de datos...")
+
+        except Exception as e:
+            st.error(f"Error en matriz: {e}")
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
