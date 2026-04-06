@@ -776,7 +776,7 @@ def main():
         archivo_historia = "market_history.csv"
         perf_df = None
 
-        # Definimos el mapeo institucional completo
+        # Definimos el mapeo institucional completo (Garantizando SPY y QQQ)
         nombres_pro = {
             "COST": "Costco (COST)",
             "SPY": "S&P 500 (Market)",
@@ -790,9 +790,7 @@ def main():
             "LOW": "Lowe's (LOW)",
             "SFM": "Sprouts (SFM)",
             "DLTR": "Dollar Tree (DLTR)",
-            "DG": "Dollar General (DG)",
-            "^GSPC": "S&P 500 (Index)", # Backup por si usaste el índice directo
-            "^IXIC": "Nasdaq (Index)"    # Backup por si usaste el índice directo
+            "DG": "Dollar General (DG)"
         }
 
         try:
@@ -812,7 +810,7 @@ def main():
             else:
                 st.info("📉 Nota: Modo offline activo. Cargue 'market_history.csv' para ver comparativas.")
 
-        # --- RENDERIZADO DEL GRÁFICO ---
+        # --- RENDERIZADO DEL GRÁFICO DE LÍNEAS ---
         if perf_df is not None and not perf_df.empty:
             # Normalización Base 100
             perf_norm = (perf_df / perf_df.iloc[0]) * 100
@@ -827,41 +825,41 @@ def main():
             fig_perf = px.line(perf_norm, template="plotly_dark")
             
             # Destacamos a COST con una línea más gruesa
-            fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=4, color="#005BAA"))
+            if "Costco (COST)" in perf_norm.columns:
+                fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=4, color="#005BAA"))
             
             fig_perf.update_layout(
-                height=550, # Un poco más alto para acomodar tantas leyendas
+                height=550, 
                 hovermode="x unified", 
                 yaxis_title="Rendimiento (Base 100)",
                 legend=dict(
                     orientation="h", 
                     yanchor="bottom", 
-                    y=-0.5, # Bajamos la leyenda para que no tape el gráfico
+                    y=-0.5, 
                     xanchor="center", 
                     x=0.5
                 )
             )
             st.plotly_chart(fig_perf, use_container_width=True)
-# --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
+            
+        # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
         
         with c_p1:
-            # --- BLOQUE DE SEGURIDAD PARA GRÁFICO DE DISPERSIÓN ---
             st.write(f"**Análisis de Valoración Relativa: P/E vs ROE**")
-            
-            # 1. Verificamos que el DataFrame exista y no esté vacío
             if df_full_comparison is not None and not df_full_comparison.empty:
-                # 2. LIMPIEZA: Eliminamos filas que no tengan los 3 datos numéricos necesarios
+                # Filtramos índices para no distorsionar los fundamentales corporativos
+                df_fundamentales = df_full_comparison[~df_full_comparison['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])]
+                
                 cols_grafico = ["P/E Ratio", "ROE (%)", "Mkt Cap ($B)"]
-                columnas_presentes = [c for c in cols_grafico if c in df_full_comparison.columns]
+                columnas_presentes = [c for c in cols_grafico if c in df_fundamentales.columns]
                 
                 if len(columnas_presentes) == len(cols_grafico):
-                    df_plot = df_full_comparison.dropna(subset=cols_grafico)
-                    
-                    if not df_plot.empty:
+                    df_plot_scat = df_fundamentales.dropna(subset=cols_grafico)
+                    if not df_plot_scat.empty:
                         try:
                             fig_scat = px.scatter(
-                                df_plot, 
+                                df_plot_scat, 
                                 x="P/E Ratio", 
                                 y="ROE (%)",
                                 size="Mkt Cap ($B)", 
@@ -882,11 +880,14 @@ def main():
                 st.info("📊 Esperando datos de competidores...")
 
         with c_p2:
-            # --- BLOQUE DE SEGURIDAD PARA GRÁFICO EV/EBITDA ---
             st.write("**Eficiencia Operativa: EV/EBITDA**")
             if df_full_comparison is not None and not df_full_comparison.empty:
                 if "EV/EBITDA" in df_full_comparison.columns:
-                    df_plot_ev = df_full_comparison.dropna(subset=["EV/EBITDA"])
+                    # Filtramos índices y valores nulos/negativos
+                    df_plot_ev = df_full_comparison[~df_full_comparison['Ticker'].isin(['SPY', 'QQQ'])]
+                    df_plot_ev = df_plot_ev.dropna(subset=["EV/EBITDA"])
+                    df_plot_ev = df_plot_ev[df_plot_ev["EV/EBITDA"] > 0].sort_values("EV/EBITDA")
+                    
                     if not df_plot_ev.empty:
                         try:
                             fig_ev = px.bar(
@@ -898,7 +899,7 @@ def main():
                         except Exception:
                             st.info("📊 Error al generar gráfico EV/EBITDA.")
                     else:
-                        st.warning("⚠️ Sin datos de EV/EBITDA.")
+                        st.warning("⚠️ Sin datos de EV/EBITDA válidos.")
                 else:
                     st.info("📊 Datos de eficiencia no disponibles.")
             else:
@@ -908,13 +909,10 @@ def main():
         st.markdown("---")
         st.write("**🧩 Matriz de Correlación de Retornos Diarios (1Y)**")
         with st.expander("Ver Análisis de Correlación"):
-            # Verificamos si perf_df (descargado antes) tiene datos
-            if 'perf_df' in locals() and not perf_df.empty:
+            if perf_df is not None and not perf_df.empty:
                 try:
                     returns_df = perf_df.pct_change().dropna()
-                    # Usamos el mapeo seguro que definimos arriba
-                    mapping_corr = reverse_map if 'reverse_map' in locals() else bunker_names
-                    returns_df.columns = [mapping_corr.get(col, col) for col in returns_df.columns]
+                    returns_df.columns = [nombres_pro.get(col, col) for col in returns_df.columns]
                     corr_matrix = returns_df.corr()
                     
                     fig_corr = px.imshow(
@@ -925,15 +923,13 @@ def main():
                 except Exception:
                     st.info("📈 No se pudo calcular la correlación (datos insuficientes).")
             else:
-                st.info("📉 Matriz de correlación requiere conexión activa.")
+                st.info("📉 Matriz de correlación requiere datos históricos (Cargue 'market_history.csv').")
 
         # --- TABLA MAESTRA CON FORMATO BLOOMBERG ---
         st.markdown("---")
         st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
-        
         if df_full_comparison is not None and not df_full_comparison.empty:
             try:
-                # Nos aseguramos de que las columnas existan antes de aplicar formato
                 cols_formato = {
                     "Mkt Cap ($B)": "{:.1f}",
                     "P/E Ratio": "{:.2f}",
@@ -944,17 +940,16 @@ def main():
                 }
                 columnas_validas = [c for c in cols_formato.keys() if c in df_full_comparison.columns]
                 
-                # Renderizado de la tabla con gradientes
                 st.dataframe(
                     df_full_comparison.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_validas})
                     .background_gradient(cmap='RdYlGn', subset=[c for c in ['ROE (%)', 'Rev Growth (%)'] if c in df_full_comparison.columns])
                     .background_gradient(cmap='RdYlGn_r', subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_full_comparison.columns]),
                     use_container_width=True
                 )
-            except Exception as e:
+            except Exception:
                 st.dataframe(df_full_comparison, use_container_width=True)
         else:
-            st.info("📊 La tabla maestra se poblará al sincronizar con el mercado.")
+            st.info("📊 La tabla maestra se poblará al sincronizar con el Búnker.")
 
         st.caption("Nota: Las métricas de los índices se basan en los estados financieros y precios de sus ETFs representativos (SPY y QQQ).")
         
