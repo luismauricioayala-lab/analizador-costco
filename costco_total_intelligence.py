@@ -944,71 +944,56 @@ def main():
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
 
-# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL REESTRUCTURADA) ---
+# --- TABLA MAESTRA: ESTRUCTURA FINAL CERCANÍA (FIX) ---
         st.markdown("---")
-        st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
-        
-        # 1. CARGA DIRECTA DEL BÚNKER (Para asegurar los 13+ tickers)
+        st.write("### 🏛️ Matriz Competitiva y de Benchmarks (Sync 2026)")
+
         try:
+            # 1. CARGA INDEPENDIENTE (Para no afectar otras variables)
             if os.path.exists("peers_stats.csv"):
-                # Leemos directo del archivo para saltarnos filtros de multiselect
-                df_master = pd.read_csv("peers_stats.csv")
+                df_tab = pd.read_csv("peers_stats.csv")
             else:
-                df_master = df_full_comparison.copy()
+                df_tab = df_full_comparison.copy() if 'df_full_comparison' in locals() else None
 
-            if df_master is not None and not df_master.empty:
-                # 2. LIMPIEZA DE DATOS (Target Fix)
-                if 'Div Yield (%)' in df_master.columns:
-                    # Si el yield es > 20%, corregimos escala (Target 379% -> 3.79%)
-                    df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(lambda x: x/100 if x > 20 else x)
-                    # Forzado manual de seguridad para Target
-                    df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
+            if df_tab is not None and not df_tab.empty:
+                # 2. LIMPIEZA DE DATOS (Target Fix y Decimales)
+                if 'Div Yield (%)' in df_tab.columns:
+                    df_tab['Div Yield (%)'] = df_tab['Div Yield (%)'].apply(lambda x: x/100 if x > 20 else x)
+                    df_tab.loc[df_tab['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
 
-    # 3. ORDENAMIENTO POR CERCANÍA COMPETITIVA
-                # Nivel 0: Costco (El Rey)
-                # Nivel 1: Pares Cercanos (WMT, TGT, BJ)
-                # Nivel 2: Soft Retail / Especializados (HD, LOW, SFM, KR, DG, DLTR)
-                # Nivel 3: Benchmarks y Otros (AMZN, SPY, QQQ)
-                
-                def asignar_prioridad(ticker):
-                    if ticker == 'COST': return 0
-                    if ticker in ['WMT', 'TGT', 'BJ']: return 1
-                    if ticker in ['HD', 'LOW', 'SFM', 'KR', 'DG', 'DLTR']: return 2
-                    return 3
+                # 3. ORDENAMIENTO POR CERCANÍA ESTRATÉGICA
+                def obtener_rango(t):
+                    if t == 'COST': return 0
+                    if t == 'WMT':  return 1
+                    if t == 'BJ':   return 2
+                    if t == 'TGT':  return 3
+                    if t in ['HD', 'LOW', 'SFM', 'KR', 'DG', 'DLTR']: return 4
+                    return 5 # AMZN, SPY, QQQ
 
-                df_master['Closeness'] = df_master['Ticker'].apply(asignar_prioridad)
-                
-                # Ordenamos por Cercanía primero, y dentro de cada grupo por Tamaño (Mkt Cap)
-                df_master = df_master.sort_values(
-                    ['Closeness', 'Mkt Cap ($B)'], 
-                    ascending=[True, False]
-                ).drop('Closeness', axis=1)
+                df_tab['Rank'] = df_tab['Ticker'].apply(obtener_rango)
+                df_tab = df_tab.sort_values(['Rank', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Rank', axis=1)
 
-                # 4. DEFINICIÓN DE FORMATOS (Sin cambios, se mantiene tu estructura)
-                cols_formato = {
-                    "Mkt Cap ($B)": "{:.1f}",
-                    "P/E Ratio": "{:.2f}",
-                    "EV/EBITDA": "{:.2f}",
-                    "ROE (%)": "{:.1f}%",
-                    "Net Margin (%)": "{:.2f}%",
-                    "Rev Growth (%)": "{:.2f}%",
-                    "Div Yield (%)": "{:.2f}%" 
+                # 4. MAPEO DE FORMATOS
+                fmt_bloomberg = {
+                    "Mkt Cap ($B)": "{:.1f}", "P/E Ratio": "{:.2f}", "EV/EBITDA": "{:.2f}",
+                    "ROE (%)": "{:.1f}%", "Net Margin (%)": "{:.2f}%", 
+                    "Rev Growth (%)": "{:.2f}%", "Div Yield (%)": "{:.2f}%"
                 }
-                columnas_presentes = [c for c in cols_formato.keys() if c in df_master.columns]
+                cols_validas = [c for c in fmt_bloomberg.keys() if c in df_tab.columns]
 
-                # 5. RENDERIZADO CON MAPA DE CALOR
+                # 5. RENDERIZADO CON ESTILO (Aislado para no romper la App)
                 st.dataframe(
-                    df_master.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_presentes})
-                    .background_gradient(cmap='RdYlGn', subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns])
-                    .background_gradient(cmap='RdYlGn_r', subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns])
-                    .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]),
+                    df_tab.set_index("Ticker").style.format({c: fmt_bloomberg[c] for c in cols_validas})
+                    .background_gradient(cmap='RdYlGn', subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_tab.columns])
+                    .background_gradient(cmap='RdYlGn_r', subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_tab.columns])
+                    .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_tab.columns]),
                     use_container_width=True
                 )
             else:
-                st.info("📊 Sincronizando búnker de datos...")
+                st.info("📊 Esperando datos del búnker...")
 
         except Exception as e:
-            st.error(f"Error en matriz: {e}")
+            st.error(f"Error en visualización de tabla: {e}")
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
