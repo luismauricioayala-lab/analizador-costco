@@ -211,23 +211,33 @@ class InstitutionalDataService:
             st.warning(f"⚠️ Yahoo restringido para {ticker}. Accediendo al Búnker local...")
             
 # FALLBACK: Carga desde el búnker de archivos que descargaste
-        if os.path.exists(archivo_local):
+if os.path.exists(archivo_local):
             st.info(f"🏛️ Modo Offline Activado: Usando {archivo_local}")
             
             df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
             ultimo_precio = float(df_bunker['Close'].iloc[-1])
             
-            # Devolvemos TODO lo que la línea 425 y el resto de la App necesitan
+            # Calculamos el min y max real de tu archivo CSV para la barra
+            min_52w = float(df_bunker['Low'].tail(252).min()) # 252 días = 1 año bursátil
+            max_52w = float(df_bunker['High'].tail(252).max())
+
             return {
-                "info": {"currentPrice": ultimo_precio, "shortName": ticker, "trailingEps": 16.5},
+                "info": {
+                    "currentPrice": ultimo_precio, 
+                    "shortName": "Costco Wholesale", 
+                    "symbol": ticker, # <-- Esto arregla el "None" en el título
+                    "trailingEps": 16.5,
+                    "fiftyTwoWeekLow": min_52w,  # <-- Esto arregla la barra
+                    "fiftyTwoWeekHigh": max_52w  # <-- Esto arregla la barra
+                },
                 "price": ultimo_precio,
                 "mkt_cap_b": 450.0,
                 "fcf_now_b": 9.5,
                 "fcf_hist_b": pd.Series([8.0, 8.5, 9.0, 9.5]),
                 "beta": 0.98,
-                "shares_m": 443.6,  # <--- Esto soluciona el KeyError
-                "cash_b": 22.0,     # <--- Esto soluciona el KeyError
-                "debt_b": 9.0,      # <--- Esto soluciona el KeyError
+                "shares_m": 443.6,
+                "cash_b": 22.0,
+                "debt_b": 9.0,
                 "hist_years": ["2023", "2024", "2025"],
                 "rev_vals": [220, 240, 250],
                 "ebitda_vals": [15, 17, 18],
@@ -239,7 +249,6 @@ class InstitutionalDataService:
                 },
                 "analysts": {"key": "BUY", "score": 2.0, "target": 1060.0, "count": 37}
             }
-            
         # Procesamiento de Cuadro de 3 Años (Mantenemos tu lógica exacta)
         is_3y = is_stmt.iloc[:, :3]
         hist_years = is_3y.columns.year.astype(str).tolist()
