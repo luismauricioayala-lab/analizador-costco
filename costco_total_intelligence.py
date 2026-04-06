@@ -770,77 +770,57 @@ def main():
             df_full_comparison = pd.DataFrame(columns=['Ticker', 'Nombre', 'Mkt Cap ($B)', 'P/E Ratio', 'ROE (%)', 'EV/EBITDA'])
         # --------------------------------------------
 
-# --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO DINÁMICO (UNIVERSO EXTENDIDO) ---
+# --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO DINÁMICO (DENTRO DE PESTAÑA) ---
         st.write(f"**Rendimiento Normalizado 1Y: COST vs Ecosistema de Retail & Mercado**")
         
         archivo_historia = "market_history.csv"
         perf_df = None
 
-        # Definimos el mapeo institucional completo
+        # 1. MAPEO INSTITUCIONAL
         nombres_pro = {
-            "COST": "Costco (COST)",
-            "SPY": "S&P 500 (Market)",
-            "QQQ": "Nasdaq 100 (Tech)",
-            "WMT": "Walmart (WMT)",
-            "TGT": "Target (TGT)",
-            "BJ": "BJ's Wholesale (BJ)",
-            "KR": "Kroger (KR)",
-            "AMZN": "Amazon (AMZN)",
-            "HD": "Home Depot (HD)",
-            "LOW": "Lowe's (LOW)",
-            "SFM": "Sprouts (SFM)",
-            "DLTR": "Dollar Tree (DLTR)",
-            "DG": "Dollar General (DG)"
+            "COST": "Costco (COST)", "SPY": "S&P 500 (Market)", "QQQ": "Nasdaq 100 (Tech)",
+            "WMT": "Walmart (WMT)", "TGT": "Target (TGT)", "BJ": "BJ's Wholesale (BJ)",
+            "KR": "Kroger (KR)", "AMZN": "Amazon (AMZN)", "HD": "Home Depot (HD)",
+            "LOW": "Lowe's (LOW)", "SFM": "Sprouts (SFM)", "DLTR": "Dollar Tree (DLTR)", "DG": "Dollar General (DG)"
         }
 
         try:
-            # 1. INTENTO ONLINE: Descarga del universo completo
-            tickers_universo = list(nombres_pro.keys())
-            with st.spinner("Sincronizando universo de inversión..."):
-                perf_df = yf.download(tickers_universo, period="1y", progress=False)['Close']
-            
-            if perf_df is None or perf_df.empty:
-                raise ValueError("API Yahoo Offline")
-                
-        except Exception:
-            # 2. FALLBACK OFFLINE: Rescate desde el Búnker market_history.csv
+            # Intento de descarga (limitamos a los más importantes para no saturar el inicio)
+            tickers_principales = ["COST", "WMT", "AMZN", "TGT", "SPY", "QQQ"]
+            perf_df = yf.download(tickers_principales, period="1y", progress=False)['Close']
+            if perf_df is None or perf_df.empty: raise ValueError()
+        except:
+            # Fallback al Búnker
             if os.path.exists(archivo_historia):
                 perf_df = pd.read_csv(archivo_historia, index_col=0, parse_dates=True)
-                st.sidebar.info("🏛️ Universo extendido cargado desde el Búnker Local.")
-            else:
-                st.info("📉 Nota: Modo offline activo. Cargue 'market_history.csv' para ver comparativas.")
+                st.sidebar.info("🏛️ Historial de precios cargado desde el Búnker.")
 
-        # --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO ---
         if perf_df is not None and not perf_df.empty:
             # Normalización Base 100
             perf_norm = (perf_df / perf_df.iloc[0]) * 100
             
-            # Limpiamos columnas: solo dejamos las que están en nuestro mapeo y existen en el DF
-            columnas_finales = [c for c in perf_norm.columns if c in nombres_pro]
-            perf_norm = perf_norm[columnas_finales]
-            
-            # Renombramos columnas para la leyenda profesional
+            # Filtro inteligente: solo mostrar lo que el usuario seleccionó arriba 
+            # O mostrar el Top 5 si no hay selección para evitar el caos de líneas
+            cols_to_show = [c for c in perf_norm.columns if c in nombres_pro]
+            perf_norm = perf_norm[cols_to_show]
             perf_norm.columns = [nombres_pro.get(col, col) for col in perf_norm.columns]
             
             fig_perf = px.line(perf_norm, template="plotly_dark")
             
-            # Destacamos a COST con una línea más gruesa
+            # Resaltamos Costco con un azul neón y línea gruesa
             if "Costco (COST)" in perf_norm.columns:
-                fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=4, color="#005BAA"))
+                fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=5, color="#005BAA"))
             
             fig_perf.update_layout(
-                height=550, 
-                hovermode="x unified", 
+                height=500,
+                hovermode="x unified",
                 yaxis_title="Rendimiento (Base 100)",
-                legend=dict(
-                    orientation="h", 
-                    yanchor="bottom", 
-                    y=-0.5, 
-                    xanchor="center", 
-                    x=0.5
-                )
+                legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
+                margin=dict(l=10, r=10, t=30, b=10)
             )
             st.plotly_chart(fig_perf, use_container_width=True)
+        else:
+            st.warning("⚠️ Cargue 'market_history.csv' para visualizar el rendimiento histórico.")
             
         # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
