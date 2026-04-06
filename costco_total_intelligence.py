@@ -297,9 +297,11 @@ class InstitutionalDataService:
         """Versión de Diagnóstico y Carga Blindada."""
         archivo_offline = "peers_stats.csv"
         
-        # --- 1. RASTREADOR DE ARCHIVOS (DIAGNÓSTICO) ---
+        # Agregamos COST a la lista de búsqueda para que no se pierda en el búnker
+        full_search_list = ticker_list + ["COST"]
+        
+        # --- 1. RASTREADOR DE RUTAS ---
         if not os.path.exists(archivo_offline):
-            # Si el archivo no existe en la raíz, lo buscamos en el directorio actual
             posibles_rutas = [archivo_offline, f"./{archivo_offline}", f"analizador-costco/{archivo_offline}"]
             for ruta in posibles_rutas:
                 if os.path.exists(ruta):
@@ -311,21 +313,21 @@ class InstitutionalDataService:
         if os.path.exists(archivo_offline):
             try:
                 df_final = pd.read_csv(archivo_offline)
-                # Limpieza de seguridad: quitar espacios en nombres de columnas
+                # Limpieza de columnas y tickers
                 df_final.columns = df_final.columns.str.strip()
+                df_final['Ticker'] = df_final['Ticker'].str.strip()
                 
                 if not df_final.empty:
-                    # Si tiene datos, filtramos por los tickers que queremos
-                    df_final = df_final[df_final['Ticker'].isin(ticker_list)]
-                    st.success(f"✅ Búnker Local Detectado: {len(df_final)} empresas cargadas.")
+                    # FILTRADO CRUCIAL: Ahora incluimos a Costco
+                    df_final = df_final[df_final['Ticker'].isin(full_search_list)]
                     return df_final
             except Exception as e:
-                st.error(f"❌ Error leyendo CSV: {e}")
+                st.error(f"❌ Error en Búnker: {e}")
 
-        # --- 3. INTENTO ONLINE (SOLO SI EL BÚNKER FALLÓ) ---
+        # --- 3. INTENTO ONLINE (SI EL BÚNKER NO TIENE DATOS) ---
         try:
             peer_results = []
-            for t in ticker_list:
+            for t in full_search_list:
                 asset = yf.Ticker(t)
                 info = asset.info
                 if info and 'marketCap' in info:
@@ -345,7 +347,7 @@ class InstitutionalDataService:
         except:
             pass
 
-        return df_final # Retornará el DF local si nada más funcionó
+        return df_final
         
 class ValuationOracle:
     """Implementación de modelos financieros DCF y Black-Scholes."""
