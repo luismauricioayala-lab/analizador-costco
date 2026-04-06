@@ -698,30 +698,54 @@ def main():
             # Descarga de métricas fundamentales
             df_full_comparison = InstitutionalDataService.fetch_peer_group_data(full_ticker_list)
             
-    # --- BLOQUE DE SEGURIDAD PARA MODO BÚNKER ---
-            # Solo intentamos limpiar nombres si el DataFrame tiene datos reales
-            if df_full_comparison is not None and not df_full_comparison.empty and 'Ticker' in df_full_comparison.columns:
+# --- BLOQUE DE SEGURIDAD PARA MODO BÚNKER ---
+        # Definimos un diccionario de respaldo (bunker_names) para asegurar que reverse_map siempre exista
+        bunker_names = {
+            "COST": "Costco", "WMT": "Walmart", "TGT": "Target", 
+            "BJ": "BJ's", "KR": "Kroger", "AMZN": "Amazon", 
+            "HD": "Home Depot", "LOW": "Lowe's", "SFM": "Sprouts", 
+            "DLTR": "Dollar Tree", "DG": "Dollar General", 
+            "SPY": "S&P 500", "QQQ": "Nasdaq 100"
+        }
+
+        # Intentamos crear el mapeo dinámico desde los datos de mercado
+        if df_full_comparison is not None and not df_full_comparison.empty and 'Ticker' in df_full_comparison.columns:
+            try:
                 reverse_map = {v: k.split(" (")[0] for k, v in market_map.items()}
                 reverse_map["COST"] = "Costco"
                 df_full_comparison['Nombre'] = df_full_comparison['Ticker'].map(reverse_map)
-            else:
-                # Si estamos en modo Búnker y no hay peers, creamos un aviso visual amigable
-                st.warning("⚠️ Análisis comparativo limitado: Modo Búnker activo (Sin conexión a Peers)")
-                # Creamos un DataFrame mínimo para que el resto del código no falle
-                if df_full_comparison is None or df_full_comparison.empty:
-                    df_full_comparison = pd.DataFrame(columns=['Ticker', 'Nombre', 'Mkt Cap ($B)', 'P/E Ratio'])
-            # --------------------------------------------
+            except:
+                reverse_map = bunker_names
+        else:
+            # Si estamos en modo Búnker, activamos el mapeo de emergencia
+            st.warning("⚠️ Análisis comparativo limitado: Modo Búnker activo (Sin conexión a Peers)")
+            reverse_map = bunker_names
+            if df_full_comparison is None or df_full_comparison.empty:
+                df_full_comparison = pd.DataFrame(columns=['Ticker', 'Nombre', 'Mkt Cap ($B)', 'P/E Ratio'])
+        # --------------------------------------------
 
         # --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO DINÁMICO ---
         st.write(f"**Rendimiento Normalizado 1Y: COST vs Selección de Mercado**")
-        perf_df = yf.download(full_ticker_list, period="1y")['Close']
-        perf_norm = (perf_df / perf_df.iloc[0]) * 100
-        # Renombramos columnas para la leyenda del gráfico
-        perf_norm.columns = [reverse_map.get(col, col) for col in perf_norm.columns]
         
-        fig_perf = px.line(perf_norm, template="plotly_dark")
-        fig_perf.update_layout(height=450, hovermode="x unified", yaxis_title="Rendimiento (Base 100)")
-        st.plotly_chart(fig_perf, use_container_width=True)
+        try:
+            # Intentamos descargar el rendimiento (esto puede fallar si no hay internet)
+            perf_df = yf.download(full_ticker_list, period="1y")['Close']
+            
+            if not perf_df.empty:
+                perf_norm = (perf_df / perf_df.iloc[0]) * 100
+                
+                # REEMPLAZO SEGURO: Usamos el reverse_map garantizado arriba
+                perf_norm.columns = [reverse_map.get(col, col) for col in perf_norm.columns]
+                
+                fig_perf = px.line(perf_norm, template="plotly_dark")
+                fig_perf.update_layout(height=450, hovermode="x unified", yaxis_title="Rendimiento (Base 100)")
+                st.plotly_chart(fig_perf, use_container_width=True)
+            else:
+                st.info("📉 Datos de rendimiento no disponibles en modo offline.")
+                
+        except Exception as e:
+            # Si yfinance falla, mostramos una nota informativa en lugar de un error rojo
+            st.info("📉 Nota: El gráfico de rendimiento dinámico requiere conexión activa. Mostrando terminal en modo estable.")
 
         # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
