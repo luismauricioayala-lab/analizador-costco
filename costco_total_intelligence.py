@@ -1569,6 +1569,30 @@ def main():
             """)
             st.latex(r"TV = \frac{FCF_{10} \times (1 + g)}{WACC - g}")
             st.latex(r"FairValue = \frac{\sum_{t=1}^{10} \frac{FCF_t \times (1 + \text{MacroAdj})}{(1 + WACC)^t} + \frac{TV}{(1 + WACC)^{10}} + \text{Caja} - \text{Deuda}}{\text{Shares}}")
+           
+            st.markdown("""
+                **5. Modelo de Crecimiento de Gordon (Terminal Growth):**
+                El modelo asume que los flujos de caja crecerán a una tasa constante ($g$) a perpetuidad después del año 10.
+            """)
+            st.latex(r"GGM = \frac{D_1}{k - g} \approx \frac{FCF_{10} \times (1 + g_{terminal})}{WACC - g_{terminal}}")
+
+            st.markdown("""
+                **6. Valoración Relativa y Benchmarking (Pares):**
+                Comparamos los múltiplos de Costco frente a la industria para identificar la 'Prima de Calidad' ($Premium$).
+            """)
+            st.latex(r"P/E_{Relativo} = \frac{P/E_{COST}}{\text{Promedio } P/E_{Peers}}")
+            st.latex(r"EV/EBITDA = \frac{\text{MarketCap} + \text{Deuda} - \text{Caja}}{\text{EBITDA}}")
+
+            st.markdown("""
+                **7. Generación de Alpha vs Benchmarks (S&P 500 / Nasdaq):**
+                Calculamos el rendimiento excedente que Costco genera sobre el mercado ponderado por su riesgo sistemático ($\beta$).
+            """)
+            st.latex(r"\text{Alpha} (\alpha) = R_{COST} - [R_f + \beta \times (R_m - R_f)]")
+            
+            st.info("""
+                💡 **Nota de Convergencia:** El modelo Gordon solo es estable si $WACC > g$. 
+                La terminal bloquea automáticamente cálculos donde el crecimiento terminal supera el costo de capital para evitar valores infinitos.
+            """)       
 
         with m_col2:
             with st.container(border=True):
