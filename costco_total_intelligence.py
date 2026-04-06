@@ -291,15 +291,21 @@ class InstitutionalDataService:
             }
         }
 
-    @staticmethod
+@staticmethod
     @st.cache_data(ttl=3600)
     def fetch_peer_group_data(ticker_list):
-        """Descarga métricas optimizada para lista de competidores."""
+        """Descarga métricas optimizada con Fallback Automático a Búnker Local."""
+        archivo_offline = "peers_stats.csv"
         peer_results = []
-        for t in ticker_list:
-            try:
+        
+        try:
+            # 1. INTENTO ONLINE: Yahoo Finance
+            # (Si Yahoo está bloqueando, esto lanzará una excepción rápidamente)
+            for t in ticker_list:
                 asset = yf.Ticker(t)
                 info = asset.info
+                if not info: raise ValueError("Conexión fallida")
+                
                 peer_results.append({
                     "Ticker": t,
                     "Nombre": info.get('shortName', t),
@@ -310,9 +316,19 @@ class InstitutionalDataService:
                     "Net Margin (%)": info.get('profitMargins', 0) * 100,
                     "Rev Growth (%)": info.get('revenueGrowth', 0) * 100
                 })
-            except:
-                continue
-        return pd.DataFrame(peer_results)
+            return pd.DataFrame(peer_results)
+
+        except Exception:
+            # 2. FALLBACK CRÍTICO: Si falla internet, CARGAMOS EL BÚNKER LOCAL
+            if os.path.exists(archivo_offline):
+                # Mensaje discreto en la barra lateral o notificación
+                st.toast("🏛️ Búnker de Peers Activado (Modo Offline)")
+                df_bunker = pd.read_csv(archivo_offline)
+                
+                # Aseguramos que solo devuelva los tickers solicitados
+                return df_bunker[df_bunker['Ticker'].isin(ticker_list)]
+            
+            return None
         
 class ValuationOracle:
     """Implementación de modelos financieros DCF y Black-Scholes."""
