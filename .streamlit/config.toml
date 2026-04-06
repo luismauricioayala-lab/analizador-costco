@@ -1,21 +1,24 @@
 [theme]
-# El azul característico de Costco para botones y destacados
 primaryColor = "#005BAA"
-
-# Fondo principal limpio y profesional
-backgroundColor = "#FFFFFF"
-
-# Gris suave para la barra lateral y tarjetas de métricas
+backgroundColor = "#FFFFFF" 
 secondaryBackgroundColor = "#F0F2F6"
-
-# Texto oscuro para máxima legibilidad
 textColor = "#1C1C1C"
-
-# Tipografía moderna
 font = "sans serif"
 
 [server]
-# Optimización para que la terminal cargue rápido
 headless = true
 enableCORS = false
 enableXsrfProtection = false
+# NUEVO: Maximiza la velocidad de subida de datos pesados
+maxUploadSize = 200 
+
+[browser]
+# NUEVO: Esto devuelve el menú de "Settings" y "Dark Mode" que perdiste
+# Al ponerlo en 'true', recuperas el control manual del usuario
+gatherUsageStats = true
+
+[client]
+# NUEVO: Evita que la app se refresque sola si dejas de usarla un momento
+# Muy útil para no gastar peticiones de API en segundo plano
+showSidebarNavigation = true
+toolbarMode = "minimal"
