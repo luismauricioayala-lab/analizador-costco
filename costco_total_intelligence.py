@@ -909,149 +909,83 @@ def main():
                 st.info("📊 Esperando datos de competidores...")
 
         with c_p2:
-            st.write("**Valoración y Eficiencia Operativa**")
-            try:
-                # 1. Carga de datos del búnker
-                if os.path.exists("peers_stats.csv"):
-                    df_ef = pd.read_csv("peers_stats.csv")
-                else:
-                    df_ef = df_full_comparison.copy() if df_full_comparison is not None else pd.DataFrame()
-
-                if not df_ef.empty:
-                    # --- FUNCIÓN DE LIMPIEZA ---
-                    def clean_val(col_name):
-                        return pd.to_numeric(
-                            df_ef[col_name].astype(str).str.replace(r'[^0-9.]', '', regex=True), 
-                            errors='coerce'
-                        )
-
-                    # 2. IDENTIFICACIÓN DE MÉTRICAS (Radar por prioridades)
-                    col_ev = [c for c in df_ef.columns if "EV" in str(c).upper() and "EBITDA" in str(c).upper()]
-                    col_rev = [c for c in df_ef.columns if "PRICE / REVENUE" in str(c).upper() or "P/S" in str(c).upper()]
-                    col_margin = [c for c in df_ef.columns if "MARGIN" in str(c).upper() or "MARGEN" in str(c).upper()]
+            # --- BLOQUE DE SEGURIDAD PARA GRÁFICO EV/EBITDA ---
+            st.write("**Eficiencia Operativa: EV/EBITDA**")
+            
+            if df_full_comparison is not None and not df_full_comparison.empty:
+                if "EV/EBITDA" in df_full_comparison.columns:
+                    # Filtramos índices y valores nulos/negativos para el gráfico
+                    df_plot_ev = df_full_comparison[~df_full_comparison['Ticker'].isin(['SPY', 'QQQ'])]
+                    df_plot_ev = df_plot_ev.dropna(subset=["EV/EBITDA"])
+                    df_plot_ev = df_plot_ev[df_plot_ev["EV/EBITDA"] > 0].sort_values("EV/EBITDA")
                     
-                    # 3. SELECCIÓN DE JERARQUÍA: EV/EBITDA > Price/Revenue > Net Margin
-                    if col_ev and clean_val(col_ev[0]).sum() > 0:
-                        metrica, label, es_pct = col_ev[0], "Múltiplo: EV/EBITDA", False
-                    elif col_rev and clean_val(col_rev[0]).sum() > 0:
-                        metrica, label, es_pct = col_rev[0], "Múltiplo: Price / Revenue", False
-                    elif col_margin and clean_val(col_margin[0]).sum() > 0:
-                        metrica, label, es_pct = col_margin[0], "Margen Neto (%)", True
+                    if not df_plot_ev.empty:
+                        try:
+                            fig_ev = px.bar(
+                                df_plot_ev, 
+                                x="Ticker", 
+                                y="EV/EBITDA", 
+                                color="Nombre", 
+                                text_auto='.1f', 
+                                template="plotly_dark"
+                            )
+                            fig_ev.update_layout(height=450, showlegend=False)
+                            st.plotly_chart(fig_ev, use_container_width=True)
+                        except Exception:
+                            st.info("📊 Error al generar gráfico EV/EBITDA.")
                     else:
-                        metrica, label, es_pct = "P/E Ratio", "P/E Ratio (Fallback)", False
-
-                    # 4. PREPARACIÓN DE DATOS
-                    df_plt = df_ef[~df_ef['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
-                    df_plt[metrica] = clean_val(metrica)
-                    df_plt = df_plt.dropna(subset=[metrica]).sort_values(metrica)
-
-                    if not df_plt.empty:
-                        # Colores: Costco Azul, el resto Gris
-                        colors = ["#005BAA" if str(t).upper() == "COST" else "#444444" for t in df_plt['Ticker']]
-                        
-                        fig_v = px.bar(
-                            df_plt, x="Ticker", y=metrica,
-                            template="plotly_dark",
-                            title=f"Análisis: {label}"
-                        )
-                        
-                        # Formato dinámico según el tipo de métrica
-                        formato_etiqueta = "%{y:.2f}%" if es_pct else "%{y:.2f}x"
-                        
-                        fig_v.update_traces(
-                            marker_color=colors, 
-                            textposition='outside',
-                            texttemplate=formato_etiqueta
-                        )
-                        
-                        fig_v.update_layout(
-                            height=400, 
-                            showlegend=False, 
-                            margin=dict(l=10, r=10, t=40, b=10),
-                            yaxis_title=label
-                        )
-                        
-                        st.plotly_chart(fig_v, use_container_width=True)
-                    else:
-                        st.info("📊 Sincronizando métricas de valoración...")
+                        st.warning("⚠️ Sin datos de EV/EBITDA válidos en el búnker.")
                 else:
-                    st.warning("⚠️ No se detectan datos en el Búnker.")
+                    st.info("📊 Datos de eficiencia no disponibles (Verifique peers_stats.csv).")
+            else:
+                st.info("📊 Esperando datos de mercado...")
 
-            except Exception as e:
-                st.error(f"Error en bloque de valoración: {e}")
-                
-# --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
+        # --- SECCIÓN: MATRIZ DE CORRELACIÓN ---
         st.markdown("---")
         st.write("**🧩 Matriz de Correlación de Retornos Diarios (1Y)**")
         with st.expander("Ver Análisis de Correlación"):
-            # Verificamos si perf_df tiene datos
+            # Verificamos si perf_df (descargado antes) tiene datos
             if 'perf_df' in locals() and perf_df is not None and not perf_df.empty:
                 try:
-                    # 1. Calculamos retornos y renombramos índices de mercado a símbolos de ETF
-                    # Aseguramos que el mapeo use SPY y QQQ para los nombres
-                    nombres_pro_corr = nombres_pro.copy()
-                    nombres_pro_corr.update({"^GSPC": "S&P 500 (SPY)", "^IXIC": "Nasdaq 100 (QQQ)"})
-                    
                     returns_df = perf_df.pct_change().dropna()
-                    
-                    # 2. Renombrar columnas ANTES de calcular la correlación
-                    returns_df.columns = [nombres_pro_corr.get(col, col) for col in returns_df.columns]
+                    # Usamos el mapeo institucional para las columnas
+                    returns_df.columns = [nombres_pro.get(col, col) for col in returns_df.columns]
                     corr_matrix = returns_df.corr()
-
-                    # 3. ORDENAMIENTO PERSONALIZADO: Costco (COST) siempre primero
-                    # Buscamos el nombre exacto que tiene Costco en el mapeo
-                    costco_label = nombres_pro.get("COST", "Costco (COST)")
                     
-                    if costco_label in corr_matrix.columns:
-                        # Reordenamos las columnas y filas para que Costco sea el índice 0
-                        cols = [costco_label] + [c for c in corr_matrix.columns if c != costco_label]
-                        corr_matrix = corr_matrix.reindex(index=cols, columns=cols)
-                    
-                    # 4. RENDERIZADO DEL HEATMAP
                     fig_corr = px.imshow(
                         corr_matrix, 
                         text_auto=".2f", 
-                        color_continuous_scale='RdBu_r', # Rojo (Correlación +) vs Azul (Correlación -)
-                        zmin=-1, zmax=1, # Escala fija de correlación
+                        color_continuous_scale='RdBu_r',
                         template="plotly_dark", 
                         aspect="auto"
                     )
-                    
-                    fig_corr.update_layout(
-                        height=600,
-                        margin=dict(l=20, r=20, t=20, b=20)
-                    )
-                    
                     st.plotly_chart(fig_corr, use_container_width=True)
-                    
-                except Exception as e:
-                    st.info(f"📈 No se pudo calcular la correlación: {e}")
+                except Exception:
+                    st.info("📈 No se pudo calcular la correlación (datos insuficientes).")
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
-                
-# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL BLINDADA) ---
+
+# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL REESTRUCTURADA) ---
         st.markdown("---")
         st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
         
-        if df_full_comparison is not None and not df_full_comparison.empty:
-            try:
-                # 1. LIMPIEZA Y NORMALIZACIÓN DE DATOS
+        # 1. CARGA DIRECTA DEL BÚNKER (Para asegurar los 13+ tickers)
+        try:
+            if os.path.exists("peers_stats.csv"):
+                # Leemos directo del archivo para saltarnos filtros de multiselect
+                df_master = pd.read_csv("peers_stats.csv")
+            else:
                 df_master = df_full_comparison.copy()
-                
-                # --- CORRECCIÓN DE DIVIDEND YIELD (Target y otros) ---
-                # Si el yield es > 20%, asumimos error de escala y dividimos por 100
+
+            if df_master is not None and not df_master.empty:
+                # 2. LIMPIEZA DE DATOS (Target Fix)
                 if 'Div Yield (%)' in df_master.columns:
-                    df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(
-                        lambda x: x/100 if x > 20 else x
-                    )
-                    # Corrección específica manual para Target si persiste el error
+                    # Si el yield es > 20%, corregimos escala (Target 379% -> 3.79%)
+                    df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(lambda x: x/100 if x > 20 else x)
+                    # Forzado manual de seguridad para Target
                     df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
 
-                # 2. ASEGURAR UNIVERSO COMPLETO (Si faltan empresas del CSV)
-                # Si por alguna razón el filtrado previo quitó empresas, aquí las recuperamos
-                # (Asegúrate de que df_full_comparison no haya sido filtrado antes de este bloque)
-
-                # 3. ORDENAMIENTO PRIORITARIO: COSTCO SIEMPRE ARRIBA
+                # 3. ORDENAMIENTO: COSTCO AL TRONO
                 df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
                 df_master = df_master.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
 
@@ -1060,383 +994,26 @@ def main():
                     "Mkt Cap ($B)": "{:.1f}",
                     "P/E Ratio": "{:.2f}",
                     "EV/EBITDA": "{:.2f}",
-                    "EV/FCF": "{:.2f}",
                     "ROE (%)": "{:.1f}%",
                     "Net Margin (%)": "{:.2f}%",
                     "Rev Growth (%)": "{:.2f}%",
                     "Div Yield (%)": "{:.2f}%" 
                 }
-                
                 columnas_presentes = [c for c in cols_formato.keys() if c in df_master.columns]
-                
-                # 5. RENDERIZADO CON MAPA DE CALOR INSTITUCIONAL
+
+                # 5. RENDERIZADO CON MAPA DE CALOR
                 st.dataframe(
                     df_master.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_presentes})
-                    # Gradiente VERDE: Rentabilidad y Dividendos
-                    .background_gradient(
-                        cmap='RdYlGn', 
-                        subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns]
-                    )
-                    # Gradiente ROJO INVERSO: Valoración (P/E y EV/EBITDA)
-                    .background_gradient(
-                        cmap='RdYlGn_r', 
-                        subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns]
-                    )
-                    # Gradiente AZUL: Market Cap
-                    .background_gradient(
-                        cmap='Blues', 
-                        subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]
-                    ),
+                    .background_gradient(cmap='RdYlGn', subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns])
+                    .background_gradient(cmap='RdYlGn_r', subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns])
+                    .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]),
                     use_container_width=True
                 )
-            except Exception as e:
-                st.error(f"Error en matriz: {e}")
-                st.dataframe(df_full_comparison, use_container_width=True)
-        else:
-            st.info("📊 La tabla maestra se poblará al sincronizar con el Búnker de datos.")
-
-        st.caption("Nota: Costco (COST) fijado en cabecera. Datos de Yield normalizados para Target (TGT) y pares.")
-        
-# -------------------------------------------------------------------------
-    # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
-    # -------------------------------------------------------------------------
-    with tabs[3]:
-        st.subheader("Análisis de Sentimiento y Proyecciones de Wall Street")
-        r_col1, r_col2 = st.columns([1.3, 2])
-        
-        with r_col1:
-            # 1. Extracción de Datos de Consenso
-            score_val = data.get('analysts', {}).get('score', 2.0)
-            target_val = data.get('analysts', {}).get('target', 1067.59)
-            rec_str = data.get('analysts', {}).get('key', 'BUY')
-            count_val = data.get('analysts', {}).get('count', 37)
-            
-            # 2. CSS DINÁMICO (Corrección para Modo Oscuro/Claro)
-            st.markdown(f"""
-                <style>
-                .st-widget-box-dynamic {{
-                    background-color: var(--secondary-background-color); 
-                    border: 1px solid var(--border-color);
-                    border-radius: 12px;
-                    padding: 20px;
-                    font-family: 'Segoe UI', sans-serif;
-                    color: var(--text-color);
-                    margin-bottom: 20px;
-                }}
-                .st-rec-header-dynamic {{ 
-                    text-align: center; 
-                    border-bottom: 2px solid var(--primary-color); 
-                    padding-bottom: 15px; 
-                }}
-                .st-rec-val-dynamic {{ 
-                    font-size: 2.2rem; 
-                    font-weight: 900; 
-                    color: #1a7f37; /* El verde se mantiene por semántica financiera */
-                    margin: 5px 0; 
-                }}
-                
-                .st-data-row-dynamic {{
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    margin: 10px 0;
-                    height: 25px;
-                }}
-                .st-data-label-dynamic {{ 
-                    width: 125px; 
-                    font-size: 0.9rem; 
-                    color: var(--text-color); 
-                    font-weight: 700; 
-                }}
-                .st-data-bar-bg-dynamic {{
-                    flex-grow: 1;
-                    height: 10px;
-                    background: var(--background-color);
-                    margin: 0 12px;
-                    border-radius: 5px;
-                    border: 1px solid var(--border-color);
-                    overflow: hidden;
-                }}
-                .st-data-bar-fill-dynamic {{ height: 100%; border-radius: 4px; }}
-                
-                .st-data-info-dynamic {{ 
-                    width: 105px; 
-                    text-align: right; 
-                    font-family: 'JetBrains Mono', monospace; 
-                    font-size: 0.85rem; 
-                    font-weight: 800;
-                    color: var(--text-color); 
-                }}
-                .st-data-footer-dynamic {{ 
-                    border-top: 2px solid var(--border-color); 
-                    margin-top: 15px; 
-                    padding-top: 15px; 
-                }}
-                .st-footer-line-dynamic {{ 
-                    display: flex; 
-                    justify-content: space-between; 
-                    margin-bottom: 8px; 
-                    font-size: 0.9rem; 
-                }}
-                .st-footer-label-dynamic {{ color: var(--text-color); opacity: 0.8; font-weight: 600; }}
-                .st-footer-val-dynamic {{ color: var(--text-color); font-weight: 800; }}
-                </style>
-                
-                <div class="st-widget-box-dynamic">
-                    <div class="st-rec-header-dynamic">
-                        <div style="font-size: 0.8rem; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; opacity: 0.9;">Recomendación de los analistas</div>
-                        <div class="st-rec-val-dynamic">{rec_str.title()}</div>
-                        <div style="font-size: 0.75rem; opacity: 0.8; font-weight: 600;">Basado en {count_val} analistas, {datetime.date.today().strftime('%d/%m/%Y')}</div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-            # 3. Gráfico Gauge (Inversión 6 - score_val)
-            gauge_pos = 6 - score_val
-            fig_gauge = go.Figure(go.Indicator(
-                mode = "gauge", value = gauge_pos,
-                domain = {'x': [0, 1], 'y': [0, 1]},
-                gauge = {
-                    'axis': {'range': [1, 5], 'visible': False},
-                    'bar': {'color': "var(--primary-color)", 'thickness': 0.08},
-                    'steps': [
-                        {'range': [1, 1.8], 'color': '#d73a49'},
-                        {'range': [1.8, 2.6], 'color': '#fb8f44'},
-                        {'range': [2.6, 3.4], 'color': '#f6e05e'},
-                        {'range': [3.4, 4.2], 'color': '#2da44e'},
-                        {'range': [4.2, 5], 'color': '#1a7f37'}
-                    ],
-                    'threshold': {'line': {'color': "var(--text-color)", 'width': 3}, 'thickness': 0.8, 'value': gauge_pos}
-                }
-            ))
-            fig_gauge.update_layout(height=160, margin=dict(t=10, b=0, l=30, r=30), paper_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig_gauge, use_container_width=True, config={'displayModeBar': False})
-
-            # 4. Distribución Detallada (Las 5 filas originales)
-            st.markdown(f"""
-                <div class="st-widget-box-dynamic" style="background: transparent; padding-top: 0; margin-top: -30px; border: none; box-shadow: none;">
-                    <div class="st-data-row-dynamic">
-                        <div class="st-data-label-dynamic">Compra agresiva</div>
-                        <div class="st-data-bar-bg-dynamic"><div class="st-data-bar-fill-dynamic" style="width: 54%; background: #1a7f37;"></div></div>
-                        <div class="st-data-info-dynamic">20 (54.1%)</div>
-                    </div>
-                    <div class="st-data-row-dynamic">
-                        <div class="st-data-label-dynamic">Comprar</div>
-                        <div class="st-data-bar-bg-dynamic"><div class="st-data-bar-fill-dynamic" style="width: 8%; background: #2da44e;"></div></div>
-                        <div class="st-data-info-dynamic">3 (8.1%)</div>
-                    </div>
-                    <div class="st-data-row-dynamic">
-                        <div class="st-data-label-dynamic">Conservar</div>
-                        <div class="st-data-bar-bg-dynamic"><div class="st-data-bar-fill-dynamic" style="width: 32%; background: #f6e05e;"></div></div>
-                        <div class="st-data-info-dynamic">12 (32.4%)</div>
-                    </div>
-                    <div class="st-data-row-dynamic">
-                        <div class="st-data-label-dynamic">Vender</div>
-                        <div class="st-data-bar-bg-dynamic"><div class="st-data-bar-fill-dynamic" style="width: 0%; background: #fb8f44;"></div></div>
-                        <div class="st-data-info-dynamic">0 (0.0%)</div>
-                    </div>
-                    <div class="st-data-row-dynamic">
-                        <div class="st-data-label-dynamic">Venta fuerte</div>
-                        <div class="st-data-bar-bg-dynamic"><div class="st-data-bar-fill-dynamic" style="width: 5%; background: #d73a49;"></div></div>
-                        <div class="st-data-info-dynamic">2 (5.4%)</div>
-                    </div>
-                    <div class="st-data-footer-dynamic">
-                        <div class="st-footer-line-dynamic">
-                            <span class="st-footer-label-dynamic">Precio previsto (12m)</span>
-                            <span class="st-footer-val-dynamic">USD {target_val:,.2f}</span>
-                        </div>
-                        <div class="st-footer-line-dynamic">
-                            <span class="st-footer-label-dynamic">Volatilidad</span>
-                            <span class="st-footer-val-dynamic">Promedio</span>
-                        </div>
-                        <div class="st-footer-line-dynamic">
-                            <span class="st-footer-label-dynamic">Recomendación sector</span>
-                            <span class="st-footer-val-dynamic" style="color:#1a7f37;">Comprar</span>
-                        </div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-
-        with r_col2:
-            # 5. Gráfico de Ganancias Pro (BPA)
-            quarters = ['2025Q3', '2025Q4', '2026Q1', '2026Q2']
-            fig_eps = go.Figure()
-            fig_eps.add_trace(go.Bar(x=quarters, y=[3.80, 5.51, 4.55, 4.55], name="Estimado", marker_color="#495057"))
-            fig_eps.add_trace(go.Bar(x=quarters, y=[3.92, 5.82, 4.58, 4.58], name="Real", marker_color="#005BAA"))
-            
-            fig_eps.update_layout(
-                title="Sorpresas en Beneficio por Acción (BPA)",
-                barmode='group',
-                template="plotly_dark", 
-                height=480,
-                xaxis_type='category',
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-            )
-            st.plotly_chart(fig_eps, use_container_width=True)
-            
-# -------------------------------------------------------------------------
-    # TAB 5: STRESS TEST PRO (VERSIÓN FINAL SIN ERRORES)
-    # -------------------------------------------------------------------------
-    with tabs[4]:
-        st.subheader("🌪️ Simulador de Cisnes Negros & Shocks de Mercado")
-        st.markdown("""<div style="background-color:rgba(248, 81, 73, 0.1); padding:15px; border-radius:10px; border-left: 5px solid #f85149; margin-bottom:20px;">
-            <b>Protocolo de Stress Test:</b> Estos escenarios simulan eventos de baja probabilidad pero alto impacto (Fat Tails). 
-            Los ajustes se suman al entorno macroeconómico actual.</div>""", unsafe_allow_html=True)
-        
-        # 1. Configuración del Entorno de Crisis (Local)
-        col_s1, col_s2 = st.columns(2)
-        s_income_local = col_s1.slider("Shock: Consumo Disponible (%)", -30.0, 5.0, -10.0) / 100
-        s_infl_local = col_s2.slider("Shock: Inflación de Costos (%)", 0.0, 25.0, 10.0) / 100
-        
-        st.markdown("### 🛠️ Selección de Eventos de Riesgo")
-        
-        # Creamos las columnas para los checkboxes
-        c_sw1, c_sw2, c_sw3, c_sw4 = st.columns(4)
-        
-        # Inicializamos acumuladores
-        impact_fcf = 0.0
-        impact_wacc = 0.0
-        impact_g = 0.0
-        active_risks = []
-
-        # --- DISEÑO DE COLUMNAS CON IMPACTOS VISIBLES ---
-        with c_sw1:
-            check_ciber = st.checkbox("Ataque Cibernético")
-            st.markdown("<small style='color:#808495;'>📉 FCF: <b>-15%</b><br>⚖️ WACC: <b>+0 bps</b><br>📈 g: <b>0%</b></small>", unsafe_allow_html=True)
-            if check_ciber:
-                impact_fcf -= 0.15
-                active_risks.append("💻 <b>Ciber-Riesgo:</b> Interrupción Operativa Grave")
-
-        with c_sw2:
-            check_lock = st.checkbox("Lockdown Global")
-            st.markdown("<small style='color:#808495;'>📉 FCF: <b>-25%</b><br>⚖️ WACC: <b>+100 bps</b><br>📈 g: <b>0%</b></small>", unsafe_allow_html=True)
-            if check_lock:
-                impact_fcf -= 0.25; impact_wacc += 0.01
-                active_risks.append("🔒 <b>Lockdown:</b> Parálisis logística y de suministros")
-
-        with c_sw3:
-            check_geo = st.checkbox("Conflicto Geopolítico")
-            st.markdown("<small style='color:#808495;'>📉 FCF: <b>-10%</b><br>⚖️ WACC: <b>+250 bps</b><br>📈 g: <b>-1.0%</b></small>", unsafe_allow_html=True)
-            if check_geo:
-                impact_fcf -= 0.10; impact_wacc += 0.025; impact_g -= 0.01
-                active_risks.append("🌍 <b>Geopolítica:</b> Inestabilidad y riesgo país elevado")
-
-        with c_sw4:
-            check_mem = st.checkbox("Crisis de Membresías")
-            st.markdown("<small style='color:#808495;'>📉 FCF: <b>-20%</b><br>⚖️ WACC: <b>+0 bps</b><br>📈 g: <b>-2.0%</b></small>", unsafe_allow_html=True)
-            if check_mem:
-                impact_fcf -= 0.20; impact_g -= 0.02
-                active_risks.append("💳 <b>Membresías:</b> Pérdida de recurrencia y churn masivo")
-
-        # 2. Consolidación de Variables Post-Stress
-        total_macro_stress = (s_income_local * 1.5) - (s_infl_local * 1.2) + impact_fcf
-        stress_wacc = final_wacc + impact_wacc
-        stress_g1 = g1_in + impact_g
-        
-        # 3. Cálculo de Valoración bajo Estrés
-        v_stress, _, _, _ = ValuationOracle.run_macro_dcf(
-            data['fcf_now_b'], stress_g1, g2_in, stress_wacc, g_terminal,
-            shares=data['shares_m'], cash=data['cash_b'], debt=data['debt_b'], macro_adj=total_macro_stress
-        )
-
-        # 4. Panel de Resultados (CORREGIDO PARA EVITAR DELTAGENERATOR)
-        st.markdown("---")
-        res_col1, res_col2 = st.columns([1, 2])
-        
-        with res_col1:
-            diff_pct = (v_stress / f_val - 1) * 100
-            st.metric("Fair Value en Crisis", f"${v_stress:.2f}", f"{diff_pct:.1f}% vs Base", delta_color="inverse")
-            
-            # Determinamos el nivel de riesgo
-            risk_level = "CRÍTICO" if diff_pct < -30 else ("ALTO" if diff_pct < -15 else "MODERADO")
-            
-            # Usamos un bloque if/else estándar para que Streamlit no imprima el objeto devuelto
-            if diff_pct < -15:
-                st.error(f"Riesgo de la acción: **{risk_level}**")
             else:
-                st.success(f"Riesgo: **{risk_level}**")
+                st.info("📊 Sincronizando búnker de datos...")
 
-        with res_col2:
-            st.write("**Resumen de Drivers Resultantes:**")
-            d1, d2, d3 = st.columns(3)
-            d1.metric("WACC Stress", f"{stress_wacc*100:.2f}%", f"+{impact_wacc*10000:.0f} bps")
-            d2.metric("Growth Stress", f"{stress_g1*100:.1f}%", f"{impact_g*100:.1f}%")
-            d3.metric("FCF Adjustment", f"{total_macro_stress*100:.1f}%", "Impacto Neto")
-
-# -------------------------------------------------------------------------
-    # TAB 6: FORWARD LOOKING (VARIABLES AJUSTABLES) - VERSIÓN FCF
-    # -------------------------------------------------------------------------
-    with tabs[5]:
-        st.subheader("Laboratorio de Resultados Proyectados (Forward Looking)")
-        f1, f2, f3, f4 = st.columns(4)
-        
-        # Sliders conectados a variables
-        rf_g = f1.slider("Crec. Ventas (%)", 0.0, 25.0, 8.5) / 100
-        mf_e = f2.slider("Margen EBITDA (%)", 3.0, 15.0, 5.2) / 100
-        re_f = f3.slider("Capex/Sales (%)", 1.0, 8.0, 2.0) / 100
-        tax_f = f4.slider("Tax Rate (%)", 15.0, 35.0, 21.0) / 100
-        
-        yrs = [2026, 2027, 2028, 2029, 2030]
-        
-        # 1. Cálculo dinámico de la proyección
-        base_rev = data['acc_summary']['Revenue ($B)']
-        
-        proyecciones = []
-        for i in range(1, 6):
-            año = yrs[i-1]
-            rev = base_rev * (1 + rf_g)**i
-            ebitda = rev * mf_e
-            # Estimación de FCF: EBITDA - Taxes - Capex
-            taxes = ebitda * tax_f
-            capex = rev * re_f
-            fcf = ebitda - taxes - capex
-            
-            proyecciones.append({
-                "Año": año,
-                "Rev ($B)": rev,
-                "EBITDA ($B)": ebitda,
-                "FCF ($B)": fcf
-            })
-
-        df_fwd = pd.DataFrame(proyecciones)
-
-        # 2. TABLA: Formateada para lectura financiera
-        df_display = df_fwd.copy()
-        df_display["Año"] = df_display["Año"].astype(str)
-        st.table(df_display.style.format({
-            "Rev ($B)": "{:,.2f}", 
-            "EBITDA ($B)": "{:,.2f}",
-            "FCF ($B)": "{:,.2f}"
-        }))
-
-        # 3. GRÁFICO: Trayectoria de Free Cash Flow
-        fig_fwd = px.line(
-            df_fwd, 
-            x="Año", 
-            y="FCF ($B)", 
-            markers=True, 
-            title="Proyección de Generación de Caja Libre (FCF)",
-            line_shape="spline", # Hace la línea más suave/estética
-            color_discrete_sequence=["#005BAA"] # Azul Costco
-        )
-        
-        fig_fwd.update_layout(
-            xaxis=dict(
-                tickmode='linear',
-                dtick=1,        
-                tickformat='d'  
-            ),
-            yaxis_tickformat="$,.1f", 
-            template="plotly_dark",
-            hovermode="x unified"
-        )
-        
-        # Añadir un área sombreada bajo la línea para darle peso visual
-        fig_fwd.update_traces(fill='tozeroy')
-        
-        st.plotly_chart(fig_fwd, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error en matriz: {e}")
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
