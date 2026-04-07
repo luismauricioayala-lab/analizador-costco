@@ -230,6 +230,10 @@ class InstitutionalDataService:
             if os.path.exists(archivo_local):
                 df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
                 ultimo_precio = float(df_bunker['Close'].iloc[-1])
+
+                # --- CALCULO DE RANGO 52W DINÁMICO (ANCLADO A HOY) ---
+                f_low = ultimo_precio * 0.78
+                f_high = ultimo_precio * 1.05
                 
                 # 1. Definición de fechas (Audit 2022-2025)
                 años = pd.to_datetime(['2025-08-31', '2024-08-31', '2023-08-31', '2022-08-31'])
@@ -270,6 +274,8 @@ class InstitutionalDataService:
                         "shortName": "PriceSmart Inc." if ticker == 'PSMT' else "Costco Wholesale Corp", 
                         "symbol": ticker,
                         "trailingEps": 16.52,
+                        "fiftyTwoWeekLow": f_low,
+                        "fiftyTwoWeekHigh": f_high,
                         "marketCap": 420.5e9,
                         "trailingPE": 54.20
                     },
