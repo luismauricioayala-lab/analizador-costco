@@ -445,6 +445,26 @@ def main():
         # Usamos st.write para evitar bucles infinitos y renderizar Plotly
         return st.write(fig)
 
+
+    #  INICIALIZACIÓN BLINDADA (REEMPLAZA LAS VARIABLES SUELTAS)
+    
+    # Centralizamos todo en un diccionario para que no choque con los sliders
+    p = {
+        'rf_g': st.session_state.get('rf_g', 0.085),
+        'mf_e': st.session_state.get('mf_e', 0.053),
+        're_f': st.session_state.get('re_f', 0.020),
+        'tax_f': st.session_state.get('tax_f', 0.21)
+    }
+
+    # Extraemos datos base del búnker
+    rev_base = data['acc_summary'].get('Revenue ($B)', 280.0)
+    ebitda_base = data['acc_summary'].get('EBITDA ($B)', 12.0)
+    
+    # CÁLCULOS DEL WATERFALL (Usando el diccionario 'p')
+    calc_taxes = ebitda_base * p['tax_f']
+    calc_capex = rev_base * p['re_f']
+    calc_fcf   = ebitda_base - calc_taxes - calc_capex
+
     # REEMPLAZO GLOBAL
     st.plotly_chart = patched_plotly_chart
     
@@ -525,27 +545,6 @@ def main():
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "🔬 Comparativa APT", "📜 Metodología", "📈 Opciones Lab"
     ])
     
-    # MOTOR DE CÁLCULOS GLOBALES (Kit de Emergencia)
-    # Definimos estos valores AQUÍ para que existan en toda la función main()
-    # Si el usuario no ha ido a la pestaña 'Laboratorio', estos son los valores base.
-    
-    # Inputs por defecto (Estos se usarán si no has movido los sliders del Lab)
-    rf_g_val   = 0.085  # Crecimiento 8.5%
-    mf_e_val   = 0.053  # Margen EBITDA 5.3%
-    re_f_val   = 0.020  # Capex 2%
-    tax_f_val  = 0.21   # Impuestos 21%
-
-    # Extracción de datos del búnker 'data'
-    # Usamos .get() para que si falla, la app siga con valores estándar
-    rev_base    = data['acc_summary'].get('Revenue ($B)', 280.0)
-    ebitda_base = data['acc_summary'].get('EBITDA ($B)', 12.0)
-    
-    # 3. CÁLCULOS DEL WATERFALL (Pre-calculados antes de las pestañas)
-    # Esto asegura que la línea 686 siempre tenga números listos
-    calc_taxes = ebitda_base * tax_f_val
-    calc_capex = rev_base * re_f_val
-    calc_fcf   = ebitda_base - calc_taxes - calc_capex
-
     # A partir de aquí ya puedes seguir con tus 'with tabs[0]:', etc.
     # RECUERDA: En Tab 1 usa: y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b]
 
