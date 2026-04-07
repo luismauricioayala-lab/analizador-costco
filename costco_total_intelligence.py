@@ -164,14 +164,11 @@ st.markdown("""
 # =============================================================================
 
 class InstitutionalDataService:
-    """Clase maestra para la adquisición y normalización de datos auditados COST."""
+    """Clase maestra para la adquisición y normalización de datos auditados COST & PEERS."""
     
-    # Lista Maestra de Peers (Incluida PSMT)
     def __init__(self):
-        self.peers_list = [
-            'COST', 'WMT', 'TGT', 'AMZN', 'BJ', 'HD', 'LOW', 
-            'DG', 'DLTR', 'KR', 'SFM', 'PSMT' # <-- PSMT INTEGRADA
-        ]
+        # Lista Maestra de Referencia para la Terminal
+        self.primary_peers = ['WMT', 'TGT', 'AMZN', 'BJ', 'HD', 'LOW', 'DG', 'DLTR', 'KR', 'SFM', 'PSMT']
 
     @staticmethod
     @st.cache_data(ttl=3600)
@@ -190,7 +187,7 @@ class InstitutionalDataService:
             if cf.empty or is_stmt.empty:
                 raise ValueError("Yahoo devolvió estados vacíos.")
 
-            # Cálculo de FCF Real
+            # Cálculo de FCF Real (Cash from Operations + CapEx)
             fcf_raw = (cf.loc['Operating Cash Flow'] + cf.loc['Capital Expenditure'])
             fcf_now = fcf_raw.iloc[0] / 1e9
 
@@ -200,16 +197,16 @@ class InstitutionalDataService:
             rev_vals = (is_3y.loc['Total Revenue'] / 1e9).tolist()
             ebitda_vals = (is_3y.loc['EBITDA'] / 1e9).tolist()
             ni_vals = (is_3y.loc['Net Income'] / 1e9).tolist()
-            eps_vals = info.get('trailingEps', 16.5)
+            eps_vals = info.get('trailingEps', 0)
 
             acc_summary = {
                 "Revenue ($B)": info.get('totalRevenue', 0) / 1e9,
                 "EBITDA ($B)": info.get('ebitda', 0) / 1e9,
                 "Net Income ($B)": info.get('netIncomeToCommon', 0) / 1e9,
-                "ROE (%)": info.get('returnOnEquity', 0.28) * 100,
-                "Debt/Equity": info.get('debtToEquity', 45.0),
-                "Current Ratio": info.get('currentRatio', 1.05),
-                "Operating Margin (%)": info.get('operatingMargins', 0.035) * 100
+                "ROE (%)": info.get('returnOnEquity', 0) * 100,
+                "Debt/Equity": info.get('debtToEquity', 0),
+                "Current Ratio": info.get('currentRatio', 0),
+                "Operating Margin (%)": info.get('operatingMargins', 0) * 100
             }
 
             return {
@@ -240,19 +237,29 @@ class InstitutionalDataService:
                 min_52w = float(df_bunker['Low'].tail(252).min())
                 max_52w = float(df_bunker['High'].tail(252).max())
 
+                # Datos estimados para PSMT si estamos en modo búnker
+                is_psmt = (ticker == 'PSMT')
+                
                 return {
                     "info": {
                         "currentPrice": ultimo_precio, 
-                        "shortName": "PriceSmart Inc." if ticker == 'PSMT' else "Peer Stock", 
+                        "shortName": "PriceSmart Inc." if is_psmt else "Costco Wholesale", 
                         "symbol": ticker,
+                        "trailingEps": 4.50 if is_psmt else 16.5,
                         "fiftyTwoWeekLow": min_52w, 
                         "fiftyTwoWeekHigh": max_52w 
                     },
                     "price": ultimo_precio,
-                    "mkt_cap_b": 2.5 if ticker == 'PSMT' else 10.0, # Ajuste manual si offline
-                    "fcf_now_b": 0.15 if ticker == 'PSMT' else 0.5,
-                    "beta": 0.85 if ticker == 'PSMT' else 1.0,
-                    "acc_summary": {"ROE (%)": 15.0, "Debt/Equity": 20.0} # Fallback sutil
+                    "mkt_cap_b": 2.5 if is_psmt else 450.0,
+                    "fcf_now_b": 0.18 if is_psmt else 9.5,
+                    "beta": 0.88 if is_psmt else 0.98,
+                    "shares_m": 30.5 if is_psmt else 443.6,
+                    "acc_summary": {
+                        "ROE (%)": 14.5 if is_psmt else 28.0, 
+                        "Debt/Equity": 15.0 if is_psmt else 45.0,
+                        "Operating Margin (%)": 4.2 if is_psmt else 3.5
+                    },
+                    "analysts": {"key": "BUY", "score": 2.0, "target": 95.0 if is_psmt else 1060.0, "count": 10 if is_psmt else 37}
                 }
             return None
 
@@ -261,27 +268,29 @@ class InstitutionalDataService:
     def fetch_peer_group_data(ticker_list):
         """Carga blindada para el grupo de competidores incluyendo PSMT."""
         archivo_offline = "peers_stats.csv"
-        # Aseguramos que PSMT esté en la lista de búsqueda
-        if 'PSMT' not in ticker_list:
-            ticker_list.append('PSMT')
-            
-        full_search_list = list(set(ticker_list + ["COST"]))
         
-        # 1. Carga desde Búnker
+        # Inyectamos PSMT y COST para asegurar que el universo esté completo
+        search_universe = list(set(ticker_list + ["PSMT", "COST"]))
+        
+        # 1. Prioridad: Búnker Peers
         if os.path.exists(archivo_offline):
             try:
                 df_final = pd.read_csv(archivo_offline)
+                df_final.columns = df_final.columns.str.strip()
                 df_final['Ticker'] = df_final['Ticker'].astype(str).str.strip()
-                df_final = df_final[df_final['Ticker'].isin(full_search_list)]
+                
+                # Filtrar solo los que están en nuestro universo de búsqueda
+                df_final = df_final[df_final['Ticker'].isin(search_universe)]
                 if not df_final.empty:
                     return df_final
             except: pass
 
-        # 2. Carga Online (Yahoo)
+        # 2. Segundo Intento: Yahoo Finance Online
         try:
             peer_results = []
-            for t in full_search_list:
-                info = yf.Ticker(t).info
+            for t in search_universe:
+                asset = yf.Ticker(t)
+                info = asset.info
                 if info and 'marketCap' in info:
                     peer_results.append({
                         "Ticker": t,
@@ -289,15 +298,20 @@ class InstitutionalDataService:
                         "Mkt Cap ($B)": info.get('marketCap', 0) / 1e9,
                         "P/E Ratio": info.get('trailingPE', 0),
                         "EV/EBITDA": info.get('enterpriseToEbitda', 0),
+                        "EV/FCF": info.get('enterpriseValue', 0) / info.get('freeCashflow', 1) if info.get('freeCashflow') else 0,
                         "ROE (%)": info.get('returnOnEquity', 0) * 100,
                         "Net Margin (%)": info.get('profitMargins', 0) * 100,
-                        "Rev Growth (%)": info.get('revenueGrowth', 0) * 100
+                        "Rev Growth (%)": info.get('revenueGrowth', 0) * 100,
+                        "Current Ratio": info.get('currentRatio', 0),
+                        "Debt/Equity": info.get('debtToEquity', 0)
                     })
-            if peer_results: return pd.DataFrame(peer_results)
+            if peer_results:
+                return pd.DataFrame(peer_results)
         except: pass
+
         return None
 
-# Instancia global
+# Instancia global del motor
 data_service = InstitutionalDataService()
         
 class ValuationOracle:
