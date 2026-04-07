@@ -1090,49 +1090,55 @@ def main():
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
                 
-# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL COMPLETA) ---
+# --- TABLA MAESTRA CON FORMATO INSTITUCIONAL (FINA) ---
         st.markdown("---")
         st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
         
         if df_full_comparison is not None and not df_full_comparison.empty:
             try:
-                # 1. LIMPIEZA, NORMALIZACIÓN Y ELIMINACIÓN DE COLUMNAS VACÍAS
+                # 1. LIMPIEZA
                 df_master = df_full_comparison.copy()
-                
-                # Eliminamos Asset Turnover para limpiar ruido visual
                 if 'Asset Turnover' in df_master.columns:
                     df_master = df_master.drop(columns=['Asset Turnover'])
                 
-                # Corrección de escala para Dividend Yield
+                # Normalización de Yield
                 if 'Div Yield (%)' in df_master.columns:
-                    df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(
-                        lambda x: x/100 if x > 20 else x
-                    )
+                    df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(lambda x: x/100 if x > 20 else x)
                     df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
 
-                # 2. ORDENAMIENTO: COSTCO SIEMPRE ARRIBA
+                # 2. ORDENAMIENTO COSTCO TOP
                 df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
                 df_master = df_master.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
 
-                # 3. DEFINICIÓN DE FORMATOS EXTENDIDOS
-                cols_formato = {
-                    "Mkt Cap ($B)": "{:.1f}", "P/E Ratio": "{:.2f}", "EV/EBITDA": "{:.2f}",
-                    "EV/FCF": "{:.2f}", "ROE (%)": "{:.1f}%", "Net Margin (%)": "{:.2f}%",
-                    "Rev Growth (%)": "{:.2f}%", "Div Yield (%)": "{:.2f}%", "ROA (%)": "{:.2f}%",
-                    "Current Ratio": "{:.2f}", "Debt/Equity": "{:.1f}"
+                # 3. DICCIONARIO DE FORMATOS (Ahora con "x" para múltiplos)
+                # Usamos :.2f para precisión y agregamos la 'x' al final
+                fmt = {
+                    "Mkt Cap ($B)": "${:.1f}B",
+                    "P/E Ratio": "{:.2f}x",
+                    "EV/EBITDA": "{:.2f}x",
+                    "EV/FCF": "{:.2f}x",
+                    "Price / Revenue": "{:.2f}x",
+                    "Current Ratio": "{:.2f}x",
+                    "ROE (%)": "{:.1f}%",
+                    "Net Margin (%)": "{:.2f}%",
+                    "Rev Growth (%)": "{:.2f}%",
+                    "Div Yield (%)": "{:.2f}%",
+                    "ROA (%)": "{:.2f}%",
+                    "Debt/Equity": "{:.2f}"
                 }
                 
-                columnas_presentes = [c for c in cols_formato.keys() if c in df_master.columns]
+                columnas_presentes = [c for c in fmt.keys() if c in df_master.columns]
                 
-                # 4. SUBSETS DINÁMICOS PARA MAPA DE CALOR (Para que nada quede en blanco)
-                # Verde: Cuanto más alto mejor (Rentabilidad y Crecimiento)
-                sub_verde = [c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)', 'Rev Growth (%)', 'ROA (%)'] if c in df_master.columns]
-                # Rojo Inverso: Cuanto más bajo mejor (Valoración y Deuda)
-                sub_rojo_inv = [c for c in ['P/E Ratio', 'EV/EBITDA', 'EV/FCF', 'Debt/Equity'] if c in df_master.columns]
+                # 4. SUBSETS PARA HEATMAP (COBERTURA TOTAL)
+                # VERDE (Más es mejor): Incluimos Current Ratio
+                sub_verde = [c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)', 'Rev Growth (%)', 'ROA (%)', 'Current Ratio'] if c in df_master.columns]
+                
+                # ROJO INVERSO (Menos es mejor): Incluimos Price / Revenue
+                sub_rojo_inv = [c for c in ['P/E Ratio', 'EV/EBITDA', 'EV/FCF', 'Debt/Equity', 'Price / Revenue'] if c in df_master.columns]
 
-                # 5. RENDERIZADO INSTITUCIONAL
+                # 5. RENDERIZADO FINAL
                 st.dataframe(
-                    df_master.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_presentes})
+                    df_master.set_index("Ticker").style.format({c: fmt[c] for c in columnas_presentes})
                     .background_gradient(cmap='RdYlGn', subset=sub_verde)
                     .background_gradient(cmap='RdYlGn_r', subset=sub_rojo_inv)
                     .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]),
@@ -1140,11 +1146,6 @@ def main():
                 )
             except Exception as e:
                 st.error(f"Error en matriz: {e}")
-                st.dataframe(df_full_comparison, use_container_width=True)
-        else:
-            st.info("📊 La tabla maestra se poblará al sincronizar con el Búnker.")
-
-        st.caption("Nota: Costco (COST) fijado en cabecera. Mapa de calor aplicado a métricas de rentabilidad, eficiencia y valoración.")
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
