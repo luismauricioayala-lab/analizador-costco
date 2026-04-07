@@ -1123,7 +1123,7 @@ def main():
 
                 # 4. DICCIONARIO DE FORMATOS (Valores dentro de la celda)
                 fmt = {
-                    "Mkt Cap ($)": "${:.1f}B",
+                    "Mkt Cap ($B)": "${:.1f}B",
                     "P/E Ratio (x)": "{:.2f}x",
                     "EV/EBITDA (x)": "{:.2f}x",
                     "EV/FCF (x)": "{:.2f}x",
@@ -1134,7 +1134,7 @@ def main():
                     "Rev Growth (%)": "{:.2f}%",
                     "Div Yield (%)": "{:.2f}%",
                     "ROA (%)": "{:.2f}%",
-                    "Debt/Equity": "{:.2f}"
+                    "Debt/Equity" (x): "{:.2f}"
                 }
                 
                 # 5. SUBSETS PARA HEATMAP (Usando los nuevos nombres de columnas)
