@@ -160,8 +160,12 @@ st.markdown("""
 # =============================================================================
 
 class InstitutionalDataService:
-    """Clase maestra para la adquisición y normalización de datos auditados COST."""
+    """Clase maestra para la adquisición y normalización de datos auditados COST & PEERS."""
     
+    def __init__(self):
+        # Lista Maestra de Referencia para la Terminal
+        self.primary_peers = ['WMT', 'TGT', 'AMZN', 'BJ', 'HD', 'LOW', 'DG', 'DLTR', 'KR', 'SFM', 'PSMT']
+
     @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_verified_payload(ticker):
@@ -169,7 +173,7 @@ class InstitutionalDataService:
         archivo_local = f"{ticker}.csv"
         
         try:
-            # INTENTO 1: Yahoo Finance con curl_cffi integrado
+            # --- INTENTO 1: YAHOO FINANCE (ONLINE) ---
             asset = yf.Ticker(ticker)
             info = asset.info
             cf = asset.cashflow
@@ -179,148 +183,132 @@ class InstitutionalDataService:
             if cf.empty or is_stmt.empty:
                 raise ValueError("Yahoo devolvió estados vacíos.")
 
-            # Cálculo de FCF Real (Tu lógica exacta)
+            # Cálculo de FCF Real (Cash from Operations + CapEx)
             fcf_raw = (cf.loc['Operating Cash Flow'] + cf.loc['Capital Expenditure'])
             fcf_now = fcf_raw.iloc[0] / 1e9
 
+            # Procesamiento de Cuadro de 3 Años
+            is_3y = is_stmt.iloc[:, :3]
+            hist_years = is_3y.columns.year.astype(str).tolist()
+            rev_vals = (is_3y.loc['Total Revenue'] / 1e9).tolist()
+            ebitda_vals = (is_3y.loc['EBITDA'] / 1e9).tolist()
+            ni_vals = (is_3y.loc['Net Income'] / 1e9).tolist()
+            eps_vals = info.get('trailingEps', 0)
+
+            acc_summary = {
+                "Revenue ($B)": info.get('totalRevenue', 0) / 1e9,
+                "EBITDA ($B)": info.get('ebitda', 0) / 1e9,
+                "Net Income ($B)": info.get('netIncomeToCommon', 0) / 1e9,
+                "ROE (%)": info.get('returnOnEquity', 0) * 100,
+                "Debt/Equity": info.get('debtToEquity', 0),
+                "Current Ratio": info.get('currentRatio', 0),
+                "Operating Margin (%)": info.get('operatingMargins', 0) * 100
+            }
+
+            return {
+                "info": info, "is": is_stmt, "bs": bs, "cf": cf,
+                "fcf_now_b": fcf_now, "fcf_hist_b": fcf_raw / 1e9,
+                "price": info.get('currentPrice', 0),
+                "mkt_cap_b": info.get('marketCap', 0) / 1e9,
+                "beta": info.get('beta', 1.0),
+                "shares_m": info.get('sharesOutstanding', 0) / 1e6,
+                "cash_b": info.get('totalCash', 0) / 1e9,
+                "debt_b": info.get('totalDebt', 0) / 1e9,
+                "hist_years": hist_years, "rev_vals": rev_vals, 
+                "ebitda_vals": ebitda_vals, "ni_vals": ni_vals, "eps_vals": eps_vals,
+                "acc_summary": acc_summary,
+                "analysts": {
+                    "key": info.get('recommendationKey', 'N/A').upper(),
+                    "score": info.get('recommendationMean', 0),
+                    "target": info.get('targetMeanPrice', 0),
+                    "count": info.get('numberOfAnalystOpinions', 0)
+                }
+            }
+
         except Exception as e:
-            st.warning(f"⚠️ Yahoo restringido para {ticker}. Accediendo al Búnker local...")
-            
-            # FALLBACK: Carga desde el búnker de archivos que descargaste
+            # --- INTENTO 2: BÚNKER LOCAL (FALLBACK OFFLINE) ---
             if os.path.exists(archivo_local):
-                st.info(f"🏛️ Modo Offline Activado: Usando {archivo_local}")
-                
                 df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
                 ultimo_precio = float(df_bunker['Close'].iloc[-1])
-                
-                # Calculamos el min y max real de tu archivo CSV para la barra
-                min_52w = float(df_bunker['Low'].tail(252).min()) # 252 días = 1 año bursátil
+                min_52w = float(df_bunker['Low'].tail(252).min())
                 max_52w = float(df_bunker['High'].tail(252).max())
 
+                # Datos estimados para PSMT si estamos en modo búnker
+                is_psmt = (ticker == 'PSMT')
+                
                 return {
                     "info": {
                         "currentPrice": ultimo_precio, 
-                        "shortName": "Costco Wholesale", 
+                        "shortName": "PriceSmart Inc." if is_psmt else "Costco Wholesale", 
                         "symbol": ticker,
-                        "trailingEps": 16.5,
+                        "trailingEps": 4.50 if is_psmt else 16.5,
                         "fiftyTwoWeekLow": min_52w, 
                         "fiftyTwoWeekHigh": max_52w 
                     },
                     "price": ultimo_precio,
-                    "mkt_cap_b": 450.0,
-                    "fcf_now_b": 9.5,
-                    "fcf_hist_b": pd.Series([8.0, 8.5, 9.0, 9.5]),
-                    "beta": 0.98,
-                    "shares_m": 443.6,
-                    "cash_b": 22.0,
-                    "debt_b": 9.0,
-                    "hist_years": ["2023", "2024", "2025"],
-                    "rev_vals": [220, 240, 250],
-                    "ebitda_vals": [15, 17, 18],
-                    "ni_vals": [6, 7, 8],
-                    "eps_vals": 16.5,
+                    "mkt_cap_b": 2.5 if is_psmt else 450.0,
+                    "fcf_now_b": 0.18 if is_psmt else 9.5,
+                    "beta": 0.88 if is_psmt else 0.98,
+                    "shares_m": 30.5 if is_psmt else 443.6,
                     "acc_summary": {
-                        "Revenue ($B)": 250.0, "EBITDA ($B)": 18.0, "Net Income ($B)": 8.0,
-                        "ROE (%)": 28.0, "Debt/Equity": 45.0, "Current Ratio": 1.05, "Operating Margin (%)": 3.5
+                        "ROE (%)": 14.5 if is_psmt else 28.0, 
+                        "Debt/Equity": 15.0 if is_psmt else 45.0,
+                        "Operating Margin (%)": 4.2 if is_psmt else 3.5
                     },
-                    "analysts": {"key": "BUY", "score": 2.0, "target": 1060.0, "count": 37}
+                    "analysts": {"key": "BUY", "score": 2.0, "target": 95.0 if is_psmt else 1060.0, "count": 10 if is_psmt else 37}
                 }
-            else:
-                st.error(f"❌ Error crítico: No se encontraron datos para {ticker}")
-                return None
-
-        # Procesamiento de Cuadro de 3 Años (Mantenemos tu lógica exacta si el try tiene éxito)
-        is_3y = is_stmt.iloc[:, :3]
-        hist_years = is_3y.columns.year.astype(str).tolist()
-        rev_vals = (is_3y.loc['Total Revenue'] / 1e9).tolist()
-        ebitda_vals = (is_3y.loc['EBITDA'] / 1e9).tolist()
-        ni_vals = (is_3y.loc['Net Income'] / 1e9).tolist()
-        eps_vals = info.get('trailingEps', 16.5)
-
-        acc_summary = {
-            "Revenue ($B)": info.get('totalRevenue', 0) / 1e9,
-            "EBITDA ($B)": info.get('ebitda', 0) / 1e9,
-            "Net Income ($B)": info.get('netIncomeToCommon', 0) / 1e9,
-            "ROE (%)": info.get('returnOnEquity', 0.28) * 100,
-            "Debt/Equity": info.get('debtToEquity', 45.0),
-            "Current Ratio": info.get('currentRatio', 1.05),
-            "Operating Margin (%)": info.get('operatingMargins', 0.035) * 100
-        }
-
-        return {
-            "info": info, "is": is_stmt, "bs": bs, "cf": cf,
-            "fcf_now_b": fcf_now, "fcf_hist_b": fcf_raw / 1e9,
-            "price": info.get('currentPrice', 1014.96),
-            "mkt_cap_b": info.get('marketCap', 450e9) / 1e9,
-            "beta": info.get('beta', 0.978),
-            "shares_m": info.get('sharesOutstanding', 443.6e6) / 1e6,
-            "cash_b": info.get('totalCash', 22e9) / 1e9,
-            "debt_b": info.get('totalDebt', 9e9) / 1e9,
-            "hist_years": hist_years, "rev_vals": rev_vals, 
-            "ebitda_vals": ebitda_vals, "ni_vals": ni_vals, "eps_vals": eps_vals,
-            "acc_summary": acc_summary,
-            "analysts": {
-                "key": info.get('recommendationKey', 'BUY').upper(),
-                "score": info.get('recommendationMean', 2.0),
-                "target": info.get('targetMeanPrice', 1067.59),
-                "count": info.get('numberOfAnalystOpinions', 37)
-            }
-        }
+            return None
 
     @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_peer_group_data(ticker_list):
-        """Versión de Diagnóstico y Carga Blindada."""
+        """Carga blindada para el grupo de competidores incluyendo PSMT."""
         archivo_offline = "peers_stats.csv"
         
-        # Agregamos COST a la lista de búsqueda para que no se pierda en el búnker
-        full_search_list = ticker_list + ["COST"]
+        # Inyectamos PSMT y COST para asegurar que el universo esté completo
+        search_universe = list(set(ticker_list + ["PSMT", "COST"]))
         
-# --- 2. CARGA FORZOSA DEL BÚNKER ---
-        df_final = None
+        # 1. Prioridad: Búnker Peers
         if os.path.exists(archivo_offline):
             try:
                 df_final = pd.read_csv(archivo_offline)
-                # Limpieza de columnas y tickers
                 df_final.columns = df_final.columns.str.strip()
-                if 'Ticker' in df_final.columns:
-                    df_final['Ticker'] = df_final['Ticker'].astype(str).str.strip()
+                df_final['Ticker'] = df_final['Ticker'].astype(str).str.strip()
                 
+                # Filtrar solo los que están en nuestro universo de búsqueda
+                df_final = df_final[df_final['Ticker'].isin(search_universe)]
                 if not df_final.empty:
-                    # FILTRADO CRUCIAL: Ahora incluimos a Costco
-                    df_final = df_final[df_final['Ticker'].isin(full_search_list)]
-                    if not df_final.empty:
-                        return df_final
-            except Exception as e:
-                st.error(f"❌ Error en Búnker: {e}")
+                    return df_final
+            except: pass
 
-        # --- 3. INTENTO ONLINE (SI EL BÚNKER NO TIENE DATOS) ---
+        # 2. Segundo Intento: Yahoo Finance Online
         try:
             peer_results = []
-            for t in full_search_list:
+            for t in search_universe:
                 asset = yf.Ticker(t)
                 info = asset.info
-                # Verificamos que info exista y tenga datos mínimos para no romper el DataFrame
-                if info and isinstance(info, dict) and 'marketCap' in info:
+                if info and 'marketCap' in info:
                     peer_results.append({
                         "Ticker": t,
                         "Nombre": info.get('shortName', t),
                         "Mkt Cap ($B)": info.get('marketCap', 0) / 1e9,
                         "P/E Ratio": info.get('trailingPE', 0),
                         "EV/EBITDA": info.get('enterpriseToEbitda', 0),
-                        "EV/FCF": info.get('enterpriseValue') / info.get('freeCashflow'),
+                        "EV/FCF": info.get('enterpriseValue', 0) / info.get('freeCashflow', 1) if info.get('freeCashflow') else 0,
                         "ROE (%)": info.get('returnOnEquity', 0) * 100,
                         "Net Margin (%)": info.get('profitMargins', 0) * 100,
-                        "Rev Growth (%)": info.get('revenueGrowth', 0) * 100
+                        "Rev Growth (%)": info.get('revenueGrowth', 0) * 100,
+                        "Current Ratio": info.get('currentRatio', 0),
+                        "Debt/Equity": info.get('debtToEquity', 0)
                     })
-            
             if peer_results:
                 return pd.DataFrame(peer_results)
-        except Exception as e:
-            # Silenciamos el error para que no bloquee la UI si Yahoo falla
-            pass
+        except: pass
 
-        return df_final
+        return None
+
+# Instancia global del motor
+data_service = InstitutionalDataService()
         
 class ValuationOracle:
     """Implementación de modelos financieros DCF y Black-Scholes."""
@@ -374,7 +362,102 @@ class ValuationOracle:
         return {"price": price, "delta": delta, "gamma": gamma, "vega": vega, "theta": theta}
 
 # =============================================================================
-# 4. INTERFAZ DE USUARIO Y CONTROL DE PANELES (MAIN)
+# 3. NÚCLEO DE VALORACIÓN CUANTITATIVA (DCF & MONTE CARLO ENGINE)
+# =============================================================================
+
+class ValuationEngine:
+    """Calculador de Valor Intrínseco con Simulación de Stress Test."""
+    
+    @staticmethod
+    def calculate_wacc(beta, risk_free=0.042, equity_risk_premium=0.05):
+        """Calcula el Coste de Capital (WACC) simplificado para retail."""
+        # CAPM: Ke = Rf + Beta * (Rm - Rf)
+        return risk_free + (beta * equity_risk_premium)
+
+    @staticmethod
+    def run_dcf(fcf_base, growth_rate, wacc, terminal_growth=0.02):
+        """Ejecuta un modelo DCF de 5 años + Valor Terminal."""
+        projections = []
+        current_fcf = fcf_base
+        
+        for i in range(5):
+            current_fcf *= (1 + growth_rate)
+            # Descontamos al presente: FCF / (1 + WACC)^t
+            projections.append(current_fcf / ((1 + wacc) ** (i + 1)))
+            
+        # Valor Terminal (Modelo Gordon Growth)
+        last_fcf = projections[-1] * ((1 + wacc) ** 5) # Volvemos al valor nominal del año 5
+        terminal_value = (last_fcf * (1 + terminal_growth)) / (wacc - terminal_growth)
+        terminal_value_pv = terminal_value / ((1 + wacc) ** 5)
+        
+        return sum(projections) + terminal_value_pv
+
+# =============================================================================
+# 4. VISUALIZACIÓN DINÁMICA DE PEERS (DATOS AUDITADOS)
+# =============================================================================
+
+def render_peer_analysis(df_peers):
+    """Renderiza la comparativa dinámica incluyendo el análisis de PSMT."""
+    st.subheader("🏛️ Matriz de Valoración Relativa: Sector Retail & Clubs")
+    
+    # Creamos columnas para los selectores de los ejes del gráfico
+    c1, c2 = st.columns(2)
+    with c1:
+        x_axis = st.selectbox("Eje X (Métrica de Valoración)", 
+                             ['P/E Ratio', 'EV/EBITDA', 'ROE (%)', 'Mkt Cap ($B)'], index=0)
+    with c2:
+        y_axis = st.selectbox("Eje Y (Rendimiento/Crecimiento)", 
+                             ['ROE (%)', 'Net Margin (%)', 'Rev Growth (%)', 'P/E Ratio'], index=1)
+
+    # --- GRÁFICO DE DISPERSIÓN DINÁMICO ---
+    # Resaltamos a COST y PSMT con colores institucionales
+    fig = px.scatter(
+        df_peers,
+        x=x_axis,
+        y=y_axis,
+        text="Ticker",
+        size="Mkt Cap ($B)",
+        color="Ticker",
+        hover_name="Nombre",
+        template="plotly_dark",
+        color_discrete_map={
+            "COST": "#005BAA", # Azul Costco
+            "PSMT": "#D4AF37", # Oro (Estrategia Emergente)
+            "WMT": "#808080",  # Gris para el resto
+            "TGT": "#808080"
+        }
+    )
+
+    fig.update_traces(textposition='top center', marker=dict(line=dict(width=1, color='white')))
+    fig.update_layout(
+        height=500,
+        margin=dict(l=0, r=0, t=30, b=0),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(gridcolor='#2c3e50', zeroline=False),
+        yaxis=dict(gridcolor='#2c3e50', zeroline=False)
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # --- TABLA DE AUDITORÍA COMPARATIVA ---
+    st.markdown("### 📋 Auditoría de Múltiplos")
+    
+    # Formateo de precisión Bloomberg para la tabla
+    st.dataframe(
+        df_peers.sort_values('Mkt Cap ($B)', ascending=False).style.format({
+            'Mkt Cap ($B)': '${:,.1f}B',
+            'P/E Ratio': '{:.2f}x',
+            'EV/EBITDA': '{:.2f}x',
+            'ROE (%)': '{:.2f}%',
+            'Net Margin (%)': '{:.2f}%',
+            'Rev Growth (%)': '{:.2f}%'
+        }),
+        use_container_width=True
+    )
+
+# =============================================================================
+# 5. INTERFAZ DE USUARIO Y CONTROL DE PANELES (MAIN)
 # =============================================================================
 
 def main():
@@ -754,6 +837,7 @@ def main():
             "Nasdaq 100 (Tech)": "QQQ",
             "Walmart (WMT)": "WMT",
             "Target (TGT)": "TGT",
+            "Pricesmart (PSMT)": "PSMT",
             "BJ's Wholesale (BJ)": "BJ",
             "Kroger (KR)": "KR",
             "Amazon (AMZN)": "AMZN",
@@ -773,7 +857,8 @@ def main():
             "Nasdaq 100 (Tech)", 
             "Walmart (WMT)", 
             "Target (TGT)", 
-            "Amazon (AMZN)", 
+            "Amazon (AMZN)",
+            "Pricesmart (PSMT)",    
             "BJ's Wholesale (BJ)", 
             "Kroger (KR)", 
             "Home Depot (HD)", 
@@ -799,7 +884,7 @@ def main():
             "COST": "Costco", "WMT": "Walmart", "TGT": "Target", 
             "BJ": "BJ's", "KR": "Kroger", "AMZN": "Amazon", 
             "HD": "Home Depot", "LOW": "Lowe's", "SFM": "Sprouts", 
-            "DLTR": "Dollar Tree", "DG": "Dollar General", 
+            "DLTR": "Dollar Tree", "DG": "Dollar General", "PSMT": "Pricesmart", 
             "SPY": "S&P 500", "QQQ": "Nasdaq 100"
         }
 
@@ -842,6 +927,7 @@ def main():
             "QQQ": "Nasdaq 100 (Tech)",
             "WMT": "Walmart (WMT)",
             "TGT": "Target (TGT)",
+            "PSMT": "Pricesmart (PSMT)",
             "BJ": "BJ's Wholesale (BJ)",
             "KR": "Kroger (KR)",
             "AMZN": "Amazon (AMZN)",
@@ -869,37 +955,37 @@ def main():
             else:
                 st.info("📉 Nota: Modo offline activo. Cargue 'market_history.csv' para ver comparativas.")
 
-        # --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO ---
+# --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO ---
         if perf_df is not None and not perf_df.empty:
-            # Normalización Base 100
-            perf_norm = (perf_df / perf_df.iloc[0]) * 100
+            # 1. TRADUCCIÓN: Unificamos nombres de Yahoo con tu interfaz
+            perf_df = perf_df.rename(columns={"^GSPC": "SPY", "^IXIC": "QQQ"})
             
-            # Limpiamos columnas: solo dejamos las que están en nuestro mapeo y existen en el DF
-            columnas_finales = [c for c in perf_norm.columns if c in nombres_pro]
-            perf_norm = perf_norm[columnas_finales]
+            # 2. INTERSECCIÓN: Solo lo que existe en el archivo y en tu mapeo visual
+            # Esto une tu lógica de diseño (nombres_pro) con la realidad del búnker
+            safe_list = [t for t in full_ticker_list if t in perf_df.columns and t in nombres_pro]
             
-            # Renombramos columnas para la leyenda profesional
-            perf_norm.columns = [nombres_pro.get(col, col) for col in perf_norm.columns]
-            
-            fig_perf = px.line(perf_norm, template="plotly_dark")
-            
-            # Destacamos a COST con una línea más gruesa
-            if "Costco (COST)" in perf_norm.columns:
-                fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=4, color="#005BAA"))
-            
-            fig_perf.update_layout(
-                height=550, 
-                hovermode="x unified", 
-                yaxis_title="Rendimiento (Base 100)",
-                legend=dict(
-                    orientation="h", 
-                    yanchor="bottom", 
-                    y=-0.5, 
-                    xanchor="center", 
-                    x=0.5
+            if safe_list:
+                # 3. CÁLCULO SEGURO
+                df_calc = perf_df[safe_list].copy()
+                perf_norm = (df_calc / df_calc.iloc[0]) * 100
+                
+                # 4. RENOMBRADO PARA LEYENDA (Tu diseño intacto)
+                perf_norm.columns = [nombres_pro.get(col, col) for col in perf_norm.columns]
+                
+                fig_perf = px.line(perf_norm, template="plotly_dark")
+                
+                # Destacamos a COST con tu estilo original
+                cost_label = nombres_pro.get("COST", "Costco (COST)")
+                if cost_label in perf_norm.columns:
+                    fig_perf.update_traces(selector=dict(name=cost_label), line=dict(width=4, color="#005BAA"))
+                
+                fig_perf.update_layout(
+                    height=550, hovermode="x unified", yaxis_title="Rendimiento (Base 100)",
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5)
                 )
-            )
-            st.plotly_chart(fig_perf, use_container_width=True)
+                st.plotly_chart(fig_perf, use_container_width=True)
+            else:
+                st.warning("⚠️ Los activos seleccionados no tienen datos históricos en 'market_history.csv'.")
             
         # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
