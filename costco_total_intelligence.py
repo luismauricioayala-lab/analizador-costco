@@ -307,49 +307,61 @@ class InstitutionalDataService:
         
 # --- 2. CARGA FORZOSA DEL BÚNKER ---
         df_final = None
-        if os.path.exists(archivo_offline):
-            try:
-                df_final = pd.read_csv(archivo_offline)
-                # Limpieza de columnas y tickers
-                df_final.columns = df_final.columns.str.strip()
-                if 'Ticker' in df_final.columns:
-                    df_final['Ticker'] = df_final['Ticker'].astype(str).str.strip()
+def get_peer_comparison_data(full_search_list, archivo_offline="peers_stats.csv"):
+    df_final = pd.DataFrame() # Inicializamos vacío para evitar UnboundLocalError
+
+    # --- 1. INTENTO EN EL BÚNKER (OFFLINE) ---
+    if os.path.exists(archivo_offline):
+        try:
+            df_local = pd.read_csv(archivo_offline)
+            df_local.columns = df_local.columns.str.strip()
+            
+            if 'Ticker' in df_local.columns:
+                df_local['Ticker'] = df_local['Ticker'].astype(str).str.strip()
+                # Filtrar solo los que necesitamos
+                df_final = df_local[df_local['Ticker'].isin(full_search_list)].copy()
                 
                 if not df_final.empty:
-                    # FILTRADO CRUCIAL: Ahora incluimos a Costco
-                    df_final = df_final[df_final['Ticker'].isin(full_search_list)]
-                    if not df_final.empty:
-                        return df_final
-            except Exception as e:
-                st.error(f"❌ Error en Búnker: {e}")
+                    # Si encontramos datos en el búnker, los devolvemos de inmediato
+                    return df_final
+        except Exception as e:
+            st.error(f"⚠️ Error al leer el Búnker de Peers: {e}")
 
-        # --- 3. INTENTO ONLINE (SI EL BÚNKER NO TIENE DATOS) ---
-        try:
-            peer_results = []
-            for t in full_search_list:
+    # --- 2. INTENTO ONLINE (SI EL BÚNKER FALLA O NO EXISTE) ---
+    peer_results = []
+    try:
+        for t in full_search_list:
+            try:
                 asset = yf.Ticker(t)
                 info = asset.info
-                # Verificamos que info exista y tenga datos mínimos para no romper el DataFrame
+                
                 if info and isinstance(info, dict) and 'marketCap' in info:
+                    # Cálculo seguro de EV/FCF para evitar división por cero o Nones
+                    ev = info.get('enterpriseValue')
+                    fcf = info.get('freeCashflow')
+                    ev_fcf = (ev / fcf) if (ev and fcf and fcf != 0) else 0
+
                     peer_results.append({
                         "Ticker": t,
                         "Nombre": info.get('shortName', t),
-                        "Mkt Cap ($B)": info.get('marketCap', 0) / 1e9,
-                        "P/E Ratio": info.get('trailingPE', 0),
-                        "EV/EBITDA": info.get('enterpriseToEbitda', 0),
-                        "EV/FCF": info.get('enterpriseValue') / info.get('freeCashflow'),
-                        "ROE (%)": info.get('returnOnEquity', 0) * 100,
-                        "Net Margin (%)": info.get('profitMargins', 0) * 100,
-                        "Rev Growth (%)": info.get('revenueGrowth', 0) * 100
+                        "Mkt Cap ($B)": (info.get('marketCap', 0) or 0) / 1e9,
+                        "P/E Ratio": info.get('trailingPE', 0) or 0,
+                        "EV/EBITDA": info.get('enterpriseToEbitda', 0) or 0,
+                        "EV/FCF": ev_fcf,
+                        "ROE (%)": (info.get('returnOnEquity', 0) or 0) * 100,
+                        "Net Margin (%)": (info.get('profitMargins', 0) or 0) * 100,
+                        "Rev Growth (%)": (info.get('revenueGrowth', 0) or 0) * 100
                     })
+            except:
+                continue # Si un ticker falla, saltamos al siguiente sin romper todo
+        
+        if peer_results:
+            df_final = pd.DataFrame(peer_results)
             
-            if peer_results:
-                return pd.DataFrame(peer_results)
-        except Exception as e:
-            # Silenciamos el error para que no bloquee la UI si Yahoo falla
-            pass
+    except Exception as e:
+        st.warning(f"📡 No se pudo conectar con Yahoo para la comparativa. Usando datos de respaldo.")
 
-        return df_final
+    return df_final
         
 class ValuationOracle:
     """Implementación de modelos financieros DCF y Black-Scholes."""
@@ -512,6 +524,21 @@ def main():
         "📋 Resumen", "🛡️ Scorecard & Radar", "🔬 Peer Analysis", "💰 Ganancias", "🌪️ Stress Test Pro", 
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "🔬 Comparativa APT", "📜 Metodología", "📈 Opciones Lab"
     ])
+    
+     MOTOR DE CÁLCULOS GLOBALES (Kit de Emergencia)
+    # Estos valores se usan si el usuario no ha ido al Laboratorio todavía
+    rf_g = 0.085  # Crecimiento Ventas 8.5%
+    mf_e = 0.053  # Margen EBITDA 5.3%
+    re_f = 0.020  # Capex/Sales 2%
+    tax_f = 0.21 # Tax Rate 21%
+
+    # Cálculos para Gráficos (Como el Waterfall de la línea 679)
+    rev_act = data['acc_summary']["Revenue ($B)"]
+    ebitda_act = data['acc_summary']["EBITDA ($B)"]
+    
+    w_taxes = ebitda_act * tax_f
+    w_capex = rev_act * re_f
+    w_fcf = ebitda_act - w_taxes - w_capex
 
     # A partir de aquí ya puedes seguir con tus 'with tabs[0]:', etc.
     # RECUERDA: En Tab 1 usa: y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b]
@@ -671,12 +698,15 @@ def main():
             )
             st.plotly_chart(fig_water, use_container_width=True)
 
-    # -------------------------------------------------------------------------
-    # TAB 2: SCORECARD & RADAR (RESTAURADO)
+# -------------------------------------------------------------------------
+    # TAB 2: SCORECARD, RADAR & PROYECCIÓN DE VALORACIÓN
     # -------------------------------------------------------------------------
     with tabs[1]:
-        st.subheader("Tablero de Salud Fundamental e Inteligencia")
+        st.subheader("🎯 Tablero de Salud Fundamental e Inteligencia de Valoración")
+        
+        # --- SECCIÓN 1: DIAGNÓSTICOS Y RADAR (TU CÓDIGO RESTAURADO) ---
         col_diag1, col_diag2 = st.columns([1.5, 1])
+        
         with col_diag1:
             inf_data = data['acc_summary']
             diagnostics = [
@@ -691,11 +721,76 @@ def main():
                 st.markdown(f'<div class="conclusion-item"><div class="icon-box" style="color:{color}">{"✪" if i_type=="star" else "!"}</div><div class="text-box">{text}</div></div>', unsafe_allow_html=True)
         
         with col_diag2:
-            radar_vals = [4.8, 5, 4.5, 4.2, 2.5] 
+            radar_vals = [4.8, 5, 4.5, 4.2, 2.5] # El 2.5 en 'Precio' refleja mi opinión sincera: está cara.
             fig_radar = px.line_polar(r=radar_vals, theta=['Salud', 'Ganancias', 'Crecimiento', 'Foso', 'Precio'], line_close=True, range_r=[0,5])
             fig_radar.update_traces(fill='toself', line_color='#005BAA', opacity=0.8)
-            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=450, template="plotly_dark")
+            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=400, template="plotly_dark", margin=dict(l=40, r=40, t=20, b=20))
             st.plotly_chart(fig_radar, use_container_width=True)
+
+        st.markdown("---")
+
+        # --- SECCIÓN 2: EL ABANICO DE PROYECCIÓN (FAN CHART) ---
+        st.write("### 📈 Trayectoria Probable del Precio (Escenarios 2025-2030)")
+        
+        # Disclaimer Directo
+        st.caption("🚨 **Nota del Búnker:** Este modelo es una simulación matemática de sensibilidad. No es una garantía de rentabilidad ni consejo financiero.")
+
+        try:
+            # Parametrización Sincera
+            ebitda_base = inf_data.get('EBITDA ($B)', 11.5)
+            rev_base = inf_data.get('Revenue ($B)', 280.0)
+            
+            # Recuperamos variables del Laboratorio si existen, si no, usamos el 'Consenso Búnker'
+            g_rate = rf_g if 'rf_g' in locals() else 0.085
+            m_ebitda = mf_e if 'mf_e' in locals() else 0.053
+            
+            años = [2025, 2026, 2027, 2028, 2029, 2030]
+            # Múltiplos basados en el ADN Extendido que subimos a GitHub
+            escenarios = {
+                "Bull (Optimismo - 38x)": {"m": 38, "color": "rgba(0, 255, 136, 0.2)", "line": "#00FF88"},
+                "Base (Actual - 33x)": {"m": 33, "color": "rgba(0, 91, 170, 0.3)", "line": "#005BAA"},
+                "Bear (Corrección - 25x)": {"m": 25, "color": "rgba(255, 50, 50, 0.1)", "line": "#FF3232"}
+            }
+
+            results = {k: [] for k in escenarios.keys()}
+            shares, cash_net = 0.443, 5.0 # Unidades en Billones
+
+            for i, año in enumerate(años):
+                ebitda_f = (rev_base * (1 + g_rate)**i) * m_ebitda
+                for esc, p in escenarios.items():
+                    price = ((ebitda_f * p["m"]) + cash_net) / shares
+                    results[esc].append(price)
+
+            # Gráfico de Abanico
+            import plotly.graph_objects as go
+            fig_fan = go.Figure()
+
+            # Capas de Sombreado
+            fig_fan.add_trace(go.Scatter(x=años, y=results["Bull (Optimismo - 38x)"], line=dict(width=0), showlegend=False))
+            fig_fan.add_trace(go.Scatter(x=años, y=results["Base (Actual - 33x)"], fill='tonexty', fillcolor=escenarios["Bull (Optimismo - 38x)"]["color"], name="Escenario Alcista", line=dict(width=0)))
+            fig_fan.add_trace(go.Scatter(x=años, y=results["Bear (Corrección - 25x)"], fill='tonexty', fillcolor=escenarios["Base (Actual - 33x)"]["color"], name="Rango Base (Sostenible)", line=dict(color=escenarios["Base (Actual - 33x)"]["line"], width=4)))
+
+            fig_fan.update_layout(xaxis_title="Año", yaxis_title="Precio Est. ($)", template="plotly_dark", hovermode="x unified", height=450, margin=dict(l=10, r=10, t=10, b=10))
+            st.plotly_chart(fig_fan, use_container_width=True)
+
+            # --- SECCIÓN 3: MI EVALUACIÓN SINCERA (EL FILTRO DE IA) ---
+            st.write("---")
+            c_s1, c_s2, c_s3 = st.columns(3)
+            
+            with c_s1:
+                st.markdown("**🛡️ Fortaleza del Foso**")
+                st.write("Inexpugnable. El modelo de suscripción es una barrera de entrada que Walmart no ha podido replicar con la misma lealtad.")
+            
+            with c_s2:
+                st.markdown("**⚠️ Riesgo de Valoración**")
+                st.write("Crítico. Pagar 33x EBITDA es territorio de lujo. Cualquier fallo en el crecimiento de membresías provocará una contracción severa.")
+            
+            with c_s3:
+                st.markdown("**📊 Veredicto Final**")
+                st.success("ACTIVO PREMIUM: Mantener en cartera, pero cautela al comprar en máximos históricos.")
+
+        except Exception as e:
+            st.error(f"Error en la simulación de precios: {e}")
 
 # -------------------------------------------------------------------------
     # TAB 2: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
