@@ -1101,15 +1101,15 @@ def main():
                 if 'Asset Turnover' in df_master.columns:
                     df_master = df_master.drop(columns=['Asset Turnover'])
                 
-                # 2. RENOMBRAR ENCABEZADOS (Aquí añadimos la 'x' y el '$')
-                # Hacemos esto antes del estilo para que el encabezado cambie
+                # 2. RENOMBRAR ENCABEZADOS (Añadimos Debt/Equity al diccionario)
                 rename_dict = {
                     "Mkt Cap ($B)": "Mkt Cap ($)",
                     "P/E Ratio": "P/E Ratio (x)",
                     "EV/EBITDA": "EV/EBITDA (x)",
                     "EV/FCF": "EV/FCF (x)",
                     "Price / Revenue": "P/S (x)",
-                    "Current Ratio": "Current Ratio (x)"
+                    "Current Ratio": "Current Ratio (x)",
+                    "Debt/Equity": "Debt/Equity (x)"  # <-- AGREGADO AQUÍ
                 }
                 df_master = df_master.rename(columns=rename_dict)
 
@@ -1121,23 +1121,23 @@ def main():
                 df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
                 df_master = df_master.sort_values(['Priority', 'Mkt Cap ($)'], ascending=[True, False]).drop('Priority', axis=1)
 
-                # 4. DICCIONARIO DE FORMATOS (Valores dentro de la celda)
+                # 4. DICCIONARIO DE FORMATOS (Sincronizado con los nuevos nombres)
                 fmt = {
-                    "Mkt Cap ($B)": "${:.1f}B",
+                    "Mkt Cap ($)": "${:.1f}B",
                     "P/E Ratio (x)": "{:.2f}x",
                     "EV/EBITDA (x)": "{:.2f}x",
                     "EV/FCF (x)": "{:.2f}x",
                     "P/S (x)": "{:.2f}x",
                     "Current Ratio (x)": "{:.2f}x",
+                    "Debt/Equity (x)": "{:.2f}x", # <-- FORMATO CON X
                     "ROE (%)": "{:.1f}%",
                     "Net Margin (%)": "{:.2f}%",
                     "Rev Growth (%)": "{:.2f}%",
                     "Div Yield (%)": "{:.2f}%",
-                    "ROA (%)": "{:.2f}%",
-                    "Debt/Equity (x)": "{:.2f}"
+                    "ROA (%)": "{:.2f}%"
                 }
                 
-                # 5. SUBSETS PARA HEATMAP (Usando los nuevos nombres de columnas)
+                # 5. SUBSETS PARA HEATMAP (Uso de nombres idénticos a rename_dict)
                 sub_verde = [c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)', 'Rev Growth (%)', 'ROA (%)', 'Current Ratio (x)'] if c in df_master.columns]
                 sub_rojo_inv = [c for c in ['P/E Ratio (x)', 'EV/EBITDA (x)', 'EV/FCF (x)', 'Debt/Equity (x)', 'P/S (x)'] if c in df_master.columns]
 
