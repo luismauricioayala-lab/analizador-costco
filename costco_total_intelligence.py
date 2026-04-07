@@ -655,17 +655,23 @@ def main():
             )
             st.plotly_chart(fig_water, use_container_width=True)
 
-    # -------------------------------------------------------------------------
-    # TAB 2: SCORECARD & RADAR (RESTAURADO)
+# -------------------------------------------------------------------------
+    # TAB 2: SCORECARD, RADAR & PROYECCIÓN DE VALORACIÓN
     # -------------------------------------------------------------------------
     with tabs[1]:
-        st.subheader("Tablero de Salud Fundamental e Inteligencia")
+        st.subheader("🎯 Tablero de Salud Fundamental e Inteligencia de Valoración")
+        
+        # --- SECCIÓN 1: DIAGNÓSTICOS Y RADAR ---
         col_diag1, col_diag2 = st.columns([1.5, 1])
+        
+        # 1. CAMBIO CLAVE: Usamos st.session_state.data_bunker en lugar de 'data'
+        db = st.session_state.data_bunker
+        
         with col_diag1:
-            inf_data = data['acc_summary']
+            inf_data = db['acc_summary']
             diagnostics = [
                 (f"Margen Operativo líder sectorial: {inf_data['Operating Margin (%)']:.2f}%", True, "star"),
-                (f"Consenso de {data['analysts']['count']} Analistas: {data['analysts']['key']}", True, "star"),
+                (f"Consenso de {db['analysts']['count']} Analistas: {db['analysts']['key']}", True, "star"),
                 ("Múltiplo P/E premium vs Media Retail (Costo de Calidad)", True, "alert"),
                 ("Retención de membresía estable >90% (Audit 10-K)", True, "star"),
                 ("Retorno sobre Capital (ROE) superior al 25% anual", True, "star")
@@ -678,8 +684,63 @@ def main():
             radar_vals = [4.8, 5, 4.5, 4.2, 2.5] 
             fig_radar = px.line_polar(r=radar_vals, theta=['Salud', 'Ganancias', 'Crecimiento', 'Foso', 'Precio'], line_close=True, range_r=[0,5])
             fig_radar.update_traces(fill='toself', line_color='#005BAA', opacity=0.8)
-            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=450, template="plotly_dark")
+            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=400, margin=dict(l=40, r=40, t=20, b=20))
+            
+            # Usamos tu interceptor (si lo llamaste patched_plotly_chart) o st.plotly_chart normal
             st.plotly_chart(fig_radar, use_container_width=True)
+
+        st.markdown("---")
+
+        # --- SECCIÓN 2: EL ABANICO DE PROYECCIÓN (FAN CHART) ---
+        st.write("### 📈 Trayectoria Probable del Precio (Escenarios 2025-2030)")
+        st.caption("🚨 **Nota del Búnker:** Simulación matemática de sensibilidad basada en flujos terminales.")
+
+        try:
+            # 2. CAMBIO CLAVE: Referencia directa a st.session_state para los inputs
+            ebitda_base = inf_data.get('EBITDA ($B)', 11.5)
+            rev_base = inf_data.get('Revenue ($B)', 280.0)
+            
+            años_proj = [2025, 2026, 2027, 2028, 2029, 2030]
+            escenarios = {
+                "Bull (Optimismo - 38x)": {"m": 38, "color": "rgba(0, 255, 136, 0.2)", "line": "#00FF88"},
+                "Base (Actual - 33x)": {"m": 33, "color": "rgba(0, 91, 170, 0.3)", "line": "#005BAA"},
+                "Bear (Corrección - 25x)": {"m": 25, "color": "rgba(255, 50, 50, 0.1)", "line": "#FF3232"}
+            }
+
+            results = {k: [] for k in escenarios.keys()}
+            shares_qty, cash_net_pos = 0.443, 5.0 
+
+            for i, año in enumerate(años_proj):
+                # Usamos st.session_state para rf_g y mf_e
+                ebitda_f = (rev_base * (1 + st.session_state.rf_g)**i) * st.session_state.mf_e
+                
+                for esc, p_esc in escenarios.items():
+                    price_est = ((ebitda_f * p_esc["m"]) + cash_net_pos) / shares_qty
+                    results[esc].append(price_est)
+
+            fig_fan = go.Figure()
+            fig_fan.add_trace(go.Scatter(x=años_proj, y=results["Bull (Optimismo - 38x)"], line=dict(width=0), showlegend=False))
+            fig_fan.add_trace(go.Scatter(x=años_proj, y=results["Base (Actual - 33x)"], fill='tonexty', fillcolor=escenarios["Bull (Optimismo - 38x)"]["color"], name="Escenario Bull"))
+            fig_fan.add_trace(go.Scatter(x=años_proj, y=results["Bear (Corrección - 25x)"], fill='tonexty', fillcolor=escenarios["Base (Actual - 33x)"]["color"], name="Rango Base", line=dict(color=escenarios["Base (Actual - 33x)"]["line"], width=4)))
+
+            fig_fan.update_layout(xaxis_title="Año", yaxis_title="Precio Est. ($)", hovermode="x unified", height=450)
+            st.plotly_chart(fig_fan, use_container_width=True)
+
+            # --- SECCIÓN 3: EVALUACIÓN SINCERA ---
+            st.write("---")
+            c_s1, c_s2, c_s3 = st.columns(3)
+            with c_s1:
+                st.markdown("**🛡️ Fortaleza del Foso**")
+                st.write("Inexpugnable. El modelo de suscripción genera una lealtad superior al 90%.")
+            with c_s2:
+                st.markdown("**⚠️ Riesgo de Valoración**")
+                st.write("Crítico. Pagar 33x EBITDA requiere una ejecución sin errores.")
+            with c_s3:
+                st.markdown("**📊 Veredicto Final**")
+                st.success("CALIDAD PREMIUM: Ideal para el largo plazo.")
+
+        except Exception as e:
+            st.error(f"Error en la simulación: {e}")
 
 # -------------------------------------------------------------------------
     # TAB 2: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
