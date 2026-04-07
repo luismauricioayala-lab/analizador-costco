@@ -867,131 +867,83 @@ def main():
         else:
             st.warning("⚠️ Cargue 'market_history.csv' para visualizar el rendimiento histórico.")
             
-# --- 1. PREPARACIÓN DE DATOS (COBERTURA TOTAL SIN FILTROS) ---
-        # Definimos los índices solo para excluirlos de gráficas que distorsionan la escala
-        indices_market = ['SPY', 'QQQ', '^GSPC', '^IXIC']
+# --- 1. LIMPIEZA FORZOSA DE DATOS (ELIMINA EL "RUIDO" DE LOS CEROS Y TEXTOS) ---
+        df_full_comparison = df_full_comparison.copy()
+        if 'Asset Turnover' in df_full_comparison.columns:
+            df_full_comparison = df_full_comparison.drop(columns=['Asset Turnover'])
+
+        # Convertimos todo a numérico por si el CSV trajo strings
+        cols_numericas = df_full_comparison.columns.drop(['Ticker', 'Nombre'])
+        for col in cols_numericas:
+            df_full_comparison[col] = pd.to_numeric(
+                df_full_comparison[col].astype(str).str.replace(r'[^0-9.-]', '', regex=True), 
+                errors='coerce'
+            )
+
+        # --- 2. VISUALIZACIÓN: DISPERSIÓN DE VALORACIÓN (TODOS LOS TICKERS) ---
+        st.write("**📊 Universo Competitivo: P/E Ratio vs ROE (%)**")
+        df_scat = df_full_comparison[~df_full_comparison['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
         
-        # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN (TODOS LOS TICKERS) ---
-        c_p1, c_p2 = st.columns(2)
-        
-        with c_p1:
-            st.write(f"**Análisis de Valoración Relativa: P/E vs ROE**")
-            if df_full_comparison is not None and not df_full_comparison.empty:
-                # Tomamos todos excepto los índices de mercado
-                df_scat = df_full_comparison[~df_full_comparison['Ticker'].isin(indices_market)].copy()
-                
-                cols_scat = ["P/E Ratio", "ROE (%)", "Mkt Cap ($B)"]
-                presentes = [c for c in cols_scat if c in df_scat.columns]
-                
-                if len(presentes) == 3:
-                    df_plot_scat = df_scat.dropna(subset=cols_scat)
-                    fig_scat = px.scatter(
-                        df_plot_scat, x="P/E Ratio", y="ROE (%)",
-                        size="Mkt Cap ($B)", color="Nombre", text="Ticker",
-                        template="plotly_dark", size_max=40,
-                        title="Universo Competitivo Completo Detectado"
-                    )
-                    fig_scat.update_layout(height=450, showlegend=False)
-                    st.plotly_chart(fig_scat, use_container_width=True)
-                else:
-                    st.info("📊 Sincronizando columnas para dispersión...")
+        fig_scat = px.scatter(
+            df_scat.dropna(subset=['P/E Ratio', 'ROE (%)']), 
+            x="P/E Ratio", y="ROE (%)", size="Mkt Cap ($B)", 
+            color="Nombre", text="Ticker", template="plotly_dark", size_max=40
+        )
+        fig_scat.update_layout(height=500, showlegend=False)
+        st.plotly_chart(fig_scat, use_container_width=True)
 
-        with c_p2:
-            st.write("**Jerarquía de Valoración Sectorial**")
-            # Forzamos lectura de TODO el búnker para las barras
-            df_ef = df_full_comparison[~df_full_comparison['Ticker'].isin(indices_market)].copy() if df_full_comparison is not None else pd.DataFrame()
-
-            if not df_ef.empty:
-                # Limpieza de tipos de datos
-                for c in df_ef.columns:
-                    if any(x in c.upper() for x in ["EV", "EBITDA", "PE", "MARGIN", "ROE"]):
-                        df_ef[c] = pd.to_numeric(df_ef[c].astype(str).str.replace(r'[^0-9.]', '', regex=True), errors='coerce')
-
-                # Selección de la mejor métrica disponible (Prioridad EV/EBITDA)
-                m_list = [c for c in df_ef.columns if "EV/EBITDA" in c.upper()]
-                metrica_activa = m_list[0] if m_list else "P/E Ratio"
-                
-                df_plt_bars = df_ef.dropna(subset=[metrica_activa]).sort_values(metrica_activa)
-                colors = ["#005BAA" if str(t).upper() == "COST" else "#444444" for t in df_plt_bars['Ticker']]
-                
-                fig_v = px.bar(df_plt_bars, x="Ticker", y=metrica_activa, template="plotly_dark")
-                fig_v.update_traces(marker_color=colors, texttemplate='%{y:.2f}x', textposition='outside')
-                fig_v.update_layout(height=400, showlegend=False, title=f"Múltiplo: {metrica_activa}")
-                st.plotly_chart(fig_v, use_container_width=True)
-
-        # --- SECCIÓN: MATRIZ DE CORRELACIÓN (FULL SYNC) ---
+        # --- 3. MATRIZ DE CORRELACIÓN (EXPANDIDA A TODO EL BÚNKER) ---
         st.markdown("---")
-        st.write("**🧩 Matriz de Correlación de Retornos Diarios (Full Universe)**")
-        with st.expander("Ver Análisis de Correlación Detallado"):
-            if 'perf_df' in locals() and perf_df is not None and not perf_df.empty:
-                try:
-                    # 1. Calculamos retornos para TODOS los activos en el historial
-                    returns_all = perf_df.pct_change().dropna()
-                    
-                    # 2. Mapeo de nombres dinámico (Usa el nombre si existe, si no el Ticker)
-                    nombres_map = {t: nombres_pro.get(t, t) for t in returns_all.columns}
-                    # Parche para índices
-                    nombres_map.update({"^GSPC": "S&P 500 (SPY)", "^IXIC": "Nasdaq 100 (QQQ)"})
-                    
-                    returns_all.columns = [nombres_map.get(c, c) for c in returns_all.columns]
-                    corr_matrix = returns_all.corr()
-
-                    # 3. Ordenar para que Costco esté siempre al inicio
-                    costco_label = nombres_pro.get("COST", "Costco (COST)")
-                    if costco_label in corr_matrix.columns:
-                        cols = [costco_label] + [c for c in corr_matrix.columns if c != costco_label]
-                        corr_matrix = corr_matrix.reindex(index=cols, columns=cols)
-                    
-                    fig_corr = px.imshow(
-                        corr_matrix, text_auto=".2f", color_continuous_scale='RdBu_r', 
-                        zmin=-1, zmax=1, template="plotly_dark"
-                    )
-                    fig_corr.update_layout(height=650)
-                    st.plotly_chart(fig_corr, use_container_width=True)
-                except Exception as e:
-                    st.info(f"📊 Expandiendo matriz: {e}")
-
-        # --- TABLA MAESTRA CON HEATMAP TOTAL (COBERTURA 100%) ---
-        st.markdown("---")
-        st.write("**Matriz Competitiva y de Benchmarks (Sync 2026 - Vista Global)**")
-        
-        if df_full_comparison is not None and not df_full_comparison.empty:
+        st.write("**🧩 Matriz de Correlación de Retornos Diarios (Full Sync)**")
+        if 'perf_df' in locals() and not perf_df.empty:
             try:
-                df_master = df_full_comparison.copy()
-                if 'Asset Turnover' in df_master.columns: df_master = df_master.drop(columns=['Asset Turnover'])
+                ret_all = perf_df.pct_change().dropna()
+                # Mapeo dinámico para que salgan todos los nombres
+                ret_all.columns = [nombres_pro.get(c, c) for c in ret_all.columns]
+                c_mat = ret_all.corr()
                 
-                # Normalización de Yields
-                if 'Div Yield (%)' in df_master.columns:
-                    df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(lambda x: x/100 if x > 20 else x)
-                    df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
+                # Forzar a Costco al inicio
+                c_lbl = nombres_pro.get("COST", "Costco")
+                if c_lbl in c_mat.columns:
+                    ord_cols = [c_lbl] + [c for c in c_mat.columns if c != c_lbl]
+                    c_mat = c_mat.reindex(index=ord_cols, columns=ord_cols)
 
-                # Prioridad Costco
-                df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
-                df_master = df_master.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
+                fig_corr = px.imshow(c_mat, text_auto=".2f", color_continuous_scale='RdBu_r', zmin=-1, zmax=1, template="plotly_dark")
+                fig_corr.update_layout(height=600)
+                st.plotly_chart(fig_corr, use_container_width=True)
+            except: st.info("Sincronizando matriz...")
 
-                # Diccionario de formatos extendido
-                fmt = {
-                    "Mkt Cap ($B)": "{:.1f}", "P/E Ratio": "{:.2f}", "EV/EBITDA": "{:.2f}",
-                    "EV/FCF": "{:.2f}", "ROE (%)": "{:.1f}%", "Net Margin (%)": "{:.2f}%",
-                    "Rev Growth (%)": "{:.2f}%", "Div Yield (%)": "{:.2f}%", "ROA (%)": "{:.2f}%",
-                    "Current Ratio": "{:.2f}", "Debt/Equity": "{:.2f}"
-                }
-                
-                # SELECCIÓN DINÁMICA PARA EL HEATMAP (Pintamos TODO lo que tenga datos)
-                # Verde: Cuanto más alto mejor
-                cols_v = [c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)', 'Rev Growth (%)', 'ROA (%)', 'Current Ratio'] if c in df_master.columns]
-                # Rojo Inverso: Cuanto más bajo mejor (Múltiplos y Deuda)
-                cols_r = [c for c in ['P/E Ratio', 'EV/EBITDA', 'EV/FCF', 'Debt/Equity'] if c in df_master.columns]
-                
-                st.dataframe(
-                    df_master.set_index("Ticker").style.format({c: fmt[c] for c in fmt if c in df_master.columns})
-                    .background_gradient(cmap='RdYlGn', subset=cols_v)
-                    .background_gradient(cmap='RdYlGn_r', subset=cols_r)
-                    .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]),
-                    use_container_width=True
-                )
-            except Exception as e:
-                st.error(f"Error en matriz global: {e}")
+        # --- 4. TABLA MAESTRA: EL "MARTILLO" DEL HEATMAP (PINTA TODO) ---
+        st.markdown("---")
+        st.write("**Matriz Competitiva Institucional (Sync 2026)**")
+        
+        df_m = df_full_comparison.copy()
+        # Normalización de Dividendos para Target y otros
+        if 'Div Yield (%)' in df_m.columns:
+            df_m['Div Yield (%)'] = df_m['Div Yield (%)'].apply(lambda x: x/100 if x > 20 else x)
+
+        # Orden prioritario: COST siempre arriba
+        df_m['Priority'] = df_m['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
+        df_m = df_m.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
+
+        # Diccionario de formatos
+        fmts = {
+            "Mkt Cap ($B)": "{:.1f}", "P/E Ratio": "{:.2f}", "EV/EBITDA": "{:.2f}",
+            "ROE (%)": "{:.1f}%", "Net Margin (%)": "{:.2f}%", "Div Yield (%)": "{:.2f}%",
+            "ROA (%)": "{:.2f}%", "Rev Growth (%)": "{:.1f}%", "Current Ratio": "{:.2f}", "Debt/Equity": "{:.1f}"
+        }
+
+        # SELECCIÓN DINÁMICA DE COLUMNAS PARA EL HEATMAP (Pintamos TODAS las numéricas)
+        c_verdes = [c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)', 'ROA (%)', 'Rev Growth (%)', 'Current Ratio'] if c in df_m.columns]
+        c_rojas = [c for c in ['P/E Ratio', 'EV/EBITDA', 'Debt/Equity', 'Price / Revenue'] if c in df_m.columns]
+
+        st.dataframe(
+            df_m.set_index("Ticker").style.format({c: v for c, v in fmts.items() if c in df_m.columns})
+            .background_gradient(cmap='RdYlGn', subset=c_verdes) # Verde = Alto es bueno
+            .background_gradient(cmap='RdYlGn_r', subset=c_rojas) # Verde = Bajo es bueno
+            .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_m.columns]),
+            use_container_width=True
+        )
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
