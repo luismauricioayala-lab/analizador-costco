@@ -526,19 +526,23 @@ def main():
     ])
     
     # MOTOR DE CÁLCULOS GLOBALES (Kit de Emergencia)
-    # Estos valores se usan si el usuario no ha ido al Laboratorio todavía
-    rf_g = 0.085  # Crecimiento Ventas 8.5%
-    mf_e = 0.053  # Margen EBITDA 5.3%
-    re_f = 0.020  # Capex/Sales 2%
-    tax_f = 0.21 # Tax Rate 21%
+    # Definimos valores base por si el usuario aún no toca los sliders del Laboratorio
+    # Usamos variables con nombres claros para que no choquen
+    g_crecimiento = 0.085  # 8.5%
+    m_ebitda_proy = 0.053  # 5.3%
+    c_capex_ratio = 0.020  # 2.0%
+    t_tax_rate    = 0.21   # 21.0%
 
-    # Cálculos para Gráficos (Como el Waterfall de la línea 679)
-    rev_act = data['acc_summary']["Revenue ($B)"]
-    ebitda_act = data['acc_summary']["EBITDA ($B)"]
+    # Extraemos datos reales del diccionario 'data' cargado en el Bloque 1
+    # .get() con valor por defecto evita que la app se rompa si falta un dato
+    rev_actual    = data['acc_summary'].get('Revenue ($B)', 280.0)
+    ebitda_actual = data['acc_summary'].get('EBITDA ($B)', 12.0)
     
-    w_taxes = ebitda_act * tax_f
-    w_capex = rev_act * re_f
-    w_fcf = ebitda_act - w_taxes - w_capex
+    # --- CÁLCULOS PARA EL WATERFALL (LÍNEA 680) ---
+    # Calculamos esto AQUÍ, fuera de las pestañas, para que siempre existan
+    val_taxes = ebitda_actual * t_tax_rate
+    val_capex = rev_actual * c_capex_ratio
+    val_fcf   = ebitda_actual - val_taxes - val_capex
 
     # A partir de aquí ya puedes seguir con tus 'with tabs[0]:', etc.
     # RECUERDA: En Tab 1 usa: y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b]
@@ -677,26 +681,30 @@ def main():
             # 2. El Total (Equity Value) debe estar en Billones
             equity_val_b = (v_base * data.get('shares_m', 443.6)) / 1000 
             
-            fig_water = go.Figure(go.Waterfall(
-                orientation="v", 
-                measure=["relative", "relative", "relative", "total"],
-                x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Market Cap Est. ($B)"],
-                y=[pv_f, pv_t, net_cash_b, equity_val_b],
-                text=[f"${pv_f:.1f}B", f"${pv_t:.1f}B", f"${net_cash_b:.1f}B", f"${equity_val_b:.1f}B"],
-                textposition="outside", 
-                connector={"line":{"color":"rgba(255,255,255,0.1)"}},
-                decreasing={"marker":{"color":"#f85149"}},
-                increasing={"marker":{"color":"#3fb950"}},
-                totals={"marker":{"color":"#005BAA"}}
-            ))
-            
-            fig_water.update_layout(
-                title="Desglose del Valor de Mercado Proyectado ($B)", 
-                template="plotly_dark", height=450,
-                yaxis_title="Billones USD",
-                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
-            )
-            st.plotly_chart(fig_water, use_container_width=True)
+        # Este es el código que solía estar en la línea 680
+        fig_water = go.Figure(go.Waterfall(
+            name = "FCF", 
+            orientation = "v",
+            measure = ["relative", "relative", "relative", "total"],
+            x = ["EBITDA Real", "Impuestos Est.", "Capex Est.", "FCF Proyectado"],
+            textposition = "outside",
+            # Usamos las variables calculadas en el motor global
+            text = [f"{ebitda_actual:.2f}", f"-{val_taxes:.2f}", f"-{val_capex:.2f}", f"{val_fcf:.2f}"],
+            y = [ebitda_actual, -val_taxes, -val_capex, val_fcf],
+            connector = {"line":{"color":"rgb(63, 63, 63)"}},
+            decreasing = {"marker":{"color":"#FF3232"}}, # Rojo para salidas
+            increasing = {"marker":{"color":"#005BAA"}}, # Azul Costco para entrada
+            totals     = {"marker":{"color":"#00FF88"}}  # Verde para el final
+        ))
+
+        fig_water.update_layout(
+            title = "De EBITDA a Free Cash Flow (Estimación)",
+            showlegend = False,
+            template = "plotly_dark",
+            height = 400
+        )
+        
+        st.plotly_chart(fig_water, use_container_width=True)
 
 # -------------------------------------------------------------------------
     # TAB 2: SCORECARD, RADAR & PROYECCIÓN DE VALORACIÓN
