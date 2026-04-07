@@ -955,18 +955,20 @@ def main():
             else:
                 st.info("📉 Nota: Modo offline activo. Cargue 'market_history.csv' para ver comparativas.")
 
-        # --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO ---
-            if perf_df is not None and not perf_df.empty:
+# --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO ---
+        if perf_df is not None and not perf_df.empty:
+            # TODO LO SIGUIENTE DEBE ESTAR INDENTADO (Un nivel más a la derecha):
             
-        # 1. EL TRADUCTOR: Renombramos índices antes de filtrar
-        perf_df = perf_df.rename(columns={"^GSPC": "SPY", "^IXIC": "QQQ"})
-        
-        # 2. EL FILTRO DE SEGURIDAD: Creamos una lista que SOLO incluya lo que sí está en el CSV
-        safe_list = [t for t in full_ticker_list if t in perf_df.columns]
-        
-        if safe_list:
-            # 3. CÁLCULO SEGURO: Usamos safe_list para evitar el KeyError
-            perf_norm = (perf_df[safe_list] / perf_df[safe_list].iloc[0]) * 100
+            # 1. EL TRADUCTOR: Renombramos índices antes de filtrar
+            perf_df = perf_df.rename(columns={"^GSPC": "SPY", "^IXIC": "QQQ"})
+            
+            # 2. EL FILTRO DE SEGURIDAD
+            safe_list = [t for t in full_ticker_list if t in perf_df.columns]
+            
+            if safe_list:
+                # 3. CÁLCULO SEGURO
+                perf_norm = (perf_df[safe_list] / perf_df[safe_list].iloc[0]) * 100
+                # ... resto del código del gráfico
             
             # Limpiamos columnas para el mapeo visual (nombres largos)
             columnas_finales = [c for c in perf_norm.columns if c in nombres_pro]
