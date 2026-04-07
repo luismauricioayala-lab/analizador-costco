@@ -160,12 +160,8 @@ st.markdown("""
 # =============================================================================
 
 class InstitutionalDataService:
-    """Clase maestra para la adquisición y normalización de datos auditados COST & PEERS."""
+    """Clase maestra para la adquisición y normalización de datos auditados COST."""
     
-    def __init__(self):
-        # Lista Maestra de Referencia para la Terminal
-        self.primary_peers = ['WMT', 'TGT', 'AMZN', 'BJ', 'HD', 'LOW', 'DG', 'DLTR', 'KR', 'SFM', 'PSMT']
-
     @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_verified_payload(ticker):
@@ -173,7 +169,7 @@ class InstitutionalDataService:
         archivo_local = f"{ticker}.csv"
         
         try:
-            # --- INTENTO 1: YAHOO FINANCE (ONLINE) ---
+            # INTENTO 1: Yahoo Finance con curl_cffi integrado
             asset = yf.Ticker(ticker)
             info = asset.info
             cf = asset.cashflow
@@ -183,132 +179,148 @@ class InstitutionalDataService:
             if cf.empty or is_stmt.empty:
                 raise ValueError("Yahoo devolvió estados vacíos.")
 
-            # Cálculo de FCF Real (Cash from Operations + CapEx)
+            # Cálculo de FCF Real (Tu lógica exacta)
             fcf_raw = (cf.loc['Operating Cash Flow'] + cf.loc['Capital Expenditure'])
             fcf_now = fcf_raw.iloc[0] / 1e9
 
-            # Procesamiento de Cuadro de 3 Años
-            is_3y = is_stmt.iloc[:, :3]
-            hist_years = is_3y.columns.year.astype(str).tolist()
-            rev_vals = (is_3y.loc['Total Revenue'] / 1e9).tolist()
-            ebitda_vals = (is_3y.loc['EBITDA'] / 1e9).tolist()
-            ni_vals = (is_3y.loc['Net Income'] / 1e9).tolist()
-            eps_vals = info.get('trailingEps', 0)
-
-            acc_summary = {
-                "Revenue ($B)": info.get('totalRevenue', 0) / 1e9,
-                "EBITDA ($B)": info.get('ebitda', 0) / 1e9,
-                "Net Income ($B)": info.get('netIncomeToCommon', 0) / 1e9,
-                "ROE (%)": info.get('returnOnEquity', 0) * 100,
-                "Debt/Equity": info.get('debtToEquity', 0),
-                "Current Ratio": info.get('currentRatio', 0),
-                "Operating Margin (%)": info.get('operatingMargins', 0) * 100
-            }
-
-            return {
-                "info": info, "is": is_stmt, "bs": bs, "cf": cf,
-                "fcf_now_b": fcf_now, "fcf_hist_b": fcf_raw / 1e9,
-                "price": info.get('currentPrice', 0),
-                "mkt_cap_b": info.get('marketCap', 0) / 1e9,
-                "beta": info.get('beta', 1.0),
-                "shares_m": info.get('sharesOutstanding', 0) / 1e6,
-                "cash_b": info.get('totalCash', 0) / 1e9,
-                "debt_b": info.get('totalDebt', 0) / 1e9,
-                "hist_years": hist_years, "rev_vals": rev_vals, 
-                "ebitda_vals": ebitda_vals, "ni_vals": ni_vals, "eps_vals": eps_vals,
-                "acc_summary": acc_summary,
-                "analysts": {
-                    "key": info.get('recommendationKey', 'N/A').upper(),
-                    "score": info.get('recommendationMean', 0),
-                    "target": info.get('targetMeanPrice', 0),
-                    "count": info.get('numberOfAnalystOpinions', 0)
-                }
-            }
-
         except Exception as e:
-            # --- INTENTO 2: BÚNKER LOCAL (FALLBACK OFFLINE) ---
+            st.warning(f"⚠️ Yahoo restringido para {ticker}. Accediendo al Búnker local...")
+            
+            # FALLBACK: Carga desde el búnker de archivos que descargaste
             if os.path.exists(archivo_local):
+                st.info(f"🏛️ Modo Offline Activado: Usando {archivo_local}")
+                
                 df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
                 ultimo_precio = float(df_bunker['Close'].iloc[-1])
-                min_52w = float(df_bunker['Low'].tail(252).min())
+                
+                # Calculamos el min y max real de tu archivo CSV para la barra
+                min_52w = float(df_bunker['Low'].tail(252).min()) # 252 días = 1 año bursátil
                 max_52w = float(df_bunker['High'].tail(252).max())
 
-                # Datos estimados para PSMT si estamos en modo búnker
-                is_psmt = (ticker == 'PSMT')
-                
                 return {
                     "info": {
                         "currentPrice": ultimo_precio, 
-                        "shortName": "PriceSmart Inc." if is_psmt else "Costco Wholesale", 
+                        "shortName": "Costco Wholesale", 
                         "symbol": ticker,
-                        "trailingEps": 4.50 if is_psmt else 16.5,
+                        "trailingEps": 16.5,
                         "fiftyTwoWeekLow": min_52w, 
                         "fiftyTwoWeekHigh": max_52w 
                     },
                     "price": ultimo_precio,
-                    "mkt_cap_b": 2.5 if is_psmt else 450.0,
-                    "fcf_now_b": 0.18 if is_psmt else 9.5,
-                    "beta": 0.88 if is_psmt else 0.98,
-                    "shares_m": 30.5 if is_psmt else 443.6,
+                    "mkt_cap_b": 450.0,
+                    "fcf_now_b": 9.5,
+                    "fcf_hist_b": pd.Series([8.0, 8.5, 9.0, 9.5]),
+                    "beta": 0.98,
+                    "shares_m": 443.6,
+                    "cash_b": 22.0,
+                    "debt_b": 9.0,
+                    "hist_years": ["2023", "2024", "2025"],
+                    "rev_vals": [220, 240, 250],
+                    "ebitda_vals": [15, 17, 18],
+                    "ni_vals": [6, 7, 8],
+                    "eps_vals": 16.5,
                     "acc_summary": {
-                        "ROE (%)": 14.5 if is_psmt else 28.0, 
-                        "Debt/Equity": 15.0 if is_psmt else 45.0,
-                        "Operating Margin (%)": 4.2 if is_psmt else 3.5
+                        "Revenue ($B)": 250.0, "EBITDA ($B)": 18.0, "Net Income ($B)": 8.0,
+                        "ROE (%)": 28.0, "Debt/Equity": 45.0, "Current Ratio": 1.05, "Operating Margin (%)": 3.5
                     },
-                    "analysts": {"key": "BUY", "score": 2.0, "target": 95.0 if is_psmt else 1060.0, "count": 10 if is_psmt else 37}
+                    "analysts": {"key": "BUY", "score": 2.0, "target": 1060.0, "count": 37}
                 }
-            return None
+            else:
+                st.error(f"❌ Error crítico: No se encontraron datos para {ticker}")
+                return None
+
+        # Procesamiento de Cuadro de 3 Años (Mantenemos tu lógica exacta si el try tiene éxito)
+        is_3y = is_stmt.iloc[:, :3]
+        hist_years = is_3y.columns.year.astype(str).tolist()
+        rev_vals = (is_3y.loc['Total Revenue'] / 1e9).tolist()
+        ebitda_vals = (is_3y.loc['EBITDA'] / 1e9).tolist()
+        ni_vals = (is_3y.loc['Net Income'] / 1e9).tolist()
+        eps_vals = info.get('trailingEps', 16.5)
+
+        acc_summary = {
+            "Revenue ($B)": info.get('totalRevenue', 0) / 1e9,
+            "EBITDA ($B)": info.get('ebitda', 0) / 1e9,
+            "Net Income ($B)": info.get('netIncomeToCommon', 0) / 1e9,
+            "ROE (%)": info.get('returnOnEquity', 0.28) * 100,
+            "Debt/Equity": info.get('debtToEquity', 45.0),
+            "Current Ratio": info.get('currentRatio', 1.05),
+            "Operating Margin (%)": info.get('operatingMargins', 0.035) * 100
+        }
+
+        return {
+            "info": info, "is": is_stmt, "bs": bs, "cf": cf,
+            "fcf_now_b": fcf_now, "fcf_hist_b": fcf_raw / 1e9,
+            "price": info.get('currentPrice', 1014.96),
+            "mkt_cap_b": info.get('marketCap', 450e9) / 1e9,
+            "beta": info.get('beta', 0.978),
+            "shares_m": info.get('sharesOutstanding', 443.6e6) / 1e6,
+            "cash_b": info.get('totalCash', 22e9) / 1e9,
+            "debt_b": info.get('totalDebt', 9e9) / 1e9,
+            "hist_years": hist_years, "rev_vals": rev_vals, 
+            "ebitda_vals": ebitda_vals, "ni_vals": ni_vals, "eps_vals": eps_vals,
+            "acc_summary": acc_summary,
+            "analysts": {
+                "key": info.get('recommendationKey', 'BUY').upper(),
+                "score": info.get('recommendationMean', 2.0),
+                "target": info.get('targetMeanPrice', 1067.59),
+                "count": info.get('numberOfAnalystOpinions', 37)
+            }
+        }
 
     @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_peer_group_data(ticker_list):
-        """Carga blindada para el grupo de competidores incluyendo PSMT."""
+        """Versión de Diagnóstico y Carga Blindada."""
         archivo_offline = "peers_stats.csv"
         
-        # Inyectamos PSMT y COST para asegurar que el universo esté completo
-        search_universe = list(set(ticker_list + ["PSMT", "COST"]))
+        # Agregamos COST a la lista de búsqueda para que no se pierda en el búnker
+        full_search_list = ticker_list + ["COST"]
         
-        # 1. Prioridad: Búnker Peers
+# --- 2. CARGA FORZOSA DEL BÚNKER ---
+        df_final = None
         if os.path.exists(archivo_offline):
             try:
                 df_final = pd.read_csv(archivo_offline)
+                # Limpieza de columnas y tickers
                 df_final.columns = df_final.columns.str.strip()
-                df_final['Ticker'] = df_final['Ticker'].astype(str).str.strip()
+                if 'Ticker' in df_final.columns:
+                    df_final['Ticker'] = df_final['Ticker'].astype(str).str.strip()
                 
-                # Filtrar solo los que están en nuestro universo de búsqueda
-                df_final = df_final[df_final['Ticker'].isin(search_universe)]
                 if not df_final.empty:
-                    return df_final
-            except: pass
+                    # FILTRADO CRUCIAL: Ahora incluimos a Costco
+                    df_final = df_final[df_final['Ticker'].isin(full_search_list)]
+                    if not df_final.empty:
+                        return df_final
+            except Exception as e:
+                st.error(f"❌ Error en Búnker: {e}")
 
-        # 2. Segundo Intento: Yahoo Finance Online
+        # --- 3. INTENTO ONLINE (SI EL BÚNKER NO TIENE DATOS) ---
         try:
             peer_results = []
-            for t in search_universe:
+            for t in full_search_list:
                 asset = yf.Ticker(t)
                 info = asset.info
-                if info and 'marketCap' in info:
+                # Verificamos que info exista y tenga datos mínimos para no romper el DataFrame
+                if info and isinstance(info, dict) and 'marketCap' in info:
                     peer_results.append({
                         "Ticker": t,
                         "Nombre": info.get('shortName', t),
                         "Mkt Cap ($B)": info.get('marketCap', 0) / 1e9,
                         "P/E Ratio": info.get('trailingPE', 0),
                         "EV/EBITDA": info.get('enterpriseToEbitda', 0),
-                        "EV/FCF": info.get('enterpriseValue', 0) / info.get('freeCashflow', 1) if info.get('freeCashflow') else 0,
+                        "EV/FCF": info.get('enterpriseValue') / info.get('freeCashflow'),
                         "ROE (%)": info.get('returnOnEquity', 0) * 100,
                         "Net Margin (%)": info.get('profitMargins', 0) * 100,
-                        "Rev Growth (%)": info.get('revenueGrowth', 0) * 100,
-                        "Current Ratio": info.get('currentRatio', 0),
-                        "Debt/Equity": info.get('debtToEquity', 0)
+                        "Rev Growth (%)": info.get('revenueGrowth', 0) * 100
                     })
+            
             if peer_results:
                 return pd.DataFrame(peer_results)
-        except: pass
+        except Exception as e:
+            # Silenciamos el error para que no bloquee la UI si Yahoo falla
+            pass
 
-        return None
-
-# Instancia global del motor
-data_service = InstitutionalDataService()
+        return df_final
         
 class ValuationOracle:
     """Implementación de modelos financieros DCF y Black-Scholes."""
@@ -360,37 +372,6 @@ class ValuationOracle:
         theta = (-(S * norm.pdf(d1) * sigma / (2 * np.sqrt(T))) - r * K * np.exp(-r * T) * norm.cdf(cp * d2)) / 365
         
         return {"price": price, "delta": delta, "gamma": gamma, "vega": vega, "theta": theta}
-
-# =============================================================================
-# 3. NÚCLEO DE VALORACIÓN CUANTITATIVA (DCF & MONTE CARLO ENGINE)
-# =============================================================================
-
-class ValuationEngine:
-    """Calculador de Valor Intrínseco con Simulación de Stress Test."""
-    
-    @staticmethod
-    def calculate_wacc(beta, risk_free=0.042, equity_risk_premium=0.05):
-        """Calcula el Coste de Capital (WACC) simplificado para retail."""
-        # CAPM: Ke = Rf + Beta * (Rm - Rf)
-        return risk_free + (beta * equity_risk_premium)
-
-    @staticmethod
-    def run_dcf(fcf_base, growth_rate, wacc, terminal_growth=0.02):
-        """Ejecuta un modelo DCF de 5 años + Valor Terminal."""
-        projections = []
-        current_fcf = fcf_base
-        
-        for i in range(5):
-            current_fcf *= (1 + growth_rate)
-            # Descontamos al presente: FCF / (1 + WACC)^t
-            projections.append(current_fcf / ((1 + wacc) ** (i + 1)))
-            
-        # Valor Terminal (Modelo Gordon Growth)
-        last_fcf = projections[-1] * ((1 + wacc) ** 5) # Volvemos al valor nominal del año 5
-        terminal_value = (last_fcf * (1 + terminal_growth)) / (wacc - terminal_growth)
-        terminal_value_pv = terminal_value / ((1 + wacc) ** 5)
-        
-        return sum(projections) + terminal_value_pv
 
 # =============================================================================
 # 4. INTERFAZ DE USUARIO Y CONTROL DE PANELES (MAIN)
@@ -773,7 +754,6 @@ def main():
             "Nasdaq 100 (Tech)": "QQQ",
             "Walmart (WMT)": "WMT",
             "Target (TGT)": "TGT",
-            "Pricesmart (PSMT)": "PSMT",
             "BJ's Wholesale (BJ)": "BJ",
             "Kroger (KR)": "KR",
             "Amazon (AMZN)": "AMZN",
@@ -793,8 +773,7 @@ def main():
             "Nasdaq 100 (Tech)", 
             "Walmart (WMT)", 
             "Target (TGT)", 
-            "Amazon (AMZN)",
-            "Pricesmart (PSMT)",    
+            "Amazon (AMZN)", 
             "BJ's Wholesale (BJ)", 
             "Kroger (KR)", 
             "Home Depot (HD)", 
@@ -820,7 +799,7 @@ def main():
             "COST": "Costco", "WMT": "Walmart", "TGT": "Target", 
             "BJ": "BJ's", "KR": "Kroger", "AMZN": "Amazon", 
             "HD": "Home Depot", "LOW": "Lowe's", "SFM": "Sprouts", 
-            "DLTR": "Dollar Tree", "DG": "Dollar General", "PSMT": "Pricesmart", 
+            "DLTR": "Dollar Tree", "DG": "Dollar General", 
             "SPY": "S&P 500", "QQQ": "Nasdaq 100"
         }
 
@@ -863,7 +842,6 @@ def main():
             "QQQ": "Nasdaq 100 (Tech)",
             "WMT": "Walmart (WMT)",
             "TGT": "Target (TGT)",
-            "PSMT": "Pricesmart (PSMT)",
             "BJ": "BJ's Wholesale (BJ)",
             "KR": "Kroger (KR)",
             "AMZN": "Amazon (AMZN)",
