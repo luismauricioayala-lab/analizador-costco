@@ -307,61 +307,48 @@ class InstitutionalDataService:
         
 # --- 2. CARGA FORZOSA DEL BÚNKER ---
         df_final = None
-def get_peer_comparison_data(full_search_list, archivo_offline="peers_stats.csv"):
-    df_final = pd.DataFrame() # Inicializamos vacío para evitar UnboundLocalError
-
-    # --- 1. INTENTO EN EL BÚNKER (OFFLINE) ---
-    if os.path.exists(archivo_offline):
-        try:
-            df_local = pd.read_csv(archivo_offline)
-            df_local.columns = df_local.columns.str.strip()
-            
-            if 'Ticker' in df_local.columns:
-                df_local['Ticker'] = df_local['Ticker'].astype(str).str.strip()
-                # Filtrar solo los que necesitamos
-                df_final = df_local[df_local['Ticker'].isin(full_search_list)].copy()
+        if os.path.exists(archivo_offline):
+            try:
+                df_final = pd.read_csv(archivo_offline)
+                # Limpieza de columnas y tickers
+                df_final.columns = df_final.columns.str.strip()
+                if 'Ticker' in df_final.columns:
+                    df_final['Ticker'] = df_final['Ticker'].astype(str).str.strip()
                 
                 if not df_final.empty:
-                    # Si encontramos datos en el búnker, los devolvemos de inmediato
-                    return df_final
-        except Exception as e:
-            st.error(f"⚠️ Error al leer el Búnker de Peers: {e}")
+                    # FILTRADO CRUCIAL: Ahora incluimos a Costco
+                    df_final = df_final[df_final['Ticker'].isin(full_search_list)]
+                    if not df_final.empty:
+                        return df_final
+            except Exception as e:
+                st.error(f"❌ Error en Búnker: {e}")
 
-    # --- 2. INTENTO ONLINE (SI EL BÚNKER FALLA O NO EXISTE) ---
-    peer_results = []
-    try:
-        for t in full_search_list:
-            try:
+        # --- 3. INTENTO ONLINE (SI EL BÚNKER NO TIENE DATOS) ---
+        try:
+            peer_results = []
+            for t in full_search_list:
                 asset = yf.Ticker(t)
                 info = asset.info
-                
+                # Verificamos que info exista y tenga datos mínimos para no romper el DataFrame
                 if info and isinstance(info, dict) and 'marketCap' in info:
-                    # Cálculo seguro de EV/FCF para evitar división por cero o Nones
-                    ev = info.get('enterpriseValue')
-                    fcf = info.get('freeCashflow')
-                    ev_fcf = (ev / fcf) if (ev and fcf and fcf != 0) else 0
-
                     peer_results.append({
                         "Ticker": t,
                         "Nombre": info.get('shortName', t),
-                        "Mkt Cap ($B)": (info.get('marketCap', 0) or 0) / 1e9,
-                        "P/E Ratio": info.get('trailingPE', 0) or 0,
-                        "EV/EBITDA": info.get('enterpriseToEbitda', 0) or 0,
-                        "EV/FCF": ev_fcf,
-                        "ROE (%)": (info.get('returnOnEquity', 0) or 0) * 100,
-                        "Net Margin (%)": (info.get('profitMargins', 0) or 0) * 100,
-                        "Rev Growth (%)": (info.get('revenueGrowth', 0) or 0) * 100
+                        "Mkt Cap ($B)": info.get('marketCap', 0) / 1e9,
+                        "P/E Ratio": info.get('trailingPE', 0),
+                        "EV/EBITDA": info.get('enterpriseToEbitda', 0),
+                        "ROE (%)": info.get('returnOnEquity', 0) * 100,
+                        "Net Margin (%)": info.get('profitMargins', 0) * 100,
+                        "Rev Growth (%)": info.get('revenueGrowth', 0) * 100
                     })
-            except:
-                continue # Si un ticker falla, saltamos al siguiente sin romper todo
-        
-        if peer_results:
-            df_final = pd.DataFrame(peer_results)
             
-    except Exception as e:
-        st.warning(f"📡 No se pudo conectar con Yahoo para la comparativa. Usando datos de respaldo.")
+            if peer_results:
+                return pd.DataFrame(peer_results)
+        except Exception as e:
+            # Silenciamos el error para que no bloquee la UI si Yahoo falla
+            pass
 
-    return df_final
+        return df_final
         
 class ValuationOracle:
     """Implementación de modelos financieros DCF y Black-Scholes."""
@@ -445,26 +432,6 @@ def main():
         # Usamos st.write para evitar bucles infinitos y renderizar Plotly
         return st.write(fig)
 
-
-    #  INICIALIZACIÓN BLINDADA (REEMPLAZA LAS VARIABLES SUELTAS)
-    
-    # Centralizamos todo en un diccionario para que no choque con los sliders
-    p = {
-        'rf_g': st.session_state.get('rf_g', 0.085),
-        'mf_e': st.session_state.get('mf_e', 0.053),
-        're_f': st.session_state.get('re_f', 0.020),
-        'tax_f': st.session_state.get('tax_f', 0.21)
-    }
-
-    # Extraemos datos base del búnker
-    rev_base = data['acc_summary'].get('Revenue ($B)', 280.0)
-    ebitda_base = data['acc_summary'].get('EBITDA ($B)', 12.0)
-    
-    # CÁLCULOS DEL WATERFALL (Usando el diccionario 'p')
-    calc_taxes = ebitda_base * p['tax_f']
-    calc_capex = rev_base * p['re_f']
-    calc_fcf   = ebitda_base - calc_taxes - calc_capex
-
     # REEMPLAZO GLOBAL
     st.plotly_chart = patched_plotly_chart
     
@@ -544,7 +511,7 @@ def main():
         "📋 Resumen", "🛡️ Scorecard & Radar", "🔬 Peer Analysis", "💰 Ganancias", "🌪️ Stress Test Pro", 
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "🔬 Comparativa APT", "📜 Metodología", "📈 Opciones Lab"
     ])
-    
+
     # A partir de aquí ya puedes seguir con tus 'with tabs[0]:', etc.
     # RECUERDA: En Tab 1 usa: y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b]
 
@@ -682,39 +649,33 @@ def main():
             # 2. El Total (Equity Value) debe estar en Billones
             equity_val_b = (v_base * data.get('shares_m', 443.6)) / 1000 
             
-        # Este es el código que solía estar en la línea 680
-        fig_water = go.Figure(go.Waterfall(
-            name = "FCF", 
-            orientation = "v",
-            measure = ["relative", "relative", "relative", "total"],
-            x = ["EBITDA Real", "Impuestos Est.", "Capex Est.", "Free Cash Flow"],
-            textposition = "outside",
-            text = [f"{ebitda_base:.2f}", f"-{calc_taxes:.2f}", f"-{calc_capex:.2f}", f"{calc_fcf:.2f}"],
-            y = [ebitda_base, -calc_taxes, -calc_capex, calc_fcf],
-            connector = {"line":{"color":"rgb(63, 63, 63)"}},
-            decreasing = {"marker":{"color":"#FF3232"}}, 
-            increasing = {"marker":{"color":"#005BAA"}}, 
-            totals     = {"marker":{"color":"#00FF88"}} 
-        ))
+            fig_water = go.Figure(go.Waterfall(
+                orientation="v", 
+                measure=["relative", "relative", "relative", "total"],
+                x=["PV Flujos 10Y", "Valor Terminal", "Caja Neta", "Market Cap Est. ($B)"],
+                y=[pv_f, pv_t, net_cash_b, equity_val_b],
+                text=[f"${pv_f:.1f}B", f"${pv_t:.1f}B", f"${net_cash_b:.1f}B", f"${equity_val_b:.1f}B"],
+                textposition="outside", 
+                connector={"line":{"color":"rgba(255,255,255,0.1)"}},
+                decreasing={"marker":{"color":"#f85149"}},
+                increasing={"marker":{"color":"#3fb950"}},
+                totals={"marker":{"color":"#005BAA"}}
+            ))
+            
+            fig_water.update_layout(
+                title="Desglose del Valor de Mercado Proyectado ($B)", 
+                template="plotly_dark", height=450,
+                yaxis_title="Billones USD",
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
+            )
+            st.plotly_chart(fig_water, use_container_width=True)
 
-        fig_water.update_layout(
-            title = "Desglose de Generación de Caja (Estimado $B)",
-            template = "plotly_dark",
-            height = 450,
-            showlegend = False
-        )
-        
-        st.plotly_chart(fig_water, use_container_width=True)
-
-# -------------------------------------------------------------------------
-    # TAB 2: SCORECARD, RADAR & PROYECCIÓN DE VALORACIÓN
+    # -------------------------------------------------------------------------
+    # TAB 2: SCORECARD & RADAR (RESTAURADO)
     # -------------------------------------------------------------------------
     with tabs[1]:
-        st.subheader("🎯 Tablero de Salud Fundamental e Inteligencia de Valoración")
-        
-        # --- SECCIÓN 1: DIAGNÓSTICOS Y RADAR (TU CÓDIGO RESTAURADO) ---
+        st.subheader("Tablero de Salud Fundamental e Inteligencia")
         col_diag1, col_diag2 = st.columns([1.5, 1])
-        
         with col_diag1:
             inf_data = data['acc_summary']
             diagnostics = [
@@ -729,76 +690,11 @@ def main():
                 st.markdown(f'<div class="conclusion-item"><div class="icon-box" style="color:{color}">{"✪" if i_type=="star" else "!"}</div><div class="text-box">{text}</div></div>', unsafe_allow_html=True)
         
         with col_diag2:
-            radar_vals = [4.8, 5, 4.5, 4.2, 2.5] # El 2.5 en 'Precio' refleja mi opinión sincera: está cara.
+            radar_vals = [4.8, 5, 4.5, 4.2, 2.5] 
             fig_radar = px.line_polar(r=radar_vals, theta=['Salud', 'Ganancias', 'Crecimiento', 'Foso', 'Precio'], line_close=True, range_r=[0,5])
             fig_radar.update_traces(fill='toself', line_color='#005BAA', opacity=0.8)
-            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=400, template="plotly_dark", margin=dict(l=40, r=40, t=20, b=20))
+            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=450, template="plotly_dark")
             st.plotly_chart(fig_radar, use_container_width=True)
-
-        st.markdown("---")
-
-        # --- SECCIÓN 2: EL ABANICO DE PROYECCIÓN (FAN CHART) ---
-        st.write("### 📈 Trayectoria Probable del Precio (Escenarios 2025-2030)")
-        
-        # Disclaimer Directo
-        st.caption("🚨 **Nota del Búnker:** Este modelo es una simulación matemática de sensibilidad. No es una garantía de rentabilidad ni consejo financiero.")
-
-        try:
-            # Parametrización Sincera
-            ebitda_base = inf_data.get('EBITDA ($B)', 11.5)
-            rev_base = inf_data.get('Revenue ($B)', 280.0)
-            
-            # Recuperamos variables del Laboratorio si existen, si no, usamos el 'Consenso Búnker'
-            g_rate = rf_g if 'rf_g' in locals() else 0.085
-            m_ebitda = mf_e if 'mf_e' in locals() else 0.053
-            
-            años = [2025, 2026, 2027, 2028, 2029, 2030]
-            # Múltiplos basados en el ADN Extendido que subimos a GitHub
-            escenarios = {
-                "Bull (Optimismo - 38x)": {"m": 38, "color": "rgba(0, 255, 136, 0.2)", "line": "#00FF88"},
-                "Base (Actual - 33x)": {"m": 33, "color": "rgba(0, 91, 170, 0.3)", "line": "#005BAA"},
-                "Bear (Corrección - 25x)": {"m": 25, "color": "rgba(255, 50, 50, 0.1)", "line": "#FF3232"}
-            }
-
-            results = {k: [] for k in escenarios.keys()}
-            shares, cash_net = 0.443, 5.0 # Unidades en Billones
-
-            for i, año in enumerate(años):
-                ebitda_f = (rev_base * (1 + g_rate)**i) * m_ebitda
-                for esc, p in escenarios.items():
-                    price = ((ebitda_f * p["m"]) + cash_net) / shares
-                    results[esc].append(price)
-
-            # Gráfico de Abanico
-            import plotly.graph_objects as go
-            fig_fan = go.Figure()
-
-            # Capas de Sombreado
-            fig_fan.add_trace(go.Scatter(x=años, y=results["Bull (Optimismo - 38x)"], line=dict(width=0), showlegend=False))
-            fig_fan.add_trace(go.Scatter(x=años, y=results["Base (Actual - 33x)"], fill='tonexty', fillcolor=escenarios["Bull (Optimismo - 38x)"]["color"], name="Escenario Alcista", line=dict(width=0)))
-            fig_fan.add_trace(go.Scatter(x=años, y=results["Bear (Corrección - 25x)"], fill='tonexty', fillcolor=escenarios["Base (Actual - 33x)"]["color"], name="Rango Base (Sostenible)", line=dict(color=escenarios["Base (Actual - 33x)"]["line"], width=4)))
-
-            fig_fan.update_layout(xaxis_title="Año", yaxis_title="Precio Est. ($)", template="plotly_dark", hovermode="x unified", height=450, margin=dict(l=10, r=10, t=10, b=10))
-            st.plotly_chart(fig_fan, use_container_width=True)
-
-            # --- SECCIÓN 3: MI EVALUACIÓN SINCERA (EL FILTRO DE IA) ---
-            st.write("---")
-            c_s1, c_s2, c_s3 = st.columns(3)
-            
-            with c_s1:
-                st.markdown("**🛡️ Fortaleza del Foso**")
-                st.write("Inexpugnable. El modelo de suscripción es una barrera de entrada que Walmart no ha podido replicar con la misma lealtad.")
-            
-            with c_s2:
-                st.markdown("**⚠️ Riesgo de Valoración**")
-                st.write("Crítico. Pagar 33x EBITDA es territorio de lujo. Cualquier fallo en el crecimiento de membresías provocará una contracción severa.")
-            
-            with c_s3:
-                st.markdown("**📊 Veredicto Final**")
-                st.success("ACTIVO PREMIUM: Mantener en cartera, pero cautela al comprar en máximos históricos.")
-
-        except Exception as e:
-            st.error(f"Error en la simulación de precios: {e}")
 
 # -------------------------------------------------------------------------
     # TAB 2: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
@@ -826,7 +722,7 @@ def main():
         selected_labels = st.multiselect(
             "Selecciona activos y benchmarks para el análisis comparativo:",
             options=list(market_map.keys()),
-            default=["S&P 500 (Market)", "Nasdaq 100 (Tech)", "Walmart (WMT)", "Target (TGT)", "Amazon (AMZN)", "BJ's Wholesale (BJ)"],
+            default=["S&P 500 (Market)", "Nasdaq 100 (Tech)", "Walmart (WMT)", "Target (TGT)", "BJ's Wholesale (BJ)"],
             help="Puedes agregar índices de mercado o competidores específicos para recalcular la terminal."
         )
 
@@ -874,77 +770,57 @@ def main():
             df_full_comparison = pd.DataFrame(columns=['Ticker', 'Nombre', 'Mkt Cap ($B)', 'P/E Ratio', 'ROE (%)', 'EV/EBITDA'])
         # --------------------------------------------
 
-# --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO DINÁMICO (UNIVERSO EXTENDIDO) ---
+# --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO DINÁMICO (DENTRO DE PESTAÑA) ---
         st.write(f"**Rendimiento Normalizado 1Y: COST vs Ecosistema de Retail & Mercado**")
         
         archivo_historia = "market_history.csv"
         perf_df = None
 
-        # Definimos el mapeo institucional completo
+        # 1. MAPEO INSTITUCIONAL
         nombres_pro = {
-            "COST": "Costco (COST)",
-            "SPY": "S&P 500 (Market)",
-            "QQQ": "Nasdaq 100 (Tech)",
-            "WMT": "Walmart (WMT)",
-            "TGT": "Target (TGT)",
-            "BJ": "BJ's Wholesale (BJ)",
-            "KR": "Kroger (KR)",
-            "AMZN": "Amazon (AMZN)",
-            "HD": "Home Depot (HD)",
-            "LOW": "Lowe's (LOW)",
-            "SFM": "Sprouts (SFM)",
-            "DLTR": "Dollar Tree (DLTR)",
-            "DG": "Dollar General (DG)"
+            "COST": "Costco (COST)", "SPY": "S&P 500 (Market)", "QQQ": "Nasdaq 100 (Tech)",
+            "WMT": "Walmart (WMT)", "TGT": "Target (TGT)", "BJ": "BJ's Wholesale (BJ)",
+            "KR": "Kroger (KR)", "AMZN": "Amazon (AMZN)", "HD": "Home Depot (HD)",
+            "LOW": "Lowe's (LOW)", "SFM": "Sprouts (SFM)", "DLTR": "Dollar Tree (DLTR)", "DG": "Dollar General (DG)"
         }
 
         try:
-            # 1. INTENTO ONLINE: Descarga del universo completo
-            tickers_universo = list(nombres_pro.keys())
-            with st.spinner("Sincronizando universo de inversión..."):
-                perf_df = yf.download(tickers_universo, period="1y", progress=False)['Close']
-            
-            if perf_df is None or perf_df.empty:
-                raise ValueError("API Yahoo Offline")
-                
-        except Exception:
-            # 2. FALLBACK OFFLINE: Rescate desde el Búnker market_history.csv
+            # Intento de descarga (limitamos a los más importantes para no saturar el inicio)
+            tickers_principales = ["COST", "WMT", "AMZN", "TGT", "SPY", "QQQ"]
+            perf_df = yf.download(tickers_principales, period="1y", progress=False)['Close']
+            if perf_df is None or perf_df.empty: raise ValueError()
+        except:
+            # Fallback al Búnker
             if os.path.exists(archivo_historia):
                 perf_df = pd.read_csv(archivo_historia, index_col=0, parse_dates=True)
-                st.sidebar.info("🏛️ Universo extendido cargado desde el Búnker Local.")
-            else:
-                st.info("📉 Nota: Modo offline activo. Cargue 'market_history.csv' para ver comparativas.")
+                st.sidebar.info("🏛️ Historial de precios cargado desde el Búnker.")
 
-        # --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO ---
         if perf_df is not None and not perf_df.empty:
             # Normalización Base 100
             perf_norm = (perf_df / perf_df.iloc[0]) * 100
             
-            # Limpiamos columnas: solo dejamos las que están en nuestro mapeo y existen en el DF
-            columnas_finales = [c for c in perf_norm.columns if c in nombres_pro]
-            perf_norm = perf_norm[columnas_finales]
-            
-            # Renombramos columnas para la leyenda profesional
+            # Filtro inteligente: solo mostrar lo que el usuario seleccionó arriba 
+            # O mostrar el Top 5 si no hay selección para evitar el caos de líneas
+            cols_to_show = [c for c in perf_norm.columns if c in nombres_pro]
+            perf_norm = perf_norm[cols_to_show]
             perf_norm.columns = [nombres_pro.get(col, col) for col in perf_norm.columns]
             
             fig_perf = px.line(perf_norm, template="plotly_dark")
             
-            # Destacamos a COST con una línea más gruesa
+            # Resaltamos Costco con un azul neón y línea gruesa
             if "Costco (COST)" in perf_norm.columns:
-                fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=4, color="#005BAA"))
+                fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=5, color="#005BAA"))
             
             fig_perf.update_layout(
-                height=550, 
-                hovermode="x unified", 
+                height=500,
+                hovermode="x unified",
                 yaxis_title="Rendimiento (Base 100)",
-                legend=dict(
-                    orientation="h", 
-                    yanchor="bottom", 
-                    y=-0.5, 
-                    xanchor="center", 
-                    x=0.5
-                )
+                legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
+                margin=dict(l=10, r=10, t=30, b=10)
             )
             st.plotly_chart(fig_perf, use_container_width=True)
+        else:
+            st.warning("⚠️ Cargue 'market_history.csv' para visualizar el rendimiento histórico.")
             
         # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
@@ -988,149 +864,83 @@ def main():
                 st.info("📊 Esperando datos de competidores...")
 
         with c_p2:
-            st.write("**Valoración y Eficiencia Operativa**")
-            try:
-                # 1. Carga de datos del búnker
-                if os.path.exists("peers_stats.csv"):
-                    df_ef = pd.read_csv("peers_stats.csv")
-                else:
-                    df_ef = df_full_comparison.copy() if df_full_comparison is not None else pd.DataFrame()
-
-                if not df_ef.empty:
-                    # --- FUNCIÓN DE LIMPIEZA ---
-                    def clean_val(col_name):
-                        return pd.to_numeric(
-                            df_ef[col_name].astype(str).str.replace(r'[^0-9.]', '', regex=True), 
-                            errors='coerce'
-                        )
-
-                    # 2. IDENTIFICACIÓN DE MÉTRICAS (Radar por prioridades)
-                    col_ev = [c for c in df_ef.columns if "EV" in str(c).upper() and "EBITDA" in str(c).upper()]
-                    col_rev = [c for c in df_ef.columns if "PRICE / REVENUE" in str(c).upper() or "P/S" in str(c).upper()]
-                    col_margin = [c for c in df_ef.columns if "MARGIN" in str(c).upper() or "MARGEN" in str(c).upper()]
+            # --- BLOQUE DE SEGURIDAD PARA GRÁFICO EV/EBITDA ---
+            st.write("**Eficiencia Operativa: EV/EBITDA**")
+            
+            if df_full_comparison is not None and not df_full_comparison.empty:
+                if "EV/EBITDA" in df_full_comparison.columns:
+                    # Filtramos índices y valores nulos/negativos para el gráfico
+                    df_plot_ev = df_full_comparison[~df_full_comparison['Ticker'].isin(['SPY', 'QQQ'])]
+                    df_plot_ev = df_plot_ev.dropna(subset=["EV/EBITDA"])
+                    df_plot_ev = df_plot_ev[df_plot_ev["EV/EBITDA"] > 0].sort_values("EV/EBITDA")
                     
-                    # 3. SELECCIÓN DE JERARQUÍA: EV/EBITDA > Price/Revenue > Net Margin
-                    if col_ev and clean_val(col_ev[0]).sum() > 0:
-                        metrica, label, es_pct = col_ev[0], "Múltiplo: EV/EBITDA", False
-                    elif col_rev and clean_val(col_rev[0]).sum() > 0:
-                        metrica, label, es_pct = col_rev[0], "Múltiplo: Price / Revenue", False
-                    elif col_margin and clean_val(col_margin[0]).sum() > 0:
-                        metrica, label, es_pct = col_margin[0], "Margen Neto (%)", True
+                    if not df_plot_ev.empty:
+                        try:
+                            fig_ev = px.bar(
+                                df_plot_ev, 
+                                x="Ticker", 
+                                y="EV/EBITDA", 
+                                color="Nombre", 
+                                text_auto='.1f', 
+                                template="plotly_dark"
+                            )
+                            fig_ev.update_layout(height=450, showlegend=False)
+                            st.plotly_chart(fig_ev, use_container_width=True)
+                        except Exception:
+                            st.info("📊 Error al generar gráfico EV/EBITDA.")
                     else:
-                        metrica, label, es_pct = "P/E Ratio", "P/E Ratio (Fallback)", False
-
-                    # 4. PREPARACIÓN DE DATOS
-                    df_plt = df_ef[~df_ef['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
-                    df_plt[metrica] = clean_val(metrica)
-                    df_plt = df_plt.dropna(subset=[metrica]).sort_values(metrica)
-
-                    if not df_plt.empty:
-                        # Colores: Costco Azul, el resto Gris
-                        colors = ["#005BAA" if str(t).upper() == "COST" else "#444444" for t in df_plt['Ticker']]
-                        
-                        fig_v = px.bar(
-                            df_plt, x="Ticker", y=metrica,
-                            template="plotly_dark",
-                            title=f"Análisis: {label}"
-                        )
-                        
-                        # Formato dinámico según el tipo de métrica
-                        formato_etiqueta = "%{y:.2f}%" if es_pct else "%{y:.2f}x"
-                        
-                        fig_v.update_traces(
-                            marker_color=colors, 
-                            textposition='outside',
-                            texttemplate=formato_etiqueta
-                        )
-                        
-                        fig_v.update_layout(
-                            height=400, 
-                            showlegend=False, 
-                            margin=dict(l=10, r=10, t=40, b=10),
-                            yaxis_title=label
-                        )
-                        
-                        st.plotly_chart(fig_v, use_container_width=True)
-                    else:
-                        st.info("📊 Sincronizando métricas de valoración...")
+                        st.warning("⚠️ Sin datos de EV/EBITDA válidos en el búnker.")
                 else:
-                    st.warning("⚠️ No se detectan datos en el Búnker.")
+                    st.info("📊 Datos de eficiencia no disponibles (Verifique peers_stats.csv).")
+            else:
+                st.info("📊 Esperando datos de mercado...")
 
-            except Exception as e:
-                st.error(f"Error en bloque de valoración: {e}")
-                
-# --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
+        # --- SECCIÓN: MATRIZ DE CORRELACIÓN ---
         st.markdown("---")
         st.write("**🧩 Matriz de Correlación de Retornos Diarios (1Y)**")
         with st.expander("Ver Análisis de Correlación"):
-            # Verificamos si perf_df tiene datos
+            # Verificamos si perf_df (descargado antes) tiene datos
             if 'perf_df' in locals() and perf_df is not None and not perf_df.empty:
                 try:
-                    # 1. Calculamos retornos y renombramos índices de mercado a símbolos de ETF
-                    # Aseguramos que el mapeo use SPY y QQQ para los nombres
-                    nombres_pro_corr = nombres_pro.copy()
-                    nombres_pro_corr.update({"^GSPC": "S&P 500 (SPY)", "^IXIC": "Nasdaq 100 (QQQ)"})
-                    
                     returns_df = perf_df.pct_change().dropna()
-                    
-                    # 2. Renombrar columnas ANTES de calcular la correlación
-                    returns_df.columns = [nombres_pro_corr.get(col, col) for col in returns_df.columns]
+                    # Usamos el mapeo institucional para las columnas
+                    returns_df.columns = [nombres_pro.get(col, col) for col in returns_df.columns]
                     corr_matrix = returns_df.corr()
-
-                    # 3. ORDENAMIENTO PERSONALIZADO: Costco (COST) siempre primero
-                    # Buscamos el nombre exacto que tiene Costco en el mapeo
-                    costco_label = nombres_pro.get("COST", "Costco (COST)")
                     
-                    if costco_label in corr_matrix.columns:
-                        # Reordenamos las columnas y filas para que Costco sea el índice 0
-                        cols = [costco_label] + [c for c in corr_matrix.columns if c != costco_label]
-                        corr_matrix = corr_matrix.reindex(index=cols, columns=cols)
-                    
-                    # 4. RENDERIZADO DEL HEATMAP
                     fig_corr = px.imshow(
                         corr_matrix, 
                         text_auto=".2f", 
-                        color_continuous_scale='RdBu_r', # Rojo (Correlación +) vs Azul (Correlación -)
-                        zmin=-1, zmax=1, # Escala fija de correlación
+                        color_continuous_scale='RdBu_r',
                         template="plotly_dark", 
                         aspect="auto"
                     )
-                    
-                    fig_corr.update_layout(
-                        height=600,
-                        margin=dict(l=20, r=20, t=20, b=20)
-                    )
-                    
                     st.plotly_chart(fig_corr, use_container_width=True)
-                    
-                except Exception as e:
-                    st.info(f"📈 No se pudo calcular la correlación: {e}")
+                except Exception:
+                    st.info("📈 No se pudo calcular la correlación (datos insuficientes).")
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
-                
-# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL BLINDADA) ---
+
+# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL REESTRUCTURADA) ---
         st.markdown("---")
         st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
         
-        if df_full_comparison is not None and not df_full_comparison.empty:
-            try:
-                # 1. LIMPIEZA Y NORMALIZACIÓN DE DATOS
+        # 1. CARGA DIRECTA DEL BÚNKER (Para asegurar los 13+ tickers)
+        try:
+            if os.path.exists("peers_stats.csv"):
+                # Leemos directo del archivo para saltarnos filtros de multiselect
+                df_master = pd.read_csv("peers_stats.csv")
+            else:
                 df_master = df_full_comparison.copy()
-                
-                # --- CORRECCIÓN DE DIVIDEND YIELD (Target y otros) ---
-                # Si el yield es > 20%, asumimos error de escala y dividimos por 100
+
+            if df_master is not None and not df_master.empty:
+                # 2. LIMPIEZA DE DATOS (Target Fix)
                 if 'Div Yield (%)' in df_master.columns:
-                    df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(
-                        lambda x: x/100 if x > 20 else x
-                    )
-                    # Corrección específica manual para Target si persiste el error
+                    # Si el yield es > 20%, corregimos escala (Target 379% -> 3.79%)
+                    df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(lambda x: x/100 if x > 20 else x)
+                    # Forzado manual de seguridad para Target
                     df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
 
-                # 2. ASEGURAR UNIVERSO COMPLETO (Si faltan empresas del CSV)
-                # Si por alguna razón el filtrado previo quitó empresas, aquí las recuperamos
-                # (Asegúrate de que df_full_comparison no haya sido filtrado antes de este bloque)
-
-                # 3. ORDENAMIENTO PRIORITARIO: COSTCO SIEMPRE ARRIBA
+                # 3. ORDENAMIENTO: COSTCO AL TRONO
                 df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
                 df_master = df_master.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
 
@@ -1139,42 +949,26 @@ def main():
                     "Mkt Cap ($B)": "{:.1f}",
                     "P/E Ratio": "{:.2f}",
                     "EV/EBITDA": "{:.2f}",
-                    "EV/FCF": "{:.2f}",
                     "ROE (%)": "{:.1f}%",
                     "Net Margin (%)": "{:.2f}%",
                     "Rev Growth (%)": "{:.2f}%",
                     "Div Yield (%)": "{:.2f}%" 
                 }
-                
                 columnas_presentes = [c for c in cols_formato.keys() if c in df_master.columns]
-                
-                # 5. RENDERIZADO CON MAPA DE CALOR INSTITUCIONAL
+
+                # 5. RENDERIZADO CON MAPA DE CALOR
                 st.dataframe(
                     df_master.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_presentes})
-                    # Gradiente VERDE: Rentabilidad y Dividendos
-                    .background_gradient(
-                        cmap='RdYlGn', 
-                        subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns]
-                    )
-                    # Gradiente ROJO INVERSO: Valoración (P/E y EV/EBITDA)
-                    .background_gradient(
-                        cmap='RdYlGn_r', 
-                        subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns]
-                    )
-                    # Gradiente AZUL: Market Cap
-                    .background_gradient(
-                        cmap='Blues', 
-                        subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]
-                    ),
+                    .background_gradient(cmap='RdYlGn', subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns])
+                    .background_gradient(cmap='RdYlGn_r', subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns])
+                    .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]),
                     use_container_width=True
                 )
-            except Exception as e:
-                st.error(f"Error en matriz: {e}")
-                st.dataframe(df_full_comparison, use_container_width=True)
-        else:
-            st.info("📊 La tabla maestra se poblará al sincronizar con el Búnker de datos.")
+            else:
+                st.info("📊 Sincronizando búnker de datos...")
 
-        st.caption("Nota: Costco (COST) fijado en cabecera. Datos de Yield normalizados para Target (TGT) y pares.")
+        except Exception as e:
+            st.error(f"Error en matriz: {e}")
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
@@ -1445,76 +1239,45 @@ def main():
             d3.metric("FCF Adjustment", f"{total_macro_stress*100:.1f}%", "Impacto Neto")
 
 # -------------------------------------------------------------------------
-    # TAB 6: FORWARD LOOKING (VARIABLES AJUSTABLES) - VERSIÓN FCF
+    # TAB 6: FORWARD LOOKING (VARIABLES AJUSTABLES)
     # -------------------------------------------------------------------------
     with tabs[5]:
         st.subheader("Laboratorio de Resultados Proyectados (Forward Looking)")
         f1, f2, f3, f4 = st.columns(4)
-        
-        # Sliders conectados a variables
         rf_g = f1.slider("Crec. Ventas (%)", 0.0, 25.0, 8.5) / 100
         mf_e = f2.slider("Margen EBITDA (%)", 3.0, 15.0, 5.2) / 100
         re_f = f3.slider("Capex/Sales (%)", 1.0, 8.0, 2.0) / 100
         tax_f = f4.slider("Tax Rate (%)", 15.0, 35.0, 21.0) / 100
         
         yrs = [2026, 2027, 2028, 2029, 2030]
+        p_revs = [data['acc_summary']['Revenue ($B)'] * (1 + rf_g)**i for i in range(1, 6)]
         
-        # 1. Cálculo dinámico de la proyección
-        base_rev = data['acc_summary']['Revenue ($B)']
-        
-        proyecciones = []
-        for i in range(1, 6):
-            año = yrs[i-1]
-            rev = base_rev * (1 + rf_g)**i
-            ebitda = rev * mf_e
-            # Estimación de FCF: EBITDA - Taxes - Capex
-            taxes = ebitda * tax_f
-            capex = rev * re_f
-            fcf = ebitda - taxes - capex
-            
-            proyecciones.append({
-                "Año": año,
-                "Rev ($B)": rev,
-                "EBITDA ($B)": ebitda,
-                "FCF ($B)": fcf
-            })
+        # 1. Creamos el DataFrame
+        df_fwd = pd.DataFrame({
+            "Año": yrs, 
+            "Rev ($B)": p_revs, 
+            "EBITDA ($B)": [r * mf_e for r in p_revs]
+        })
 
-        df_fwd = pd.DataFrame(proyecciones)
-
-        # 2. TABLA: Formateada para lectura financiera
+        # 2. TABLA: Convertimos Año a string para que no tenga decimales ni comas
         df_display = df_fwd.copy()
         df_display["Año"] = df_display["Año"].astype(str)
         st.table(df_display.style.format({
             "Rev ($B)": "{:,.2f}", 
-            "EBITDA ($B)": "{:,.2f}",
-            "FCF ($B)": "{:,.2f}"
+            "EBITDA ($B)": "{:,.2f}"
         }))
 
-        # 3. GRÁFICO: Trayectoria de Free Cash Flow
-        fig_fwd = px.line(
-            df_fwd, 
-            x="Año", 
-            y="FCF ($B)", 
-            markers=True, 
-            title="Proyección de Generación de Caja Libre (FCF)",
-            line_shape="spline", # Hace la línea más suave/estética
-            color_discrete_sequence=["#005BAA"] # Azul Costco
-        )
-        
+        # 3. GRÁFICO: Forzamos el eje X a ser discreto y sin formato decimal
+        fig_fwd = px.line(df_fwd, x="Año", y="Rev ($B)", markers=True, title="Trayectoria Proyectada de Ingresos")
         fig_fwd.update_layout(
             xaxis=dict(
                 tickmode='linear',
-                dtick=1,        
-                tickformat='d'  
+                dtick=1,        # Salto de 1 en 1
+                tickformat='d'  # 'd' de dígito entero (sin comas ni decimales)
             ),
-            yaxis_tickformat="$,.1f", 
-            template="plotly_dark",
-            hovermode="x unified"
+            yaxis_tickformat="$,.0f", # Aprovechamos para poner comas y $ en el eje Y
+            template="plotly_dark"
         )
-        
-        # Añadir un área sombreada bajo la línea para darle peso visual
-        fig_fwd.update_traces(fill='tozeroy')
-        
         st.plotly_chart(fig_fwd, use_container_width=True)
         
 # -------------------------------------------------------------------------
