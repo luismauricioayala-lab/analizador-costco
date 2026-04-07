@@ -957,35 +957,38 @@ def main():
 
         # --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO ---
         if perf_df is not None and not perf_df.empty:
-            # Normalización Base 100
-            perf_norm = (perf_df / perf_df.iloc[0]) * 100
+        # 1. EL TRADUCTOR: Renombramos índices antes de filtrar
+        perf_df = perf_df.rename(columns={"^GSPC": "SPY", "^IXIC": "QQQ"})
+        
+        # 2. EL FILTRO DE SEGURIDAD: Creamos una lista que SOLO incluya lo que sí está en el CSV
+        safe_list = [t for t in full_ticker_list if t in perf_df.columns]
+        
+        if safe_list:
+            # 3. CÁLCULO SEGURO: Usamos safe_list para evitar el KeyError
+            perf_norm = (perf_df[safe_list] / perf_df[safe_list].iloc[0]) * 100
             
-            # Limpiamos columnas: solo dejamos las que están en nuestro mapeo y existen en el DF
+            # Limpiamos columnas para el mapeo visual (nombres largos)
             columnas_finales = [c for c in perf_norm.columns if c in nombres_pro]
             perf_norm = perf_norm[columnas_finales]
-            
-            # Renombramos columnas para la leyenda profesional
             perf_norm.columns = [nombres_pro.get(col, col) for col in perf_norm.columns]
             
+            # 4. GRÁFICO
             fig_perf = px.line(perf_norm, template="plotly_dark")
             
-            # Destacamos a COST con una línea más gruesa
-            if "Costco (COST)" in perf_norm.columns:
-                fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=4, color="#005BAA"))
+            # Destacamos a COST
+            nombre_cost_label = nombres_pro.get("COST", "Costco (COST)")
+            if nombre_cost_label in perf_norm.columns:
+                fig_perf.update_traces(selector=dict(name=nombre_cost_label), line=dict(width=4, color="#005BAA"))
             
             fig_perf.update_layout(
                 height=550, 
                 hovermode="x unified", 
                 yaxis_title="Rendimiento (Base 100)",
-                legend=dict(
-                    orientation="h", 
-                    yanchor="bottom", 
-                    y=-0.5, 
-                    xanchor="center", 
-                    x=0.5
-                )
+                legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5)
             )
             st.plotly_chart(fig_perf, use_container_width=True)
+        else:
+            st.warning("⚠️ Los tickers seleccionados no están disponibles en la fuente de datos.")
             
         # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
