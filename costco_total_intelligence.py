@@ -965,6 +965,9 @@ def main():
         if df_full_comparison is not None and not df_full_comparison.empty:
             # 1. Limpieza de Duplicados (Evita las barras dobles de COST)
             df_full_comparison = df_full_comparison.drop_duplicates(subset=['Ticker'])
+            # Llamamos a la función que definiste arriba para que renderice 
+            # el gráfico de dispersión y la tabla de auditoría automáticamente.
+            render_peer_analysis(df_full_comparison)
             
             # 2. Mapeo de Nombres (Prioriza nombres reales, usa Ticker como respaldo)
             # Intentamos usar el market_map o el bunker_names, si no, dejamos el Ticker
