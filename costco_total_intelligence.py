@@ -529,21 +529,22 @@ def main():
     # Definimos estos valores AQUÍ para que existan en toda la función main()
     # Si el usuario no ha ido a la pestaña 'Laboratorio', estos son los valores base.
     
-    val_crecimiento = 0.085  # 8.5%
-    val_margen_ebitda = 0.053  # 5.3%
-    val_capex_sales = 0.020  # 2.0%
-    val_tax_rate = 0.21     # 21.0%
+    # Inputs por defecto (Estos se usarán si no has movido los sliders del Lab)
+    rf_g_val   = 0.085  # Crecimiento 8.5%
+    mf_e_val   = 0.053  # Margen EBITDA 5.3%
+    re_f_val   = 0.020  # Capex 2%
+    tax_f_val  = 0.21   # Impuestos 21%
 
-    # 3. CÁLCULOS MAESTROS (Fuera de las pestañas)
-    # Extraemos el EBITDA y Revenue del búnker de datos cargado en el Bloque 1
+    # Extracción de datos del búnker 'data'
+    # Usamos .get() para que si falla, la app siga con valores estándar
+    rev_base    = data['acc_summary'].get('Revenue ($B)', 280.0)
     ebitda_base = data['acc_summary'].get('EBITDA ($B)', 12.0)
-    rev_base = data['acc_summary'].get('Revenue ($B)', 280.0)
-
-    # Aplicamos la lógica financiera: 
-    # FCF = EBITDA - (EBITDA * Tax) - (Revenue * Capex/Sales)
-    calc_taxes = ebitda_base * val_tax_rate
-    calc_capex = rev_base * val_capex_sales
-    calc_fcf = ebitda_base - calc_taxes - calc_capex
+    
+    # 3. CÁLCULOS DEL WATERFALL (Pre-calculados antes de las pestañas)
+    # Esto asegura que la línea 686 siempre tenga números listos
+    calc_taxes = ebitda_base * tax_f_val
+    calc_capex = rev_base * re_f_val
+    calc_fcf   = ebitda_base - calc_taxes - calc_capex
 
     # A partir de aquí ya puedes seguir con tus 'with tabs[0]:', etc.
     # RECUERDA: En Tab 1 usa: y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b]
@@ -687,7 +688,7 @@ def main():
             name = "FCF", 
             orientation = "v",
             measure = ["relative", "relative", "relative", "total"],
-            x = ["EBITDA", "Impuestos", "Capex", "Free Cash Flow"],
+            x = ["EBITDA Real", "Impuestos Est.", "Capex Est.", "Free Cash Flow"],
             textposition = "outside",
             text = [f"{ebitda_base:.2f}", f"-{calc_taxes:.2f}", f"-{calc_capex:.2f}", f"{calc_fcf:.2f}"],
             y = [ebitda_base, -calc_taxes, -calc_capex, calc_fcf],
