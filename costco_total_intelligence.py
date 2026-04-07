@@ -39,6 +39,30 @@ st.set_page_config(
     }
 )
 
+<style>
+    /* Forzamos tipografía pequeña y densa */
+    html, body, [class*="css"], .stDataFrame, div[data-testid="stMetricValue"] {
+        font-family: 'Courier New', Courier, monospace !important;
+        font-size: 0.82rem !important; /* Ajuste fino a 0.82 para máxima densidad */
+    }
+
+    /* Reducimos el espacio (padding) entre elementos para que todo quepa */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 0rem !important;
+    }
+
+    /* Ajuste de KPIs para que no ocupen media pantalla */
+    div[data-testid="stMetricValue"] > div {
+        font-size: 1.6rem !important;
+    }
+    
+    /* Compactar las celdas de la tabla maestra */
+    .stDataFrame td, .stDataFrame th {
+        padding: 1px 4px !important;
+    }
+    </style>
+
 # Inyección de CSS de Grado Bancario: Soporte Total Temas Light/Dark
 st.markdown("""
     <style>
