@@ -1936,24 +1936,22 @@ def main():
             
             st.plotly_chart(fig_marg, use_container_width=True)
             
-    # -------------------------------------------------------------------------
-    # TAB 8: DCF LAB PRO (MATRIZ CALIBRADA AL PRECIO ACTUAL)
+# -------------------------------------------------------------------------
+    # TAB 8: DCF LAB PRO (MATRIZ CALIBRADA Y EJES FORMATEADOS)
     # -------------------------------------------------------------------------
     with tabs[7]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
-        # Cálculos de base para el laboratorio con rampa de desaceleración
-        fcf_premium_lab = data['fcf_now_b'] * 1.15 
+        fcf_premium_lab = data['fcf_now_b'] * 1.15  
         col_mtx, col_flow = st.columns([1.2, 1])
         
         with col_mtx:
+            # Usamos p_ref (precio actual) para centrar el color
             st.write(f"**Matriz de Sensibilidad (Punto Neutro: ${p_ref:,.0f})**")
             
-            # Rangos dinámicos para WACC y Crecimiento
             w_rng = np.linspace(final_wacc - 0.01, final_wacc + 0.01, 9)
             g_rng = np.linspace(g_terminal - 0.005, g_terminal + 0.005, 9)
             
-            # Ejecución del motor DCF estocástico
             z_mtx = [[float(ValuationOracle.run_macro_dcf(fcf_premium_lab, g1, g2_in, w, g_terminal, macro_adj=macro_adj)[0]) for g1 in g_rng] for w in w_rng]
 
             fig_giant = go.Figure(data=go.Heatmap(
@@ -1961,10 +1959,20 @@ def main():
                 x=[f"{x*100:.1f}%" for x in g_rng],
                 y=[f"{x*100:.1f}%" for x in w_rng],
                 colorscale='RdYlGn', 
+                # --- MEJORA 1: CALIBRACIÓN DINÁMICA DE LA BARRA ---
                 zmid=p_ref, 
+                zmin=p_ref * 0.6, # Define el límite inferior del rojo
+                zmax=p_ref * 1.4, # Define el límite superior del verde
+                # --------------------------------------------------
                 text=[[f"${v:,.0f}" for v in row] for row in z_mtx],
                 texttemplate="%{text}", 
-                showscale=True
+                showscale=True,
+                # --- MEJORA 2: FORMATO DE MILES EN LA BARRA (#,###) ---
+                colorbar=dict(
+                    title="Valuación ($)",
+                    tickformat=",.0f",
+                    thickness=20
+                )
             ))
 
             fig_giant.update_layout(
@@ -1979,21 +1987,18 @@ def main():
 
         with col_flow:
             st.write("**Evolución del Flujo de Caja ($B)**")
-            # Análisis de convergencia económica
             _, _, _, flows_dcf = ValuationOracle.run_macro_dcf(fcf_premium_lab, g1_in, g2_in, final_wacc, g_terminal, macro_adj=macro_adj)
             
             h_yrs = data['hist_years'][::-1]
             f_yrs = [str(int(h_yrs[-1]) + i) for i in range(1, 11)]
             
             fig_f = go.Figure()
-            # Datos históricos de flujo libre de caja
             fig_f.add_trace(go.Scatter(
                 x=h_yrs, 
                 y=data['fcf_hist_b'].values[:3][::-1], 
-                name="Histórico", 
-                line=dict(color="#005BAA", width=5)
+                name="COST (Hist)", # Usamos el ticker para el color map
+                line=dict(width=5)
             ))
-            # Proyección estocástica
             fig_f.add_trace(go.Scatter(
                 x=[h_yrs[-1]] + f_yrs, 
                 y=[data['fcf_hist_b'].values[0]] + list(flows_dcf), 
@@ -2004,7 +2009,13 @@ def main():
             fig_f.update_layout(
                 template="plotly_dark", 
                 height=600, 
-                yaxis=dict(title="FCF ($B)", range=[0, max(flows_dcf)*1.3])
+                # --- MEJORA 3: FORMATO EN EJES DEL GRÁFICO DE FLUJO ---
+                yaxis=dict(
+                    title="FCF ($B)", 
+                    tickformat=",.0f", # Formato de miles
+                    range=[0, max(flows_dcf)*1.3]
+                ),
+                xaxis=dict(tickformat=".0f")
             )
             st.plotly_chart(fig_f, use_container_width=True)
 
