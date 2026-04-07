@@ -217,25 +217,22 @@ class InstitutionalDataService:
             
 # --- LÓGICA DE FALLBACK (BÚNKER OFFLINE) ---
         except Exception as e:
-            archivo_local = "market_history.csv" # Tu búnker de precios
-            stats_local = "peers_stats.csv"     # Tu búnker de fundamentales
+            archivo_local = "market_history.csv"
+            stats_local = "peers_stats.csv"
             
             if os.path.exists(archivo_local):
                 st.info(f"🏛️ Modo Offline Activado: Usando {archivo_local}")
                 
-                # 1. Extraer precio y rango de 52 semanas del CSV de precios
                 df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
-                # Si el CSV tiene multi-index (Ticker en columnas), buscamos COST
-                if ticker in df_bunker.columns:
-                    serie_ticker = df_bunker[ticker].dropna()
-                else:
-                    serie_ticker = df_bunker['Close'].dropna() if 'Close' in df_bunker.columns else df_bunker.iloc[:, 0]
+                # Extraer serie de precios (manejando MultiIndex si existe)
+                serie_ticker = df_bunker[ticker] if ticker in df_bunker.columns else df_bunker.iloc[:, 0]
+                serie_ticker = serie_ticker.dropna()
                 
                 ultimo_precio = float(serie_ticker.iloc[-1])
                 min_52w = float(serie_ticker.tail(252).min())
                 max_52w = float(serie_ticker.tail(252).max())
                 
-                # 2. Intentar rescatar fundamentales reales del CSV de estadísticas
+                # Valores base por si el CSV de stats falla
                 resumen_bunker = {
                     "Revenue ($B)": 280.5, "EBITDA ($B)": 12.2, "Net Income ($B)": 7.8,
                     "ROE (%)": 29.5, "Debt/Equity": 42.0, "Current Ratio": 1.08, "Operating Margin (%)": 3.6
@@ -245,28 +242,19 @@ class InstitutionalDataService:
                     df_s = pd.read_csv(stats_local)
                     row = df_s[df_s['Ticker'] == ticker]
                     if not row.empty:
-                        # Si el búnker tiene los datos nuevos que agregamos hoy, los usamos
-                        resumen_bunker["Revenue ($B)"] = row.get('Mkt Cap ($B)', 280.0).values[0] # Ajustar según columna
-                        resumen_bunker["Operating Margin (%)"] = row.get('Net Margin (%)', 3.6).values[0]
+                        resumen_bunker["Revenue ($B)"] = float(row.get('Mkt Cap ($B)', 280.0).values[0])
+                        resumen_bunker["Operating Margin (%)"] = float(row.get('Net Margin (%)', 3.6).values[0])
 
-                # 3. Retornar el Diccionario de Datos Consolidado
                 return {
                     "info": {
-                        "currentPrice": ultimo_precio, 
-                        "shortName": "Costco Wholesale (Bunker Mode)", 
-                        "symbol": ticker,
-                        "trailingEps": 16.5,
-                        "fiftyTwoWeekLow": min_52w, 
-                        "fiftyTwoWeekHigh": max_52w 
+                        "currentPrice": ultimo_precio, "shortName": "Costco (Bunker Mode)", "symbol": ticker,
+                        "trailingEps": 16.5, "fiftyTwoWeekLow": min_52w, "fiftyTwoWeekHigh": max_52w 
                     },
                     "price": ultimo_precio,
-                    "mkt_cap_b": resumen_bunker["Revenue ($B)"] * 1.8, # Estimación rápida
+                    "mkt_cap_b": 450.0,
                     "fcf_now_b": 9.8,
                     "fcf_hist_b": pd.Series([8.2, 8.8, 9.2, 9.8]),
-                    "beta": 0.85,
-                    "shares_m": 443.0,
-                    "cash_b": 18.0,
-                    "debt_b": 7.0,
+                    "beta": 0.85, "shares_m": 443.0, "cash_b": 18.0, "debt_b": 7.0,
                     "hist_years": ["2023", "2024", "2025"],
                     "rev_vals": [242, 263, 280],
                     "ebitda_vals": [10.5, 11.2, 12.2],
@@ -276,7 +264,7 @@ class InstitutionalDataService:
                     "analysts": {"key": "BUY", "score": 2.0, "target": 1050.0, "count": 35}
                 }
             else:
-                st.error(f"❌ Error crítico: No se encontró el archivo {archivo_local}. Búnker vacío.")
+                st.error(f"❌ Error crítico: No se encontró {archivo_local}")
                 return None
 
         # Procesamiento de Cuadro de 3 Años (Mantenemos tu lógica exacta si el try tiene éxito)
@@ -533,6 +521,23 @@ def main():
         "📋 Resumen", "🛡️ Scorecard & Radar", "🔬 Peer Analysis", "💰 Ganancias", "🌪️ Stress Test Pro", 
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "🔬 Comparativa APT", "📜 Metodología", "📈 Opciones Lab"
     ])
+
+    # --- PREPARACIÓN DE PESTAÑAS ---
+    tabs = st.tabs(["📈 Rendimiento", "🎯 Scorecard", "📊 Ganancias", "🔬 Análisis Pro", "🏛️ Comparador", "🧪 Laboratorio"])
+
+    # INICIALIZACIÓN GLOBAL: Previene UnboundLocalError en Waterfall y Scorecard
+    # Definimos valores por defecto para que los gráficos tengan qué dibujar siempre
+    rf_g = 0.085  # Crecimiento 8.5%
+    mf_e = 0.053  # Margen EBITDA 5.3%
+    re_f = 0.020  # Capex 2%
+    tax_f = 0.21  # Tax 21%
+    
+    # Cálculos derivados para el Waterfall inicial
+    rev_base = data['acc_summary'].get('Revenue ($B)', 280.0)
+    ebitda_base = data['acc_summary'].get('EBITDA ($B)', 12.0)
+    taxes_base = ebitda_base * tax_f
+    capex_base = rev_base * re_f
+    fcf_base = ebitda_base - taxes_base - capex_base
 
     # A partir de aquí ya puedes seguir con tus 'with tabs[0]:', etc.
     # RECUERDA: En Tab 1 usa: y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b]
