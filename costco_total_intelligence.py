@@ -434,6 +434,29 @@ def main():
 
     # REEMPLAZO GLOBAL
     st.plotly_chart = patched_plotly_chart
+
+    # INICIALIZACIÓN BLINDADA
+    # Usamos st.session_state para que las pestañas compartan los mismos números
+    if 'rf_g' not in st.session_state: st.session_state.rf_g = 0.085 # Crecimiento
+    if 'mf_e' not in st.session_state: st.session_state.mf_e = 0.053 # Margen EBITDA
+    if 're_f' not in st.session_state: st.session_state.re_f = 0.020 # Capex
+    if 'tax_f' not in st.session_state: st.session_state.tax_f = 0.21 # Taxes
+
+    # Diccionario 'p' para cálculos rápidos en cualquier pestaña
+    p = {
+        'rf_g': st.session_state.rf_g,
+        'mf_e': st.session_state.mf_e,
+        're_f': st.session_state.re_f,
+        'tax_f': st.session_state.tax_f
+    }
+
+    # Cálculos de Flujo de Caja para el Waterfall y Scorecard
+    rev_actual = data['acc_summary'].get('Revenue ($B)', 280.0)
+    ebitda_actual = data['acc_summary'].get('EBITDA ($B)', 12.0)
+    
+    calc_taxes = ebitda_actual * p['tax_f']
+    calc_capex = rev_actual * p['re_f']
+    calc_fcf   = ebitda_actual - calc_taxes - calc_capex
     
     # 1. Adquisición de Datos (Dentro de main para evitar NameError)
     data = InstitutionalDataService.fetch_verified_payload("COST")
@@ -670,13 +693,17 @@ def main():
             )
             st.plotly_chart(fig_water, use_container_width=True)
 
-    # -------------------------------------------------------------------------
-    # TAB 2: SCORECARD & RADAR (RESTAURADO)
+# -------------------------------------------------------------------------
+    # TAB 2: SCORECARD, RADAR & PROYECCIÓN DE VALORACIÓN
     # -------------------------------------------------------------------------
     with tabs[1]:
-        st.subheader("Tablero de Salud Fundamental e Inteligencia")
+        st.subheader("🎯 Tablero de Salud Fundamental e Inteligencia de Valoración")
+        
+        # --- SECCIÓN 1: DIAGNÓSTICOS Y RADAR ---
         col_diag1, col_diag2 = st.columns([1.5, 1])
+        
         with col_diag1:
+            # Usamos inf_data que ya viene del objeto 'data'
             inf_data = data['acc_summary']
             diagnostics = [
                 (f"Margen Operativo líder sectorial: {inf_data['Operating Margin (%)']:.2f}%", True, "star"),
@@ -690,14 +717,74 @@ def main():
                 st.markdown(f'<div class="conclusion-item"><div class="icon-box" style="color:{color}">{"✪" if i_type=="star" else "!"}</div><div class="text-box">{text}</div></div>', unsafe_allow_html=True)
         
         with col_diag2:
+            # Radar de Salud
             radar_vals = [4.8, 5, 4.5, 4.2, 2.5] 
             fig_radar = px.line_polar(r=radar_vals, theta=['Salud', 'Ganancias', 'Crecimiento', 'Foso', 'Precio'], line_close=True, range_r=[0,5])
             fig_radar.update_traces(fill='toself', line_color='#005BAA', opacity=0.8)
-            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=450, template="plotly_dark")
+            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=400, template="plotly_dark", margin=dict(l=40, r=40, t=20, b=20))
             st.plotly_chart(fig_radar, use_container_width=True)
 
+        st.markdown("---")
+
+        # --- SECCIÓN 2: EL ABANICO DE PROYECCIÓN (FAN CHART) ---
+        st.write("### 📈 Trayectoria Probable del Precio (Escenarios 2025-2030)")
+        st.caption("🚨 **Nota del Búnker:** Simulación matemática de sensibilidad. No es consejo financiero.")
+
+        try:
+            # Parametrización usando el diccionario 'p' que definimos en el inicio blindado
+            ebitda_base = inf_data.get('EBITDA ($B)', 11.5)
+            rev_base = inf_data.get('Revenue ($B)', 280.0)
+            
+            años_proj = [2025, 2026, 2027, 2028, 2029, 2030]
+            escenarios = {
+                "Bull (Optimismo - 38x)": {"m": 38, "color": "rgba(0, 255, 136, 0.2)", "line": "#00FF88"},
+                "Base (Actual - 33x)": {"m": 33, "color": "rgba(0, 91, 170, 0.3)", "line": "#005BAA"},
+                "Bear (Corrección - 25x)": {"m": 25, "color": "rgba(255, 50, 50, 0.1)", "line": "#FF3232"}
+            }
+
+            results = {k: [] for k in escenarios.keys()}
+            shares_qty, cash_net_pos = 0.443, 5.0 # Unidades en Billones
+
+            for i, año in enumerate(años_proj):
+                # IMPORTANTE: Usamos 'p' que es el diccionario blindado de main()
+                # ebitda_f = (Revenue Proyectado) * (Margen EBITDA Proyectado)
+                ebitda_f = (rev_base * (1 + p['rf_g'])**i) * p['mf_e']
+                
+                for esc, params_esc in escenarios.items():
+                    # Precio = ((EBITDA * Múltiplo) + Caja Neta) / Acciones
+                    price_est = ((ebitda_f * params_esc["m"]) + cash_net_pos) / shares_qty
+                    results[esc].append(price_est)
+
+            # Dibujamos el Gráfico de Abanico
+            import plotly.graph_objects as go
+            fig_fan = go.Figure()
+
+            # Capas de Sombreado (Abanico de probabilidad)
+            fig_fan.add_trace(go.Scatter(x=años_proj, y=results["Bull (Optimismo - 38x)"], line=dict(width=0), showlegend=False))
+            fig_fan.add_trace(go.Scatter(x=años_proj, y=results["Base (Actual - 33x)"], fill='tonexty', fillcolor=escenarios["Bull (Optimismo - 38x)"]["color"], name="Escenario Alcista", line=dict(width=0)))
+            fig_fan.add_trace(go.Scatter(x=años_proj, y=results["Bear (Corrección - 25x)"], fill='tonexty', fillcolor=escenarios["Base (Actual - 33x)"]["color"], name="Rango Probable (33x)", line=dict(color=escenarios["Base (Actual - 33x)"]["line"], width=4)))
+
+            fig_fan.update_layout(xaxis_title="Año de Proyección", yaxis_title="Precio Est. ($)", template="plotly_dark", hovermode="x unified", height=450)
+            st.plotly_chart(fig_fan, use_container_width=True)
+
+            # --- SECCIÓN 3: EVALUACIÓN SINCERA (RESUMEN) ---
+            st.write("---")
+            c_s1, c_s2, c_s3 = st.columns(3)
+            with c_s1:
+                st.markdown("**🛡️ Fortaleza del Foso**")
+                st.write("Inexpugnable. El modelo de suscripción genera una lealtad superior al 90%.")
+            with c_s2:
+                st.markdown("**⚠️ Riesgo de Valoración**")
+                st.write("Crítico. Pagar 33x EBITDA requiere una ejecución sin errores.")
+            with c_s3:
+                st.markdown("**📊 Veredicto Final**")
+                st.success("CALIDAD PREMIUM: Ideal para el largo plazo, riesgo de entrada en el corto.")
+
+        except Exception as e:
+            st.error(f"Error en la simulación de precios: {e}")
+
 # -------------------------------------------------------------------------
-    # TAB 2: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
+    # TAB 3: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
     # -------------------------------------------------------------------------
     with tabs[2]:
         st.subheader("🔬 Peer Analysis & Market Benchmarking (Real-Time)")
