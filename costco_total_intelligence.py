@@ -215,56 +215,47 @@ class InstitutionalDataService:
         except Exception as e:
             st.warning(f"⚠️ Yahoo restringido para {ticker}. Accediendo al Búnker local...")
             
-# --- LÓGICA DE FALLBACK (BÚNKER OFFLINE) ---
-        except Exception as e:
-            archivo_local = "market_history.csv"
-            stats_local = "peers_stats.csv"
-            
+            # FALLBACK: Carga desde el búnker de archivos que descargaste
             if os.path.exists(archivo_local):
                 st.info(f"🏛️ Modo Offline Activado: Usando {archivo_local}")
                 
                 df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
-                # Extraer serie de precios (manejando MultiIndex si existe)
-                serie_ticker = df_bunker[ticker] if ticker in df_bunker.columns else df_bunker.iloc[:, 0]
-                serie_ticker = serie_ticker.dropna()
+                ultimo_precio = float(df_bunker['Close'].iloc[-1])
                 
-                ultimo_precio = float(serie_ticker.iloc[-1])
-                min_52w = float(serie_ticker.tail(252).min())
-                max_52w = float(serie_ticker.tail(252).max())
-                
-                # Valores base por si el CSV de stats falla
-                resumen_bunker = {
-                    "Revenue ($B)": 280.5, "EBITDA ($B)": 12.2, "Net Income ($B)": 7.8,
-                    "ROE (%)": 29.5, "Debt/Equity": 42.0, "Current Ratio": 1.08, "Operating Margin (%)": 3.6
-                }
-                
-                if os.path.exists(stats_local):
-                    df_s = pd.read_csv(stats_local)
-                    row = df_s[df_s['Ticker'] == ticker]
-                    if not row.empty:
-                        resumen_bunker["Revenue ($B)"] = float(row.get('Mkt Cap ($B)', 280.0).values[0])
-                        resumen_bunker["Operating Margin (%)"] = float(row.get('Net Margin (%)', 3.6).values[0])
+                # Calculamos el min y max real de tu archivo CSV para la barra
+                min_52w = float(df_bunker['Low'].tail(252).min()) # 252 días = 1 año bursátil
+                max_52w = float(df_bunker['High'].tail(252).max())
 
                 return {
                     "info": {
-                        "currentPrice": ultimo_precio, "shortName": "Costco (Bunker Mode)", "symbol": ticker,
-                        "trailingEps": 16.5, "fiftyTwoWeekLow": min_52w, "fiftyTwoWeekHigh": max_52w 
+                        "currentPrice": ultimo_precio, 
+                        "shortName": "Costco Wholesale", 
+                        "symbol": ticker,
+                        "trailingEps": 16.5,
+                        "fiftyTwoWeekLow": min_52w, 
+                        "fiftyTwoWeekHigh": max_52w 
                     },
                     "price": ultimo_precio,
                     "mkt_cap_b": 450.0,
-                    "fcf_now_b": 9.8,
-                    "fcf_hist_b": pd.Series([8.2, 8.8, 9.2, 9.8]),
-                    "beta": 0.85, "shares_m": 443.0, "cash_b": 18.0, "debt_b": 7.0,
+                    "fcf_now_b": 9.5,
+                    "fcf_hist_b": pd.Series([8.0, 8.5, 9.0, 9.5]),
+                    "beta": 0.98,
+                    "shares_m": 443.6,
+                    "cash_b": 22.0,
+                    "debt_b": 9.0,
                     "hist_years": ["2023", "2024", "2025"],
-                    "rev_vals": [242, 263, 280],
-                    "ebitda_vals": [10.5, 11.2, 12.2],
-                    "ni_vals": [6.5, 7.2, 7.8],
+                    "rev_vals": [220, 240, 250],
+                    "ebitda_vals": [15, 17, 18],
+                    "ni_vals": [6, 7, 8],
                     "eps_vals": 16.5,
-                    "acc_summary": resumen_bunker,
-                    "analysts": {"key": "BUY", "score": 2.0, "target": 1050.0, "count": 35}
+                    "acc_summary": {
+                        "Revenue ($B)": 250.0, "EBITDA ($B)": 18.0, "Net Income ($B)": 8.0,
+                        "ROE (%)": 28.0, "Debt/Equity": 45.0, "Current Ratio": 1.05, "Operating Margin (%)": 3.5
+                    },
+                    "analysts": {"key": "BUY", "score": 2.0, "target": 1060.0, "count": 37}
                 }
             else:
-                st.error(f"❌ Error crítico: No se encontró {archivo_local}")
+                st.error(f"❌ Error crítico: No se encontraron datos para {ticker}")
                 return None
 
         # Procesamiento de Cuadro de 3 Años (Mantenemos tu lógica exacta si el try tiene éxito)
@@ -522,23 +513,6 @@ def main():
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "🔬 Comparativa APT", "📜 Metodología", "📈 Opciones Lab"
     ])
 
-    # --- PREPARACIÓN DE PESTAÑAS ---
-    tabs = st.tabs(["📈 Rendimiento", "🎯 Scorecard", "📊 Ganancias", "🔬 Análisis Pro", "🏛️ Comparador", "🧪 Laboratorio"])
-
-    # INICIALIZACIÓN GLOBAL: Previene UnboundLocalError en Waterfall y Scorecard
-    # Definimos valores por defecto para que los gráficos tengan qué dibujar siempre
-    rf_g = 0.085  # Crecimiento 8.5%
-    mf_e = 0.053  # Margen EBITDA 5.3%
-    re_f = 0.020  # Capex 2%
-    tax_f = 0.21  # Tax 21%
-    
-    # Cálculos derivados para el Waterfall inicial
-    rev_base = data['acc_summary'].get('Revenue ($B)', 280.0)
-    ebitda_base = data['acc_summary'].get('EBITDA ($B)', 12.0)
-    taxes_base = ebitda_base * tax_f
-    capex_base = rev_base * re_f
-    fcf_base = ebitda_base - taxes_base - capex_base
-
     # A partir de aquí ya puedes seguir con tus 'with tabs[0]:', etc.
     # RECUERDA: En Tab 1 usa: y=[pv_f, pv_t, data['cash_b'] - data['debt_b'], equity_val_b]
 
@@ -697,15 +671,12 @@ def main():
             )
             st.plotly_chart(fig_water, use_container_width=True)
 
-# -------------------------------------------------------------------------
-    # TAB 2: SCORECARD, RADAR & PROYECCIÓN DE VALORACIÓN
+    # -------------------------------------------------------------------------
+    # TAB 2: SCORECARD & RADAR (RESTAURADO)
     # -------------------------------------------------------------------------
     with tabs[1]:
-        st.subheader("🎯 Tablero de Salud Fundamental e Inteligencia de Valoración")
-        
-        # --- SECCIÓN 1: DIAGNÓSTICOS Y RADAR (TU CÓDIGO RESTAURADO) ---
+        st.subheader("Tablero de Salud Fundamental e Inteligencia")
         col_diag1, col_diag2 = st.columns([1.5, 1])
-        
         with col_diag1:
             inf_data = data['acc_summary']
             diagnostics = [
@@ -720,76 +691,11 @@ def main():
                 st.markdown(f'<div class="conclusion-item"><div class="icon-box" style="color:{color}">{"✪" if i_type=="star" else "!"}</div><div class="text-box">{text}</div></div>', unsafe_allow_html=True)
         
         with col_diag2:
-            radar_vals = [4.8, 5, 4.5, 4.2, 2.5] # El 2.5 en 'Precio' refleja mi opinión sincera: está cara.
+            radar_vals = [4.8, 5, 4.5, 4.2, 2.5] 
             fig_radar = px.line_polar(r=radar_vals, theta=['Salud', 'Ganancias', 'Crecimiento', 'Foso', 'Precio'], line_close=True, range_r=[0,5])
             fig_radar.update_traces(fill='toself', line_color='#005BAA', opacity=0.8)
-            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=400, template="plotly_dark", margin=dict(l=40, r=40, t=20, b=20))
+            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=450, template="plotly_dark")
             st.plotly_chart(fig_radar, use_container_width=True)
-
-        st.markdown("---")
-
-        # --- SECCIÓN 2: EL ABANICO DE PROYECCIÓN (FAN CHART) ---
-        st.write("### 📈 Trayectoria Probable del Precio (Escenarios 2025-2030)")
-        
-        # Disclaimer Directo
-        st.caption("🚨 **Nota del Búnker:** Este modelo es una simulación matemática de sensibilidad. No es una garantía de rentabilidad ni consejo financiero.")
-
-        try:
-            # Parametrización Sincera
-            ebitda_base = inf_data.get('EBITDA ($B)', 11.5)
-            rev_base = inf_data.get('Revenue ($B)', 280.0)
-            
-            # Recuperamos variables del Laboratorio si existen, si no, usamos el 'Consenso Búnker'
-            g_rate = rf_g if 'rf_g' in locals() else 0.085
-            m_ebitda = mf_e if 'mf_e' in locals() else 0.053
-            
-            años = [2025, 2026, 2027, 2028, 2029, 2030]
-            # Múltiplos basados en el ADN Extendido que subimos a GitHub
-            escenarios = {
-                "Bull (Optimismo - 38x)": {"m": 38, "color": "rgba(0, 255, 136, 0.2)", "line": "#00FF88"},
-                "Base (Actual - 33x)": {"m": 33, "color": "rgba(0, 91, 170, 0.3)", "line": "#005BAA"},
-                "Bear (Corrección - 25x)": {"m": 25, "color": "rgba(255, 50, 50, 0.1)", "line": "#FF3232"}
-            }
-
-            results = {k: [] for k in escenarios.keys()}
-            shares, cash_net = 0.443, 5.0 # Unidades en Billones
-
-            for i, año in enumerate(años):
-                ebitda_f = (rev_base * (1 + g_rate)**i) * m_ebitda
-                for esc, p in escenarios.items():
-                    price = ((ebitda_f * p["m"]) + cash_net) / shares
-                    results[esc].append(price)
-
-            # Gráfico de Abanico
-            import plotly.graph_objects as go
-            fig_fan = go.Figure()
-
-            # Capas de Sombreado
-            fig_fan.add_trace(go.Scatter(x=años, y=results["Bull (Optimismo - 38x)"], line=dict(width=0), showlegend=False))
-            fig_fan.add_trace(go.Scatter(x=años, y=results["Base (Actual - 33x)"], fill='tonexty', fillcolor=escenarios["Bull (Optimismo - 38x)"]["color"], name="Escenario Alcista", line=dict(width=0)))
-            fig_fan.add_trace(go.Scatter(x=años, y=results["Bear (Corrección - 25x)"], fill='tonexty', fillcolor=escenarios["Base (Actual - 33x)"]["color"], name="Rango Base (Sostenible)", line=dict(color=escenarios["Base (Actual - 33x)"]["line"], width=4)))
-
-            fig_fan.update_layout(xaxis_title="Año", yaxis_title="Precio Est. ($)", template="plotly_dark", hovermode="x unified", height=450, margin=dict(l=10, r=10, t=10, b=10))
-            st.plotly_chart(fig_fan, use_container_width=True)
-
-            # --- SECCIÓN 3: MI EVALUACIÓN SINCERA (EL FILTRO DE IA) ---
-            st.write("---")
-            c_s1, c_s2, c_s3 = st.columns(3)
-            
-            with c_s1:
-                st.markdown("**🛡️ Fortaleza del Foso**")
-                st.write("Inexpugnable. El modelo de suscripción es una barrera de entrada que Walmart no ha podido replicar con la misma lealtad.")
-            
-            with c_s2:
-                st.markdown("**⚠️ Riesgo de Valoración**")
-                st.write("Crítico. Pagar 33x EBITDA es territorio de lujo. Cualquier fallo en el crecimiento de membresías provocará una contracción severa.")
-            
-            with c_s3:
-                st.markdown("**📊 Veredicto Final**")
-                st.success("ACTIVO PREMIUM: Mantener en cartera, pero cautela al comprar en máximos históricos.")
-
-        except Exception as e:
-            st.error(f"Error en la simulación de precios: {e}")
 
 # -------------------------------------------------------------------------
     # TAB 2: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
