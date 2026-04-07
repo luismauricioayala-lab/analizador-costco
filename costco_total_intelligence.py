@@ -432,7 +432,7 @@ def render_peer_analysis(df_peers):
     fig.update_layout(
         height=500,
         margin=dict(l=0, r=0, t=30, b=0),
-        plot_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',a
         paper_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(gridcolor='#2c3e50', zeroline=False),
         yaxis=dict(gridcolor='#2c3e50', zeroline=False)
@@ -955,37 +955,37 @@ def main():
             else:
                 st.info("📉 Nota: Modo offline activo. Cargue 'market_history.csv' para ver comparativas.")
 
-# --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO ---
+        # --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO ---
         if perf_df is not None and not perf_df.empty:
-            # 1. TRADUCCIÓN: Unificamos nombres de Yahoo con tu interfaz
-            perf_df = perf_df.rename(columns={"^GSPC": "SPY", "^IXIC": "QQQ"})
+            # Normalización Base 100
+            perf_norm = (perf_df / perf_df.iloc[0]) * 100
             
-            # 2. INTERSECCIÓN: Solo lo que existe en el archivo y en tu mapeo visual
-            # Esto une tu lógica de diseño (nombres_pro) con la realidad del búnker
-            safe_list = [t for t in full_ticker_list if t in perf_df.columns and t in nombres_pro]
+            # Limpiamos columnas: solo dejamos las que están en nuestro mapeo y existen en el DF
+            columnas_finales = [c for c in perf_norm.columns if c in nombres_pro]
+            perf_norm = perf_norm[columnas_finales]
             
-            if safe_list:
-                # 3. CÁLCULO SEGURO
-                df_calc = perf_df[safe_list].copy()
-                perf_norm = (df_calc / df_calc.iloc[0]) * 100
-                
-                # 4. RENOMBRADO PARA LEYENDA (Tu diseño intacto)
-                perf_norm.columns = [nombres_pro.get(col, col) for col in perf_norm.columns]
-                
-                fig_perf = px.line(perf_norm, template="plotly_dark")
-                
-                # Destacamos a COST con tu estilo original
-                cost_label = nombres_pro.get("COST", "Costco (COST)")
-                if cost_label in perf_norm.columns:
-                    fig_perf.update_traces(selector=dict(name=cost_label), line=dict(width=4, color="#005BAA"))
-                
-                fig_perf.update_layout(
-                    height=550, hovermode="x unified", yaxis_title="Rendimiento (Base 100)",
-                    legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5)
+            # Renombramos columnas para la leyenda profesional
+            perf_norm.columns = [nombres_pro.get(col, col) for col in perf_norm.columns]
+            
+            fig_perf = px.line(perf_norm, template="plotly_dark")
+            
+            # Destacamos a COST con una línea más gruesa
+            if "Costco (COST)" in perf_norm.columns:
+                fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=4, color="#005BAA"))
+            
+            fig_perf.update_layout(
+                height=550, 
+                hovermode="x unified", 
+                yaxis_title="Rendimiento (Base 100)",
+                legend=dict(
+                    orientation="h", 
+                    yanchor="bottom", 
+                    y=-0.5, 
+                    xanchor="center", 
+                    x=0.5
                 )
-                st.plotly_chart(fig_perf, use_container_width=True)
-            else:
-                st.warning("⚠️ Los activos seleccionados no tienen datos históricos en 'market_history.csv'.")
+            )
+            st.plotly_chart(fig_perf, use_container_width=True)
             
         # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
