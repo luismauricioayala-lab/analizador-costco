@@ -1139,7 +1139,7 @@ def main():
                 
                 # 5. SUBSETS PARA HEATMAP (Usando los nuevos nombres de columnas)
                 sub_verde = [c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)', 'Rev Growth (%)', 'ROA (%)', 'Current Ratio (x)'] if c in df_master.columns]
-                sub_rojo_inv = [c for c in ['P/E Ratio (x)', 'EV/EBITDA (x)', 'EV/FCF (x)', 'Debt/Equity', 'P/S (x)'] if c in df_master.columns]
+                sub_rojo_inv = [c for c in ['P/E Ratio (x)', 'EV/EBITDA (x)', 'EV/FCF (x)', 'Debt/Equity (x)', 'P/S (x)'] if c in df_master.columns]
 
                 # 6. RENDERIZADO FINAL
                 st.dataframe(
