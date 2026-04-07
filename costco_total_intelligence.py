@@ -475,16 +475,17 @@ def main():
     # --- RENDERIZADO DE MÉTRICAS ---
     # m3: Riesgo Beta con Badge Custom
     with m3:
-        st.metric("Riesgo Beta", f"{b_val:.3f}", delta=None) # Quitamos el delta nativo
+        st.metric("Riesgo Beta", f"{b_val:.3f}")
+        # Ajuste de posición para nivelar con los deltas de las otras métricas
         st.markdown(f"""
-            <div style="margin-top: -15px;">
-                <span style="color: {b_color}; font-size: 0.85rem; font-weight: bold; 
-                border: 1px solid {b_color}; padding: 1px 8px; border-radius: 10px;">
+            <div style="margin-top: -28px; margin-left: 2px;">
+                <span style="color: {b_color}; font-size: 0.75rem; font-weight: bold; 
+                border: 1px solid {b_color}; padding: 1px 10px; border-radius: 12px;
+                background-color: {b_color}11; vertical-align: middle;">
                     {b_icon} {b_label}
                 </span>
             </div>
         """, unsafe_allow_html=True)
-
     # m4: Intrinsic Value (Mantenemos el delta porque aquí sí hay dirección)
     m4.metric("Intrinsic Value", f"${f_val:,.2f}", f"{upside:+.1f}%")
 
