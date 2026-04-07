@@ -905,7 +905,6 @@ def main():
         c_p1, c_p2 = st.columns(2)
         
         with c_p1:
-with c_p1:
             # --- BLOQUE DE SEGURIDAD PARA GRÁFICO DE DISPERSIÓN (FORMATO ORIGINAL) ---
             st.write(f"**Análisis de Valoración Relativa: P/E vs ROE**")
             
