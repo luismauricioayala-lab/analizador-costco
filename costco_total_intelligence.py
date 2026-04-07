@@ -441,6 +441,70 @@ def render_peer_analysis(df_peers):
     fig.update_layout(
         height=500,
         margin=dict(l=0, r=0, t=30, b=0),
+        plot_bgcolor='rgba(0,0,0,0)',a
+        paper_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(gridcolor='#2c3e50', zeroline=False),
+        yaxis=dict(gridcolor='#2c3e50', zeroline=False)
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # --- TABLA DE AUDITORÍA COMPARATIVA ---
+    st.markdown("### 📋 Auditoría de Múltiplos")
+    
+    # Formateo de precisión Bloomberg para la tabla
+    st.dataframe(
+        df_peers.sort_values('Mkt Cap ($B)', ascending=False).style.format({
+            'Mkt Cap ($B)': '${:,.1f}B',
+            'P/E Ratio': '{:.2f}x',
+            'EV/EBITDA': '{:.2f}x',
+            'ROE (%)': '{:.2f}%',
+            'Net Margin (%)': '{:.2f}%',
+            'Rev Growth (%)': '{:.2f}%'
+        }),
+        use_container_width=True
+    )
+
+# =============================================================================
+# 5. VISUALIZACIÓN DINÁMICA DE PEERS (DATOS AUDITADOS)
+# =============================================================================
+
+def render_peer_analysis(df_peers):
+    """Renderiza la comparativa dinámica incluyendo el análisis de PSMT."""
+    st.subheader("🏛️ Matriz de Valoración Relativa: Sector Retail & Clubs")
+    
+    # Creamos columnas para los selectores de los ejes del gráfico
+    c1, c2 = st.columns(2)
+    with c1:
+        x_axis = st.selectbox("Eje X (Métrica de Valoración)", 
+                             ['P/E Ratio', 'EV/EBITDA', 'ROE (%)', 'Mkt Cap ($B)'], index=0)
+    with c2:
+        y_axis = st.selectbox("Eje Y (Rendimiento/Crecimiento)", 
+                             ['ROE (%)', 'Net Margin (%)', 'Rev Growth (%)', 'P/E Ratio'], index=1)
+
+    # --- GRÁFICO DE DISPERSIÓN DINÁMICO ---
+    # Resaltamos a COST y PSMT con colores institucionales
+    fig = px.scatter(
+        df_peers,
+        x=x_axis,
+        y=y_axis,
+        text="Ticker",
+        size="Mkt Cap ($B)",
+        color="Ticker",
+        hover_name="Nombre",
+        template="plotly_dark",
+        color_discrete_map={
+            "COST": "#005BAA", # Azul Costco
+            "PSMT": "#D4AF37", # Oro (Estrategia Emergente)
+            "WMT": "#808080",  # Gris para el resto
+            "TGT": "#808080"
+        }
+    )
+
+    fig.update_traces(textposition='top center', marker=dict(line=dict(width=1, color='white')))
+    fig.update_layout(
+        height=500,
+        margin=dict(l=0, r=0, t=30, b=0),
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(gridcolor='#2c3e50', zeroline=False),
