@@ -973,19 +973,19 @@ def main():
                     df_ef = df_full_comparison.copy() if df_full_comparison is not None else pd.DataFrame()
 
                 if not df_ef.empty:
-                    # --- FUNCIÓN DE LIMPIEZA ---
+                    # --- FUNCIÓN DE LIMPIEZA INTEGRAL (Mantenemos tu lógica) ---
                     def clean_val(col_name):
                         return pd.to_numeric(
                             df_ef[col_name].astype(str).str.replace(r'[^0-9.]', '', regex=True), 
                             errors='coerce'
                         )
 
-                    # 2. IDENTIFICACIÓN DE MÉTRICAS (Radar por prioridades)
+                    # 2. IDENTIFICACIÓN DE MÉTRICAS (Jerarquía Bloomberg)
                     col_ev = [c for c in df_ef.columns if "EV" in str(c).upper() and "EBITDA" in str(c).upper()]
                     col_rev = [c for c in df_ef.columns if "PRICE / REVENUE" in str(c).upper() or "P/S" in str(c).upper()]
                     col_margin = [c for c in df_ef.columns if "MARGIN" in str(c).upper() or "MARGEN" in str(c).upper()]
                     
-                    # 3. SELECCIÓN DE JERARQUÍA: EV/EBITDA > Price/Revenue > Net Margin
+                    # 3. SELECCIÓN DE JERARQUÍA
                     if col_ev and clean_val(col_ev[0]).sum() > 0:
                         metrica, label, es_pct = col_ev[0], "Múltiplo: EV/EBITDA", False
                     elif col_rev and clean_val(col_rev[0]).sum() > 0:
@@ -995,35 +995,41 @@ def main():
                     else:
                         metrica, label, es_pct = "P/E Ratio", "P/E Ratio (Fallback)", False
 
-                    # 4. PREPARACIÓN DE DATOS
+                    # 4. PREPARACIÓN DE DATOS (Filtro de índices y limpieza)
                     df_plt = df_ef[~df_ef['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
                     df_plt[metrica] = clean_val(metrica)
                     df_plt = df_plt.dropna(subset=[metrica]).sort_values(metrica)
 
                     if not df_plt.empty:
-                        # Colores: Costco Azul, el resto Gris
-                        colors = ["#005BAA" if str(t).upper() == "COST" else "#444444" for t in df_plt['Ticker']]
-                        
+                        # --- CAMBIO CLAVE PARA SINCRONIZAR COLORES ---
+                        # Usamos 'color="Nombre"' en lugar de lógica manual gris/azul.
+                        # Esto sincroniza automáticamente con el scatter plot.
                         fig_v = px.bar(
-                            df_plt, x="Ticker", y=metrica,
+                            df_plt, 
+                            x="Ticker", 
+                            y=metrica,
+                            color="Nombre", # <-- AQUÍ ESTÁ LA MAGIA
                             template="plotly_dark",
-                            title=f"Análisis: {label}"
+                            title=f"Análisis Competitivo: {label}"
                         )
                         
                         # Formato dinámico según el tipo de métrica
                         formato_etiqueta = "%{y:.2f}%" if es_pct else "%{y:.2f}x"
                         
+                        # --- AJUSTES VISUALES ---
                         fig_v.update_traces(
-                            marker_color=colors, 
-                            textposition='outside',
-                            texttemplate=formato_etiqueta
+                            textposition='outside', # Etiquetas de datos afuera
+                            texttemplate=formato_etiqueta,
+                            # Opcional: Borde fino para consistencia con el scatter
+                            marker=dict(line=dict(width=1, color='rgba(255,255,255,0.2)')) 
                         )
                         
                         fig_v.update_layout(
-                            height=400, 
-                            showlegend=False, 
+                            height=500, # <-- AJUSTE DE TAMAÑO (Mismo que el Scatter Plot corregido)
+                            showlegend=False, # Ocultamos leyenda aquí para no duplicar la del Scatter
                             margin=dict(l=10, r=10, t=40, b=10),
-                            yaxis_title=label
+                            yaxis_title=label,
+                            xaxis=dict(title="Empresa (Ticker)", tickangle=0) # Tickers horizontales
                         )
                         
                         st.plotly_chart(fig_v, use_container_width=True)
