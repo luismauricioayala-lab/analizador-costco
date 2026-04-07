@@ -1090,35 +1090,45 @@ def main():
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
                 
-# --- TABLA MAESTRA CON FORMATO INSTITUCIONAL (FINA) ---
+# --- TABLA MAESTRA CON FORMATO INSTITUCIONAL (ENCABEZADOS FIX) ---
         st.markdown("---")
         st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
         
         if df_full_comparison is not None and not df_full_comparison.empty:
             try:
-                # 1. LIMPIEZA
+                # 1. LIMPIEZA INICIAL
                 df_master = df_full_comparison.copy()
                 if 'Asset Turnover' in df_master.columns:
                     df_master = df_master.drop(columns=['Asset Turnover'])
                 
-                # Normalización de Yield
+                # 2. RENOMBRAR ENCABEZADOS (Aquí añadimos la 'x' y el '$')
+                # Hacemos esto antes del estilo para que el encabezado cambie
+                rename_dict = {
+                    "Mkt Cap ($B)": "Mkt Cap ($)",
+                    "P/E Ratio": "P/E Ratio (x)",
+                    "EV/EBITDA": "EV/EBITDA (x)",
+                    "EV/FCF": "EV/FCF (x)",
+                    "Price / Revenue": "P/S (x)",
+                    "Current Ratio": "Current Ratio (x)"
+                }
+                df_master = df_master.rename(columns=rename_dict)
+
+                # 3. CORRECCIÓN Y ORDENAMIENTO
                 if 'Div Yield (%)' in df_master.columns:
                     df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(lambda x: x/100 if x > 20 else x)
                     df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
 
-                # 2. ORDENAMIENTO COSTCO TOP
                 df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
-                df_master = df_master.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
+                df_master = df_master.sort_values(['Priority', 'Mkt Cap ($)'], ascending=[True, False]).drop('Priority', axis=1)
 
-                # 3. DICCIONARIO DE FORMATOS (Ahora con "x" para múltiplos)
-                # Usamos :.2f para precisión y agregamos la 'x' al final
+                # 4. DICCIONARIO DE FORMATOS (Valores dentro de la celda)
                 fmt = {
-                    "Mkt Cap ($B)": "${:.1f}B",
-                    "P/E Ratio": "{:.2f}x",
-                    "EV/EBITDA": "{:.2f}x",
-                    "EV/FCF": "{:.2f}x",
-                    "Price / Revenue": "{:.2f}x",
-                    "Current Ratio": "{:.2f}x",
+                    "Mkt Cap ($)": "${:.1f}B",
+                    "P/E Ratio (x)": "{:.2f}x",
+                    "EV/EBITDA (x)": "{:.2f}x",
+                    "EV/FCF (x)": "{:.2f}x",
+                    "P/S (x)": "{:.2f}x",
+                    "Current Ratio (x)": "{:.2f}x",
                     "ROE (%)": "{:.1f}%",
                     "Net Margin (%)": "{:.2f}%",
                     "Rev Growth (%)": "{:.2f}%",
@@ -1127,21 +1137,16 @@ def main():
                     "Debt/Equity": "{:.2f}"
                 }
                 
-                columnas_presentes = [c for c in fmt.keys() if c in df_master.columns]
-                
-                # 4. SUBSETS PARA HEATMAP (COBERTURA TOTAL)
-                # VERDE (Más es mejor): Incluimos Current Ratio
-                sub_verde = [c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)', 'Rev Growth (%)', 'ROA (%)', 'Current Ratio'] if c in df_master.columns]
-                
-                # ROJO INVERSO (Menos es mejor): Incluimos Price / Revenue
-                sub_rojo_inv = [c for c in ['P/E Ratio', 'EV/EBITDA', 'EV/FCF', 'Debt/Equity', 'Price / Revenue'] if c in df_master.columns]
+                # 5. SUBSETS PARA HEATMAP (Usando los nuevos nombres de columnas)
+                sub_verde = [c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)', 'Rev Growth (%)', 'ROA (%)', 'Current Ratio (x)'] if c in df_master.columns]
+                sub_rojo_inv = [c for c in ['P/E Ratio (x)', 'EV/EBITDA (x)', 'EV/FCF (x)', 'Debt/Equity', 'P/S (x)'] if c in df_master.columns]
 
-                # 5. RENDERIZADO FINAL
+                # 6. RENDERIZADO FINAL
                 st.dataframe(
-                    df_master.set_index("Ticker").style.format({c: fmt[c] for c in columnas_presentes})
+                    df_master.set_index("Ticker").style.format({c: fmt[c] for c in fmt if c in df_master.columns})
                     .background_gradient(cmap='RdYlGn', subset=sub_verde)
                     .background_gradient(cmap='RdYlGn_r', subset=sub_rojo_inv)
-                    .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]),
+                    .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($)'] if c in df_master.columns]),
                     use_container_width=True
                 )
             except Exception as e:
