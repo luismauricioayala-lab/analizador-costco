@@ -1174,8 +1174,8 @@ def main():
                     df_master.set_index("Ticker").style.format({c: fmt[c] for c in fmt if c in df_master.columns})
                     .background_gradient(cmap='RdYlGn', subset=sub_verde)
                     .background_gradient(cmap='RdYlGn_r', subset=sub_rojo_inv)
-                    #.background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($)'] if c in df_master.columns])
-                    .background_gradient(cmap='Greys', subset=[c for c in ['Mkt Cap ($)'] if c in df_master.columns]),
+                    .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($)'] if c in df_master.columns]),
+                    #.background_gradient(cmap='Greys', subset=[c for c in ['Mkt Cap ($)'] if c in df_master.columns]),
                     use_container_width=True
                 )
             except Exception as e:
