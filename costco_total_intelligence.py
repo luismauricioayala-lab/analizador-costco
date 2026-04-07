@@ -225,7 +225,7 @@ class InstitutionalDataService:
                 }
             }
 
-except Exception as e:
+            except Exception as e:
             # --- INTENTO 2: BÚNKER LOCAL (FALLBACK OFFLINE) ---
             if os.path.exists(archivo_local):
                 df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
