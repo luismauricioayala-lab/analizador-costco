@@ -955,33 +955,33 @@ def main():
             else:
                 st.info("📉 Nota: Modo offline activo. Cargue 'market_history.csv' para ver comparativas.")
 
-# --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO (CON ESCUDO DE OCCAM) ---
+# --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO (SOLUCIÓN DEFINITIVA) ---
         if perf_df is not None and not perf_df.empty:
-            
-            # 1. EL TRADUCTOR: Resolvemos la crisis de identidad de los índices
-            # Esto convierte ^GSPC en SPY y ^IXIC en QQQ antes de cualquier cálculo
+            # 1. TRADUCCIÓN INMEDIATA (El puente de Occam)
+            # Esto convierte los nombres raros del CSV a los que usa tu interfaz
             traductor = {"^GSPC": "SPY", "^IXIC": "QQQ"}
             perf_df = perf_df.rename(columns=traductor)
             
-            # 2. EL FILTRO DE SEGURIDAD: Solo pedimos lo que realmente existe en el CSV/Descarga
-            # Esto evita el KeyError si el usuario seleccionó un ticker que no está en el búnker
-            tickers_existentes = [t for t in full_ticker_list if t in perf_df.columns]
+            # 2. EL FILTRO DE SEGURIDAD (Crucial)
+            # Aquí solo dejamos los tickers que SÍ están en las columnas del perf_df
+            tickers_que_si_existen = [t for t in full_ticker_list if t in perf_df.columns]
             
-            if tickers_existentes:
-                # 3. CÁLCULO SEGURO: Normalización Base 100 usando solo los existentes
-                perf_norm = (perf_df[tickers_existentes] / perf_df[tickers_existentes].iloc[0]) * 100
+            if tickers_que_si_existen:
+                # 3. CÁLCULO SEGURO (Ya no usamos full_ticker_list aquí)
+                # Usamos la lista filtrada para que Pandas no encuentre "llaves vacías"
+                df_calculo = perf_df[tickers_que_si_existen]
+                perf_norm = (df_calculo / df_calculo.iloc[0]) * 100
                 
-                # Limpiamos columnas para el mapeo de nombres largos
+                # 4. PREPARACIÓN PARA LEYENDAS LARGAS
+                # Filtramos nombres_pro para que solo tenga los que sobrevivieron al filtro
                 columnas_finales = [c for c in perf_norm.columns if c in nombres_pro]
                 perf_norm = perf_norm[columnas_finales]
-                
-                # Renombramos para la leyenda profesional
                 perf_norm.columns = [nombres_pro.get(col, col) for col in perf_norm.columns]
                 
+                # 5. GRÁFICO
                 fig_perf = px.line(perf_norm, template="plotly_dark")
                 
-                # Destacamos a COST con una línea más gruesa
-                # Usamos el nombre largo que pusimos en nombres_pro
+                # Destacar Costco
                 nombre_costco = nombres_pro.get("COST", "Costco (COST)")
                 if nombre_costco in perf_norm.columns:
                     fig_perf.update_traces(selector=dict(name=nombre_costco), 
@@ -991,17 +991,11 @@ def main():
                     height=550, 
                     hovermode="x unified", 
                     yaxis_title="Rendimiento (Base 100)",
-                    legend=dict(
-                        orientation="h", 
-                        yanchor="bottom", 
-                        y=-0.5, 
-                        xanchor="center", 
-                        x=0.5
-                    )
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5)
                 )
                 st.plotly_chart(fig_perf, use_container_width=True)
             else:
-                st.warning("⚠️ No se encontraron datos para los tickers seleccionados en la fuente de alimentación.")
+                st.warning("⚠️ Ninguno de los tickers seleccionados está disponible en el Búnker. Por favor, sincronice datos.")
             
         # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
