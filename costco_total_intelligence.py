@@ -671,12 +671,15 @@ def main():
             )
             st.plotly_chart(fig_water, use_container_width=True)
 
-    # -------------------------------------------------------------------------
-    # TAB 2: SCORECARD & RADAR (RESTAURADO)
+# -------------------------------------------------------------------------
+    # TAB 2: SCORECARD, RADAR & PROYECCIÓN DE VALORACIÓN
     # -------------------------------------------------------------------------
     with tabs[1]:
-        st.subheader("Tablero de Salud Fundamental e Inteligencia")
+        st.subheader("🎯 Tablero de Salud Fundamental e Inteligencia de Valoración")
+        
+        # --- SECCIÓN 1: DIAGNÓSTICOS Y RADAR (TU CÓDIGO RESTAURADO) ---
         col_diag1, col_diag2 = st.columns([1.5, 1])
+        
         with col_diag1:
             inf_data = data['acc_summary']
             diagnostics = [
@@ -691,11 +694,76 @@ def main():
                 st.markdown(f'<div class="conclusion-item"><div class="icon-box" style="color:{color}">{"✪" if i_type=="star" else "!"}</div><div class="text-box">{text}</div></div>', unsafe_allow_html=True)
         
         with col_diag2:
-            radar_vals = [4.8, 5, 4.5, 4.2, 2.5] 
+            radar_vals = [4.8, 5, 4.5, 4.2, 2.5] # El 2.5 en 'Precio' refleja mi opinión sincera: está cara.
             fig_radar = px.line_polar(r=radar_vals, theta=['Salud', 'Ganancias', 'Crecimiento', 'Foso', 'Precio'], line_close=True, range_r=[0,5])
             fig_radar.update_traces(fill='toself', line_color='#005BAA', opacity=0.8)
-            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=450, template="plotly_dark")
+            fig_radar.update_layout(polar=dict(radialaxis=dict(visible=False)), height=400, template="plotly_dark", margin=dict(l=40, r=40, t=20, b=20))
             st.plotly_chart(fig_radar, use_container_width=True)
+
+        st.markdown("---")
+
+        # --- SECCIÓN 2: EL ABANICO DE PROYECCIÓN (FAN CHART) ---
+        st.write("### 📈 Trayectoria Probable del Precio (Escenarios 2025-2030)")
+        
+        # Disclaimer Directo
+        st.caption("🚨 **Nota del Búnker:** Este modelo es una simulación matemática de sensibilidad. No es una garantía de rentabilidad ni consejo financiero.")
+
+        try:
+            # Parametrización Sincera
+            ebitda_base = inf_data.get('EBITDA ($B)', 11.5)
+            rev_base = inf_data.get('Revenue ($B)', 280.0)
+            
+            # Recuperamos variables del Laboratorio si existen, si no, usamos el 'Consenso Búnker'
+            g_rate = rf_g if 'rf_g' in locals() else 0.085
+            m_ebitda = mf_e if 'mf_e' in locals() else 0.053
+            
+            años = [2025, 2026, 2027, 2028, 2029, 2030]
+            # Múltiplos basados en el ADN Extendido que subimos a GitHub
+            escenarios = {
+                "Bull (Optimismo - 38x)": {"m": 38, "color": "rgba(0, 255, 136, 0.2)", "line": "#00FF88"},
+                "Base (Actual - 33x)": {"m": 33, "color": "rgba(0, 91, 170, 0.3)", "line": "#005BAA"},
+                "Bear (Corrección - 25x)": {"m": 25, "color": "rgba(255, 50, 50, 0.1)", "line": "#FF3232"}
+            }
+
+            results = {k: [] for k in escenarios.keys()}
+            shares, cash_net = 0.443, 5.0 # Unidades en Billones
+
+            for i, año in enumerate(años):
+                ebitda_f = (rev_base * (1 + g_rate)**i) * m_ebitda
+                for esc, p in escenarios.items():
+                    price = ((ebitda_f * p["m"]) + cash_net) / shares
+                    results[esc].append(price)
+
+            # Gráfico de Abanico
+            import plotly.graph_objects as go
+            fig_fan = go.Figure()
+
+            # Capas de Sombreado
+            fig_fan.add_trace(go.Scatter(x=años, y=results["Bull (Optimismo - 38x)"], line=dict(width=0), showlegend=False))
+            fig_fan.add_trace(go.Scatter(x=años, y=results["Base (Actual - 33x)"], fill='tonexty', fillcolor=escenarios["Bull (Optimismo - 38x)"]["color"], name="Escenario Alcista", line=dict(width=0)))
+            fig_fan.add_trace(go.Scatter(x=años, y=results["Bear (Corrección - 25x)"], fill='tonexty', fillcolor=escenarios["Base (Actual - 33x)"]["color"], name="Rango Base (Sostenible)", line=dict(color=escenarios["Base (Actual - 33x)"]["line"], width=4)))
+
+            fig_fan.update_layout(xaxis_title="Año", yaxis_title="Precio Est. ($)", template="plotly_dark", hovermode="x unified", height=450, margin=dict(l=10, r=10, t=10, b=10))
+            st.plotly_chart(fig_fan, use_container_width=True)
+
+            # --- SECCIÓN 3: MI EVALUACIÓN SINCERA (EL FILTRO DE IA) ---
+            st.write("---")
+            c_s1, c_s2, c_s3 = st.columns(3)
+            
+            with c_s1:
+                st.markdown("**🛡️ Fortaleza del Foso**")
+                st.write("Inexpugnable. El modelo de suscripción es una barrera de entrada que Walmart no ha podido replicar con la misma lealtad.")
+            
+            with c_s2:
+                st.markdown("**⚠️ Riesgo de Valoración**")
+                st.write("Crítico. Pagar 33x EBITDA es territorio de lujo. Cualquier fallo en el crecimiento de membresías provocará una contracción severa.")
+            
+            with c_s3:
+                st.markdown("**📊 Veredicto Final**")
+                st.success("ACTIVO PREMIUM: Mantener en cartera, pero cautela al comprar en máximos históricos.")
+
+        except Exception as e:
+            st.error(f"Error en la simulación de precios: {e}")
 
 # -------------------------------------------------------------------------
     # TAB 2: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
