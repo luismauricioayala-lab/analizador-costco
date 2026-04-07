@@ -169,7 +169,7 @@ class InstitutionalDataService:
         archivo_local = f"{ticker}.csv"
         
         try:
-            # INTENTO 1: Yahoo Finance con curl_cffi integrado
+            # --- INTENTO 1: YAHOO FINANCE (ONLINE) ---
             asset = yf.Ticker(ticker)
             info = asset.info
             cf = asset.cashflow
@@ -179,22 +179,60 @@ class InstitutionalDataService:
             if cf.empty or is_stmt.empty:
                 raise ValueError("Yahoo devolvió estados vacíos.")
 
-            # Cálculo de FCF Real (Tu lógica exacta)
+            # Cálculo de FCF Real (Operating Cash Flow - CapEx)
             fcf_raw = (cf.loc['Operating Cash Flow'] + cf.loc['Capital Expenditure'])
             fcf_now = fcf_raw.iloc[0] / 1e9
 
+            # Procesamiento de Cuadro de 3 Años (Histórico)
+            is_3y = is_stmt.iloc[:, :3]
+            hist_years = is_3y.columns.year.astype(str).tolist()
+            rev_vals = (is_3y.loc['Total Revenue'] / 1e9).tolist()
+            ebitda_vals = (is_3y.loc['EBITDA'] / 1e9).tolist()
+            ni_vals = (is_3y.loc['Net Income'] / 1e9).tolist()
+            eps_vals = info.get('trailingEps', 16.5)
+
+            acc_summary = {
+                "Revenue ($B)": info.get('totalRevenue', 0) / 1e9,
+                "EBITDA ($B)": info.get('ebitda', 0) / 1e9,
+                "Net Income ($B)": info.get('netIncomeToCommon', 0) / 1e9,
+                "ROE (%)": info.get('returnOnEquity', 0.28) * 100,
+                "Debt/Equity": info.get('debtToEquity', 45.0),
+                "Current Ratio": info.get('currentRatio', 1.05),
+                "Operating Margin (%)": info.get('operatingMargins', 0.035) * 100
+            }
+
+            return {
+                "info": info, "is": is_stmt, "bs": bs, "cf": cf,
+                "fcf_now_b": fcf_now, "fcf_hist_b": fcf_raw / 1e9,
+                "price": info.get('currentPrice', 1014.96),
+                "mkt_cap_b": info.get('marketCap', 450e9) / 1e9,
+                "beta": info.get('beta', 0.978),
+                "shares_m": info.get('sharesOutstanding', 443.6e6) / 1e6,
+                "cash_b": info.get('totalCash', 22e9) / 1e9,
+                "debt_b": info.get('totalDebt', 9e9) / 1e9,
+                "hist_years": hist_years, "rev_vals": rev_vals, 
+                "ebitda_vals": ebitda_vals, "ni_vals": ni_vals, "eps_vals": eps_vals,
+                "acc_summary": acc_summary,
+                "analysts": {
+                    "key": info.get('recommendationKey', 'BUY').upper(),
+                    "score": info.get('recommendationMean', 2.0),
+                    "target": info.get('targetMeanPrice', 1067.59),
+                    "count": info.get('numberOfAnalystOpinions', 37)
+                }
+            }
+
         except Exception as e:
+            # --- INTENTO 2: BÚNKER LOCAL (FALLBACK OFFLINE) ---
             st.warning(f"⚠️ Yahoo restringido para {ticker}. Accediendo al Búnker local...")
             
-            # FALLBACK: Carga desde el búnker de archivos que descargaste
             if os.path.exists(archivo_local):
                 st.info(f"🏛️ Modo Offline Activado: Usando {archivo_local}")
                 
                 df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
                 ultimo_precio = float(df_bunker['Close'].iloc[-1])
                 
-                # Calculamos el min y max real de tu archivo CSV para la barra
-                min_52w = float(df_bunker['Low'].tail(252).min()) # 252 días = 1 año bursátil
+                # Cálculo de 52w Range desde el CSV
+                min_52w = float(df_bunker['Low'].tail(252).min())
                 max_52w = float(df_bunker['High'].tail(252).max())
 
                 return {
@@ -226,81 +264,38 @@ class InstitutionalDataService:
                     "analysts": {"key": "BUY", "score": 2.0, "target": 1060.0, "count": 37}
                 }
             else:
-                st.error(f"❌ Error crítico: No se encontraron datos para {ticker}")
+                st.error(f"❌ Error crítico: No se encontraron datos para {ticker} en Yahoo ni en el Búnker.")
                 return None
-
-        # Procesamiento de Cuadro de 3 Años (Mantenemos tu lógica exacta si el try tiene éxito)
-        is_3y = is_stmt.iloc[:, :3]
-        hist_years = is_3y.columns.year.astype(str).tolist()
-        rev_vals = (is_3y.loc['Total Revenue'] / 1e9).tolist()
-        ebitda_vals = (is_3y.loc['EBITDA'] / 1e9).tolist()
-        ni_vals = (is_3y.loc['Net Income'] / 1e9).tolist()
-        eps_vals = info.get('trailingEps', 16.5)
-
-        acc_summary = {
-            "Revenue ($B)": info.get('totalRevenue', 0) / 1e9,
-            "EBITDA ($B)": info.get('ebitda', 0) / 1e9,
-            "Net Income ($B)": info.get('netIncomeToCommon', 0) / 1e9,
-            "ROE (%)": info.get('returnOnEquity', 0.28) * 100,
-            "Debt/Equity": info.get('debtToEquity', 45.0),
-            "Current Ratio": info.get('currentRatio', 1.05),
-            "Operating Margin (%)": info.get('operatingMargins', 0.035) * 100
-        }
-
-        return {
-            "info": info, "is": is_stmt, "bs": bs, "cf": cf,
-            "fcf_now_b": fcf_now, "fcf_hist_b": fcf_raw / 1e9,
-            "price": info.get('currentPrice', 1014.96),
-            "mkt_cap_b": info.get('marketCap', 450e9) / 1e9,
-            "beta": info.get('beta', 0.978),
-            "shares_m": info.get('sharesOutstanding', 443.6e6) / 1e6,
-            "cash_b": info.get('totalCash', 22e9) / 1e9,
-            "debt_b": info.get('totalDebt', 9e9) / 1e9,
-            "hist_years": hist_years, "rev_vals": rev_vals, 
-            "ebitda_vals": ebitda_vals, "ni_vals": ni_vals, "eps_vals": eps_vals,
-            "acc_summary": acc_summary,
-            "analysts": {
-                "key": info.get('recommendationKey', 'BUY').upper(),
-                "score": info.get('recommendationMean', 2.0),
-                "target": info.get('targetMeanPrice', 1067.59),
-                "count": info.get('numberOfAnalystOpinions', 37)
-            }
-        }
 
     @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_peer_group_data(ticker_list):
-        """Versión de Diagnóstico y Carga Blindada."""
+        """Versión de Diagnóstico y Carga Blindada para el grupo de competidores."""
         archivo_offline = "peers_stats.csv"
+        full_search_list = list(set(ticker_list + ["COST"]))
         
-        # Agregamos COST a la lista de búsqueda para que no se pierda en el búnker
-        full_search_list = ticker_list + ["COST"]
-        
-# --- 2. CARGA FORZOSA DEL BÚNKER ---
         df_final = None
+        # --- 1. INTENTO DE CARGA DESDE EL BÚNKER PEERS ---
         if os.path.exists(archivo_offline):
             try:
                 df_final = pd.read_csv(archivo_offline)
-                # Limpieza de columnas y tickers
                 df_final.columns = df_final.columns.str.strip()
                 if 'Ticker' in df_final.columns:
                     df_final['Ticker'] = df_final['Ticker'].astype(str).str.strip()
                 
                 if not df_final.empty:
-                    # FILTRADO CRUCIAL: Ahora incluimos a Costco
                     df_final = df_final[df_final['Ticker'].isin(full_search_list)]
                     if not df_final.empty:
                         return df_final
             except Exception as e:
-                st.error(f"❌ Error en Búnker: {e}")
+                st.error(f"❌ Error en lectura de Búnker Peers: {e}")
 
-        # --- 3. INTENTO ONLINE (SI EL BÚNKER NO TIENE DATOS) ---
+        # --- 2. INTENTO ONLINE (SI EL BÚNKER NO TIENE LOS DATOS) ---
         try:
             peer_results = []
             for t in full_search_list:
                 asset = yf.Ticker(t)
                 info = asset.info
-                # Verificamos que info exista y tenga datos mínimos para no romper el DataFrame
                 if info and isinstance(info, dict) and 'marketCap' in info:
                     peer_results.append({
                         "Ticker": t,
@@ -308,7 +303,7 @@ class InstitutionalDataService:
                         "Mkt Cap ($B)": info.get('marketCap', 0) / 1e9,
                         "P/E Ratio": info.get('trailingPE', 0),
                         "EV/EBITDA": info.get('enterpriseToEbitda', 0),
-                        "EV/FCF": info.get('enterpriseValue') / info.get('freeCashflow'),
+                        "EV/FCF": info.get('enterpriseValue', 0) / info.get('freeCashflow', 1) if info.get('freeCashflow') else 0,
                         "ROE (%)": info.get('returnOnEquity', 0) * 100,
                         "Net Margin (%)": info.get('profitMargins', 0) * 100,
                         "Rev Growth (%)": info.get('revenueGrowth', 0) * 100
@@ -316,9 +311,8 @@ class InstitutionalDataService:
             
             if peer_results:
                 return pd.DataFrame(peer_results)
-        except Exception as e:
-            # Silenciamos el error para que no bloquee la UI si Yahoo falla
-            pass
+        except Exception:
+            pass # Falla silenciosa para no interrumpir el flujo si el Búnker existe
 
         return df_final
         
