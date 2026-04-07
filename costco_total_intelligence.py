@@ -743,7 +743,7 @@ def main():
             st.error(f"Error en la simulación: {e}")
 
 # -------------------------------------------------------------------------
-    # TAB 2: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
+    # TAB 3: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
     # -------------------------------------------------------------------------
     with tabs[2]:
         st.subheader("🔬 Peer Analysis & Market Benchmarking (Real-Time)")
@@ -905,18 +905,16 @@ def main():
         c_p1, c_p2 = st.columns(2)
         
         with c_p1:
-            # --- BLOQUE DE SEGURIDAD PARA GRÁFICO DE DISPERSIÓN ---
             st.write(f"**Análisis de Valoración Relativa: P/E vs ROE**")
             
-            # 1. Verificamos que el DataFrame exista y no esté vacío
             if df_full_comparison is not None and not df_full_comparison.empty:
-                # 2. LIMPIEZA PARA GRÁFICO: Excluimos índices para no distorsionar escalas
-                df_fundamentales = df_full_comparison[~df_full_comparison['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])]
+                df_fundamentales = df_full_comparison[~df_full_comparison['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
                 
                 cols_grafico = ["P/E Ratio", "ROE (%)", "Mkt Cap ($B)"]
                 columnas_presentes = [c for c in cols_grafico if c in df_fundamentales.columns]
                 
                 if len(columnas_presentes) == len(cols_grafico):
+                    # Limpiamos nulos y aseguramos tipos
                     df_plot_scat = df_fundamentales.dropna(subset=cols_grafico)
                     
                     if not df_plot_scat.empty:
@@ -927,20 +925,38 @@ def main():
                                 y="ROE (%)",
                                 size="Mkt Cap ($B)", 
                                 color="Nombre", 
-                                text="Ticker",
+                                text="Ticker", # Mantenemos el Ticker como etiqueta
                                 template="plotly_dark", 
-                                size_max=40
+                                size_max=45
                             )
-                            fig_scat.update_layout(height=450)
+                            
+                            # --- MEJORAS DE VISUALIZACIÓN ---
+                            fig_scat.update_traces(
+                                textposition='top center', # Mueve el nombre arriba de la burbuja
+                                textfont=dict(size=10, color='white'), # Fuente más clara
+                                marker=dict(line=dict(width=1, color='white'), opacity=0.8) # Borde para resaltar
+                            )
+                            
+                            fig_scat.update_layout(
+                                height=500,
+                                margin=dict(l=20, r=20, t=40, b=20),
+                                # Ajustamos los ejes para que no se corten las etiquetas
+                                xaxis=dict(showgrid=False, zeroline=False),
+                                yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)')
+                            )
+                            
+                            # Si HD (Home Depot) está presente, el ROE sube a 140+. 
+                            # Podemos forzar un rango si quieres ver mejor al resto:
+                            # fig_scat.update_yaxes(range=[-10, 60]) # Descomenta para ignorar el outlier de HD
+                            
                             st.plotly_chart(fig_scat, use_container_width=True)
-                        except Exception:
-                            st.info("📊 Error al generar gráfico de dispersión.")
+                            
+                        except Exception as e:
+                            st.info(f"📊 Error visual: {e}")
                     else:
-                        st.warning("⚠️ Datos insuficientes para dispersión (Modo Búnker).")
+                        st.warning("⚠️ Sin datos para dispersión.")
                 else:
-                    st.info("📊 Columnas de análisis no encontradas.")
-            else:
-                st.info("📊 Esperando datos de competidores...")
+                    st.info("📊 Columnas no encontradas.")
 
         with c_p2:
             st.write("**Valoración y Eficiencia Operativa**")
