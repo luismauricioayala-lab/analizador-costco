@@ -905,52 +905,63 @@ def main():
         c_p1, c_p2 = st.columns(2)
         
         with c_p1:
-            # --- BLOQUE DE SEGURIDAD PARA GRÁFICO DE DISPERSIÓN (FORMATO ORIGINAL) ---
             st.write(f"**Análisis de Valoración Relativa: P/E vs ROE**")
             
             if df_full_comparison is not None and not df_full_comparison.empty:
-                # 1. Filtro de índices para mantener la escala real de empresas
                 df_fundamentales = df_full_comparison[~df_full_comparison['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
                 
                 cols_grafico = ["P/E Ratio", "ROE (%)", "Mkt Cap ($B)"]
-                columnas_presentes = [c for c in cols_grafico if c in df_fundamentales.columns]
-                
-                if len(columnas_presentes) == len(cols_grafico):
-                    # 2. Limpieza de datos para asegurar que todos los tickers del búnker se grafiquen
+                if all(c in df_fundamentales.columns for c in cols_grafico):
                     df_plot_scat = df_fundamentales.dropna(subset=cols_grafico)
                     
                     if not df_plot_scat.empty:
                         try:
-                            # Volvemos al px.scatter clásico que te gustaba
+                            # 1. CREACIÓN DEL GRÁFICO (Recuperamos la Leyenda)
                             fig_scat = px.scatter(
                                 df_plot_scat, 
                                 x="P/E Ratio", 
                                 y="ROE (%)",
                                 size="Mkt Cap ($B)", 
                                 color="Nombre", 
-                                text="Ticker", # Mantenemos el Ticker para identificación rápida
+                                text="Ticker", 
                                 template="plotly_dark", 
                                 size_max=40
                             )
                             
-                            # Ajustes mínimos de layout para que sea idéntico al anterior
-                            fig_scat.update_layout(
-                                height=450,
-                                margin=dict(l=10, r=10, t=30, b=10),
-                                showlegend=False # Mantenemos la estética limpia sin leyenda lateral
+                            # 2. CONFIGURACIÓN DEL CORTE DE EJE (Para que HD no distorsione)
+                            # Calculamos el ROE máximo del resto de competidores (sin HD)
+                            # O simplemente fijamos un límite visual sano (ej. 60-70%)
+                            fig_scat.update_yaxes(
+                                range=[-5, 70],  # Cortamos en 70 para ver bien al grupo principal
+                                title="ROE (%) - Escala Ajustada"
                             )
                             
-                            # Renderizado con tu interceptor para asegurar formato Bloomberg
+                            # 3. RECUPERACIÓN DE LEYENDA Y ESTÉTICA
+                            fig_scat.update_layout(
+                                height=500,
+                                margin=dict(l=10, r=10, t=30, b=10),
+                                showlegend=True,  # ¡La leyenda vuelve!
+                                legend=dict(
+                                    orientation="h",     # Horizontal para no robar ancho
+                                    yanchor="bottom",
+                                    y=1.02,
+                                    xanchor="right",
+                                    x=1,
+                                    font=dict(size=10)
+                                )
+                            )
+                            
+                            fig_scat.update_traces(textposition='top center')
+                            
                             st.plotly_chart(fig_scat, use_container_width=True)
                             
+                            if df_plot_scat['ROE (%)'].max() > 70:
+                                st.caption("💡 *Nota: El eje Y se ha limitado a 70% para visualizar mejor el grupo; Home Depot (HD) queda fuera del margen superior.*")
+
                         except Exception:
-                            st.info("📊 Error al generar gráfico de dispersión.")
-                    else:
-                        st.warning("⚠️ Datos insuficientes para dispersión (Modo Búnker).")
-                else:
-                    st.info("📊 Columnas de análisis no encontradas.")
+                            st.info("📊 Error al generar gráfico.")
             else:
-                st.info("📊 Esperando datos de competidores...")
+                st.info("📊 Esperando datos...")
 
         with c_p2:
             st.write("**Valoración y Eficiencia Operativa**")
