@@ -231,7 +231,10 @@ class InstitutionalDataService:
                 df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
                 ultimo_precio = float(df_bunker['Close'].iloc[-1])
                 
-                # Datos estimados para que el motor DCF no explote en modo búnker
+                # Creamos contenedores vacíos para que las pestañas de Finanzas no den KeyError
+                años_mock = ['2024-12-31', '2023-12-31', '2022-12-31']
+                df_vacio = pd.DataFrame(0.0, index=['Total Revenue', 'Net Income', 'EBITDA'], columns=pd.to_datetime(años_mock))
+
                 return {
                     "info": {
                         "currentPrice": ultimo_precio, 
@@ -241,25 +244,30 @@ class InstitutionalDataService:
                         "fiftyTwoWeekLow": ultimo_precio * 0.8, 
                         "fiftyTwoWeekHigh": ultimo_precio * 1.2 
                     },
+                    "is": df_vacio,  # <--- SOLUCIONA KEYERROR 'is' (Línea 1598)
+                    "bs": df_vacio,  # <--- PREVIENE KEYERROR en Balance Sheet
+                    "cf": df_vacio,  # <--- PREVIENE KEYERROR en Cash Flow
                     "price": ultimo_precio,
                     "mkt_cap_b": 450.0,
                     "fcf_now_b": 9.5,
                     "beta": 0.98,
                     "shares_m": 443.6,
-                    "cash_b": 18.0,  # <--- FIX: Evita el KeyError en la línea 528
-                    "debt_b": 9.0,   # <--- FIX: Evita el próximo KeyError potencial
+                    "cash_b": 18.0,
+                    "debt_b": 9.0,
                     "hist_years": ["2024", "2023", "2022"],
                     "fcf_hist_b": pd.Series([9.5, 8.2, 7.5]),
                     "acc_summary": {
                         "ROE (%)": 28.0, 
                         "Debt/Equity": 45.0,
                         "Operating Margin (%)": 3.5,
-                        "Revenue ($B)": 254.0
+                        "Revenue ($B)": 254.0,
+                        "EBITDA ($B)": 11.5,
+                        "Net Income ($B)": 7.5,
+                        "Current Ratio": 1.1
                     },
                     "analysts": {"key": "BUY", "score": 2.0, "target": 1060.0, "count": 37}
                 }
             return None
-
     @staticmethod
     @st.cache_data(ttl=3600)
     def fetch_peer_group_data(ticker_list):
