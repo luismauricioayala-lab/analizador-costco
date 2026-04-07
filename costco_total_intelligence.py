@@ -886,128 +886,83 @@ with tabs[2]:
         st.warning("⚠️ Terminal en modo de emergencia: Sin datos comparativos disponibles.")
         df_full_comparison = pd.DataFrame(columns=['Ticker', 'Nombre', 'Mkt Cap ($B)', 'P/E Ratio', 'ROE (%)', 'EV/EBITDA'])
 
-    # --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO DINÁMICO ---
-    st.write(f"**Rendimiento Normalizado 1Y: COST vs Ecosistema de Retail & Mercado**")
-    
-    archivo_historia = "market_history.csv"
-    perf_df = None
-    nombres_pro = {
-        "COST": "Costco (COST)", "SPY": "S&P 500 (Market)", "QQQ": "Nasdaq 100 (Tech)",
-        "WMT": "Walmart (WMT)", "TGT": "Target (TGT)", "PSMT": "Pricesmart (PSMT)",
-        "BJ": "BJ's Wholesale (BJ)", "KR": "Kroger (KR)", "AMZN": "Amazon (AMZN)",
-        "HD": "Home Depot (HD)", "LOW": "Lowe's (LOW)", "SFM": "Sprouts (SFM)",
-        "DLTR": "Dollar Tree (DLTR)", "DG": "Dollar General (DG)"
-    }
+# --- VISUALIZACIÓN 1: RENDIMIENTO RELATIVO DINÁMICO (UNIVERSO EXTENDIDO) ---
+st.write(f"**Rendimiento Normalizado 1Y: COST vs Ecosistema de Retail & Mercado**")
 
-    try:
-        tickers_universo = list(nombres_pro.keys())
+archivo_historia = "market_history.csv"
+perf_df = None
+
+# Definimos el mapeo institucional completo (TU LOGICA ORIGINAL)
+nombres_pro = {
+    "COST": "Costco (COST)",
+    "SPY": "S&P 500 (Market)",
+    "QQQ": "Nasdaq 100 (Tech)",
+    "WMT": "Walmart (WMT)",
+    "TGT": "Target (TGT)",
+    "PSMT": "Pricesmart (PSMT)",
+    "BJ": "BJ's Wholesale (BJ)",
+    "KR": "Kroger (KR)",
+    "AMZN": "Amazon (AMZN)",
+    "HD": "Home Depot (HD)",
+    "LOW": "Lowe's (LOW)",
+    "SFM": "Sprouts (SFM)",
+    "DLTR": "Dollar Tree (DLTR)",
+    "DG": "Dollar General (DG)"
+}
+
+try:
+    # 1. INTENTO ONLINE: Descarga del universo completo
+    tickers_universo = list(nombres_pro.keys())
+    with st.spinner("Sincronizando universo de inversión..."):
         perf_df = yf.download(tickers_universo, period="1y", progress=False)['Close']
-        if perf_df is None or perf_df.empty: raise ValueError()
-    except Exception:
-        if os.path.exists(archivo_historia):
-            perf_df = pd.read_csv(archivo_historia, index_col=0, parse_dates=True)
-
-    # --- REPARACIÓN MAESTRA ANTI-KEYERROR (YA NO EXISTE LA LÍNEA 946 VIEJA) ---
-    if perf_df is not None and not perf_df.empty:
-        # 1. EL TRADUCTOR (Traducimos el CSV a tu idioma)
-        perf_df = perf_df.rename(columns={"^GSPC": "SPY", "^IXIC": "QQQ"})
+    
+    if perf_df is None or perf_df.empty:
+        raise ValueError("API Yahoo Offline")
         
-        # 2. LA INTERSECCIÓN (Solo lo que realmente hay en el archivo)
-        tickers_validos = [t for t in full_ticker_list if t in perf_df.columns]
+except Exception:
+    # 2. FALLBACK OFFLINE: Rescate desde el Búnker market_history.csv
+    if os.path.exists(archivo_historia):
+        perf_df = pd.read_csv(archivo_historia, index_col=0, parse_dates=True)
+        st.sidebar.info("🏛️ Universo extendido cargado desde el Búnker Local.")
+    else:
+        st.info("📉 Nota: Modo offline activo. Cargue 'market_history.csv' para ver comparativas.")
+
+# =============================================================================
+# 🛡️ ESCUDO ANTI-KEYERROR (REEMPLAZO DE LA LÍNEA 946)
+# =============================================================================
+if perf_df is not None and not perf_df.empty:
+    # A. TRADUCTOR DE OCCAM: Unificamos nombres del CSV (^GSPC) con Interfaz (SPY)
+    perf_df = perf_df.rename(columns={"^GSPC": "SPY", "^IXIC": "QQQ"})
+    
+    # B. FILTRO DE INTERSECCIÓN: Solo usamos lo que REALMENTE existe en el archivo
+    # Esto evita que Pandas busque algo inexistente y lance el KeyError
+    safe_list = [t for t in full_ticker_list if t in perf_df.columns]
+    
+    if safe_list:
+        # C. CÁLCULO BLINDADO (Esta es la nueva línea 946)
+        perf_norm = (perf_df[safe_list] / perf_df[safe_list].iloc[0]) * 100
         
-        if tickers_validos:
-            # 3. CÁLCULO SEGURO (Usando solo la lista filtrada)
-            df_safe_zone = perf_df[tickers_validos].copy()
-            perf_norm_safe = (df_safe_zone / df_safe_zone.iloc[0]) * 100
-            
-            # Mapeo para leyenda (Tu lógica original)
-            columnas_finales = [c for c in perf_norm_safe.columns if c in nombres_pro]
-            perf_norm_safe = perf_norm_safe[columnas_finales]
-            perf_norm_safe.columns = [nombres_pro.get(col, col) for col in perf_norm_safe.columns]
-            
-            fig_perf = px.line(perf_norm_safe, template="plotly_dark")
-            if "Costco (COST)" in perf_norm_safe.columns:
-                fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=4, color="#005BAA"))
-            
-            fig_perf.update_layout(
-                height=550, hovermode="x unified", yaxis_title="Rendimiento (Base 100)",
-                legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5)
-            )
-            st.plotly_chart(fig_perf, use_container_width=True)
-
-    # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN (ADN ORIGINAL) ---
-    c_p1, c_p2 = st.columns(2)
-    with c_p1:
-        st.write(f"**Análisis de Valoración Relativa: P/E vs ROE**")
-        if df_full_comparison is not None and not df_full_comparison.empty:
-            df_fund = df_full_comparison[~df_full_comparison['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
-            cols_graf = ["P/E Ratio", "ROE (%)", "Mkt Cap ($B)"]
-            if all(c in df_fund.columns for c in cols_graf):
-                df_plot = df_fund.dropna(subset=cols_graf)
-                if not df_plot.empty:
-                    fig_scat = px.scatter(df_plot, x="P/E Ratio", y="ROE (%)", size="Mkt Cap ($B)", 
-                                         color="Nombre", text="Ticker", template="plotly_dark", size_max=40)
-                    fig_scat.update_yaxes(range=[-5, 70], title="ROE (%) - Escala Ajustada")
-                    fig_scat.update_layout(height=500, showlegend=True, legend=dict(orientation="h", y=1.02, x=1))
-                    st.plotly_chart(fig_scat, use_container_width=True)
-
-    with c_p2:
-        st.write("**Valoración y Eficiencia Operativa**")
-        try:
-            df_ef = pd.read_csv("peers_stats.csv") if os.path.exists("peers_stats.csv") else df_full_comparison.copy()
-            if not df_ef.empty:
-                def clean_val(col_name): return pd.to_numeric(df_ef[col_name].astype(str).str.replace(r'[^0-9.]', '', regex=True), errors='coerce')
-                metrica = "EV/EBITDA"
-                df_plt = df_ef[~df_ef['Ticker'].isin(['SPY', 'QQQ', '^GSPC', '^IXIC'])].copy()
-                df_plt[metrica] = clean_val(metrica)
-                df_plt = df_plt.dropna(subset=[metrica]).sort_values(metrica)
-                fig_v = px.bar(df_plt, x="Ticker", y=metrica, color="Nombre", template="plotly_dark")
-                fig_v.update_traces(texttemplate='%{y:.2f}x', textposition='outside')
-                fig_v.update_layout(height=500, showlegend=False, yaxis_title="Múltiplo: EV/EBITDA")
-                st.plotly_chart(fig_v, use_container_width=True)
-        except: pass
-
-    # --- MATRIZ DE CORRELACIÓN ---
-    st.markdown("---")
-    st.write("**🧩 Matriz de Correlación de Retornos Diarios (1Y)**")
-    with st.expander("Ver Análisis de Correlación"):
-        if 'df_safe_zone' in locals():
-            try:
-                returns_df = df_safe_zone.pct_change().dropna()
-                returns_df.columns = [nombres_pro.get(col, col) for col in returns_df.columns]
-                corr_matrix = returns_df.corr()
-                costco_label = nombres_pro.get("COST", "Costco (COST)")
-                if costco_label in corr_matrix.columns:
-                    cols = [costco_label] + [c for c in corr_matrix.columns if c != costco_label]
-                    corr_matrix = corr_matrix.reindex(index=cols, columns=cols)
-                fig_corr = px.imshow(corr_matrix, text_auto=".2f", color_continuous_scale='RdBu_r', zmin=-1, zmax=1, template="plotly_dark")
-                fig_corr.update_layout(height=600)
-                st.plotly_chart(fig_corr, use_container_width=True)
-            except: pass
-
-    # --- TABLA MAESTRA CON FORMATO INSTITUCIONAL (SIN CAMBIOS EN TUS 100 LÍNEAS) ---
-    st.markdown("---")
-    st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
-    if df_full_comparison is not None and not df_full_comparison.empty:
-        try:
-            df_master = df_full_comparison.copy()
-            if 'Asset Turnover' in df_master.columns: df_master = df_master.drop(columns=['Asset Turnover'])
-            rename_dict = {"Mkt Cap ($B)": "Mkt Cap ($)", "P/E Ratio": "P/E Ratio (x)", "EV/EBITDA": "EV/EBITDA (x)", "EV/FCF": "EV/FCF (x)", "Price / Revenue": "P/S (x)", "Current Ratio": "Current Ratio (x)", "Debt/Equity": "Debt/Equity (x)"}
-            df_master = df_master.rename(columns=rename_dict)
-            if 'Div Yield (%)' in df_master.columns:
-                df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(lambda x: x/100 if x > 20 else x)
-                df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
-            df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
-            df_master = df_master.sort_values(['Priority', 'Mkt Cap ($)'], ascending=[True, False]).drop('Priority', axis=1)
-            fmt = {"Mkt Cap ($)": "${:.1f}B", "P/E Ratio (x)": "{:.2f}x", "EV/EBITDA (x)": "{:.2f}x", "EV/FCF (x)": "{:.2f}x", "P/S (x)": "{:.2f}x", "Current Ratio (x)": "{:.2f}x", "Debt/Equity (x)": "{:.2f}x", "ROE (%)": "{:.1f}%", "Net Margin (%)": "{:.2f}%", "Rev Growth (%)": "{:.2f}%", "Div Yield (%)": "{:.2f}%", "ROA (%)": "{:.2f}%"}
-            sub_verde = [c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)', 'Rev Growth (%)', 'ROA (%)', 'Current Ratio (x)'] if c in df_master.columns]
-            sub_rojo_inv = [c for c in ['P/E Ratio (x)', 'EV/EBITDA (x)', 'EV/FCF (x)', 'Debt/Equity (x)', 'P/S (x)'] if c in df_master.columns]
-            st.dataframe(df_master.set_index("Ticker").style.format({c: fmt[c] for c in fmt if c in df_master.columns})
-                         .background_gradient(cmap='RdYlGn', subset=sub_verde)
-                         .background_gradient(cmap='RdYlGn_r', subset=sub_rojo_inv)
-                         .background_gradient(cmap='Blues', subset=[c for c in ['Mkt Cap ($)'] if c in df_master.columns]), 
-                         use_container_width=True)
-        except Exception as e: st.error(f"Error en matriz: {e}")
+        # D. RESTAURACIÓN DE LÓGICA VISUAL (Tu formateo original)
+        columnas_finales = [c for c in perf_norm.columns if c in nombres_pro]
+        perf_norm = perf_norm[columnas_finales]
+        perf_norm.columns = [nombres_pro.get(col, col) for col in perf_norm.columns]
+        
+        fig_perf = px.line(perf_norm, template="plotly_dark")
+        
+        # Destacamos a COST con tu estilo institucional
+        nombre_cost_label = nombres_pro.get("COST", "Costco (COST)")
+        if nombre_cost_label in perf_norm.columns:
+            fig_perf.update_traces(selector=dict(name=nombre_cost_label), line=dict(width=4, color="#005BAA"))
+        
+        fig_perf.update_layout(
+            height=550, 
+            hovermode="x unified", 
+            yaxis_title="Rendimiento (Base 100)",
+            legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5)
+        )
+        st.plotly_chart(fig_perf, use_container_width=True)
+    else:
+        st.warning("⚠️ Los tickers seleccionados no tienen datos en el búnker.")
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
