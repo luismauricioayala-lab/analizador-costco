@@ -867,7 +867,7 @@ def main():
         else:
             st.warning("⚠️ Cargue 'market_history.csv' para visualizar el rendimiento histórico.")
             
-        # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
+# --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
         
         with c_p1:
@@ -980,7 +980,7 @@ def main():
             except Exception as e:
                 st.error(f"Error en bloque de valoración: {e}")
                 
-# --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
+        # --- SECCIÓN: MATRIZ DE CORRELACIÓN (COSTCO FIRST + SYMBOLS FIX) ---
         st.markdown("---")
         st.write("**🧩 Matriz de Correlación de Retornos Diarios (1Y)**")
         with st.expander("Ver Análisis de Correlación"):
@@ -1029,7 +1029,7 @@ def main():
             else:
                 st.info("📉 Matriz de correlación requiere carga de historial (market_history.csv).")
                 
-# --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL BLINDADA) ---
+        # --- TABLA MAESTRA CON FORMATO BLOOMBERG (VERSIÓN FINAL BLINDADA) ---
         st.markdown("---")
         st.write("**Matriz Competitiva y de Benchmarks (Sync 2026)**")
         
@@ -1039,7 +1039,6 @@ def main():
                 df_master = df_full_comparison.copy()
                 
                 # --- CORRECCIÓN DE DIVIDEND YIELD (Target y otros) ---
-                # Si el yield es > 20%, asumimos error de escala y dividimos por 100
                 if 'Div Yield (%)' in df_master.columns:
                     df_master['Div Yield (%)'] = df_master['Div Yield (%)'].apply(
                         lambda x: x/100 if x > 20 else x
@@ -1047,10 +1046,9 @@ def main():
                     # Corrección específica manual para Target si persiste el error
                     df_master.loc[df_master['Ticker'] == 'TGT', 'Div Yield (%)'] = 2.95
 
-                # 2. ASEGURAR UNIVERSO COMPLETO (Si faltan empresas del CSV)
-                # Si por alguna razón el filtrado previo quitó empresas, aquí las recuperamos
-                # (Asegúrate de que df_full_comparison no haya sido filtrado antes de este bloque)
-
+                # 2. ASEGURAR UNIVERSO COMPLETO
+                # Incluimos todos los tickers presentes en el payload
+                
                 # 3. ORDENAMIENTO PRIORITARIO: COSTCO SIEMPRE ARRIBA
                 df_master['Priority'] = df_master['Ticker'].apply(lambda x: 0 if x == 'COST' else 1)
                 df_master = df_master.sort_values(['Priority', 'Mkt Cap ($B)'], ascending=[True, False]).drop('Priority', axis=1)
@@ -1069,20 +1067,20 @@ def main():
                 
                 columnas_presentes = [c for c in cols_formato.keys() if c in df_master.columns]
                 
-                # 5. RENDERIZADO CON MAPA DE CALOR INSTITUCIONAL
+                # 5. RENDERIZADO CON MAPA DE CALOR INSTITUCIONAL COMPLETO
                 st.dataframe(
                     df_master.set_index("Ticker").style.format({c: cols_formato[c] for c in columnas_presentes})
-                    # Gradiente VERDE: Rentabilidad y Dividendos
+                    # Gradiente VERDE: Rentabilidad, Margen y Dividendos
                     .background_gradient(
                         cmap='RdYlGn', 
-                        subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)'] if c in df_master.columns]
+                        subset=[c for c in ['ROE (%)', 'Net Margin (%)', 'Div Yield (%)', 'Rev Growth (%)'] if c in df_master.columns]
                     )
-                    # Gradiente ROJO INVERSO: Valoración (P/E y EV/EBITDA)
+                    # Gradiente ROJO INVERSO: Valoración (Múltiplos bajos son mejores/más verdes)
                     .background_gradient(
                         cmap='RdYlGn_r', 
-                        subset=[c for c in ['P/E Ratio', 'EV/EBITDA'] if c in df_master.columns]
+                        subset=[c for c in ['P/E Ratio', 'EV/EBITDA', 'EV/FCF'] if c in df_master.columns]
                     )
-                    # Gradiente AZUL: Market Cap
+                    # Gradiente AZUL: Market Cap (Tamaño de empresa)
                     .background_gradient(
                         cmap='Blues', 
                         subset=[c for c in ['Mkt Cap ($B)'] if c in df_master.columns]
@@ -1095,7 +1093,7 @@ def main():
         else:
             st.info("📊 La tabla maestra se poblará al sincronizar con el Búnker de datos.")
 
-        st.caption("Nota: Costco (COST) fijado en cabecera. Datos de Yield normalizados para Target (TGT) y pares.")
+        st.caption("Nota: Costco (COST) fijado en cabecera. Mapa de calor aplicado a métricas de rentabilidad, dividendos y valoración.")
         
 # -------------------------------------------------------------------------
     # TAB 4: GANANCIAS & SENTIMIENTO (VERSIÓN THEME-AWARE PIXEL-PERFECT)
