@@ -868,6 +868,7 @@ def main():
         )
 
         selected_tickers = [market_map[label] for label in selected_labels]
+        # Aseguramos que COST esté y eliminamos duplicados
         full_ticker_list = list(set(["COST"] + selected_tickers))
 
         with st.spinner("Sincronizando terminal con Wall Street..."):
@@ -887,7 +888,6 @@ def main():
             all_names = {**bunker_names, **{v: k.split(" (")[0] for k, v in market_map.items()}}
             df_full_comparison['Nombre'] = df_full_comparison['Ticker'].map(all_names).fillna(df_full_comparison['Ticker'])
             
-            # Asegurar COST presente usando el payload del main
             if "COST" not in df_full_comparison['Ticker'].values:
                 cost_row = pd.DataFrame([{
                     "Ticker": "COST", "Nombre": "Costco Wholesale",
@@ -898,18 +898,19 @@ def main():
                 }])
                 df_full_comparison = pd.concat([df_full_comparison, cost_row], ignore_index=True)
         else:
-            st.warning("⚠️ Modo emergencia: Usando datos sintéticos de búnker.")
+            st.warning("⚠️ Modo emergencia: Sin datos de comparación.")
             df_full_comparison = pd.DataFrame(columns=['Ticker', 'Nombre', 'Mkt Cap ($B)', 'P/E Ratio', 'ROE (%)', 'EV/EBITDA'])
 
         # =============================================================================
-        # NUEVO: MÓDULO PORTAL DE AUDITORÍA (GURUFOCUS STYLE)
+        # MÓDULO PORTAL DE AUDITORÍA
         # =============================================================================
         st.markdown("### 🏛️ Portal de Auditoría: Benchmarking de Calidad")
         
-        # Preparación de promedios industriales
         df_ind = df_full_comparison[df_full_comparison['Ticker'] != 'COST']
         ind_avg = df_ind.mean(numeric_only=True)
-        c_stats = df_full_comparison[df_full_comparison['Ticker'] == 'COST'].iloc[0]
+        # Búsqueda segura de fila de COST
+        cost_rows = df_full_comparison[df_full_comparison['Ticker'] == 'COST']
+        c_stats = cost_rows.iloc[0] if not cost_rows.empty else pd.Series()
 
         a1, a2, a3 = st.columns(3)
         with a1:
@@ -936,20 +937,24 @@ def main():
 
         st.markdown("---")
 
-        # --- RENDIMIENTO NORMALIZADO ---
+        # --- RENDIMIENTO NORMALIZADO (FIX KEYERROR) ---
         st.write(f"**Rendimiento Normalizado 1Y: COST vs Ecosistema**")
-        nombres_pro = {k.split(" (")[0]: k for k in market_map.keys()}
-        nombres_pro["COST"] = "Costco (COST)"
         
         if os.path.exists("market_history.csv"):
             perf_df = pd.read_csv("market_history.csv", index_col=0, parse_dates=True)
-            perf_norm = (perf_df[full_ticker_list] / perf_df[full_ticker_list].iloc[0]) * 100
-            fig_perf = px.line(perf_norm, template="plotly_dark")
-            fig_perf.update_traces(line=dict(width=1), opacity=0.4)
-            if "COST" in perf_norm.columns:
-                fig_perf.update_traces(selector=dict(name="COST"), line=dict(width=4, color="#005BAA"), opacity=1)
-            fig_perf.update_layout(height=450, margin=dict(l=0,r=0,t=0,b=0), legend=dict(orientation="h", y=-0.2))
-            st.plotly_chart(fig_perf, use_container_width=True)
+            # FILTRO DE SEGURIDAD: Solo tickers que REALMENTE existen en el CSV
+            tickers_validos = [t for t in full_ticker_list if t in perf_df.columns]
+            
+            if tickers_validos:
+                perf_norm = (perf_df[tickers_validos] / perf_df[tickers_validos].iloc[0]) * 100
+                fig_perf = px.line(perf_norm, template="plotly_dark")
+                fig_perf.update_traces(line=dict(width=1.5), opacity=0.4)
+                if "COST" in perf_norm.columns:
+                    fig_perf.update_traces(selector=dict(name="COST"), line=dict(width=4, color="#005BAA"), opacity=1)
+                fig_perf.update_layout(height=450, margin=dict(l=0,r=0,t=10,b=0), legend=dict(orientation="h", y=-0.2))
+                st.plotly_chart(fig_perf, use_container_width=True)
+            else:
+                st.info("⚠️ Los tickers seleccionados no tienen historial en 'market_history.csv'.")
 
         # --- DISPERSIÓN Y VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
@@ -973,8 +978,9 @@ def main():
         col_m1, col_m2 = st.columns([1, 2])
         with col_m1:
             st.write("**🧩 Correlación**")
-            if 'perf_df' in locals():
-                corr = perf_df[full_ticker_list].pct_change().corr()
+            if 'perf_df' in locals() and not perf_df.empty:
+                # Correlación solo de los válidos
+                corr = perf_df[tickers_validos].pct_change().corr()
                 fig_corr = px.imshow(corr, text_auto=".2f", color_continuous_scale='RdBu_r', template="plotly_dark")
                 fig_corr.update_layout(height=380, margin=dict(l=0,r=0,t=0,b=0))
                 st.plotly_chart(fig_corr, use_container_width=True)
