@@ -419,34 +419,34 @@ def main():
             fig.update_xaxes(tickformat=",.0f")
             
             # 4. EL MARTILLO PARA EL HEATMAP (Tu matriz verde/roja)
-            # Solo aplica si el gráfico tiene trazas tipo heatmap
             fig.update_traces(
                 texttemplate="$%{z:,.0f}", 
                 selector=dict(type='heatmap')
             )
         except Exception:
-            # Si algún gráfico no es compatible con este formato, 
-            # lo deja pasar sin romper la app
+            # Si algún gráfico no es compatible, lo deja pasar sin romper la app
             pass
             
         # Usamos st.write para evitar bucles infinitos y renderizar Plotly
         return st.write(fig)
 
-    # REEMPLAZO GLOBAL
+    # REEMPLAZO GLOBAL DE LA FUNCIÓN DE PLOTLY
     st.plotly_chart = patched_plotly_chart
     
-    # 1. Adquisición de Datos (Dentro de main para evitar NameError)
+    # 1. ADQUISICIÓN DE DATOS (EXTRACCIÓN INMEDIATA)
     data = InstitutionalDataService.fetch_verified_payload("COST")
     if not data: 
-        st.error("No se pudieron cargar los datos de la API.")
+        st.error("🚨 ERROR CRÍTICO: No se pudieron cargar los datos del Búnker o API.")
         return    
-# -------------------------------------------------------------------------
-    # 2. SIDEBAR: PANEL DE CONTROL DIRECTO
+
+    # -------------------------------------------------------------------------
+    # 2. SIDEBAR: PANEL DE CONTROL DIRECTO (ESTRUCTURA BLOOMBERG)
     # -------------------------------------------------------------------------
     st.sidebar.title("🏛️ Master Control")
     
-    # Referencia de precio base
-    p_ref = st.sidebar.number_input("Market Price Ref. ($)", value=float(data['price']), step=0.01, format="%.2f")
+    # Referencia de precio base (Extracción segura del payload)
+    current_mkt_price = float(data.get('price', 0))
+    p_ref = st.sidebar.number_input("Market Price Ref. ($)", value=current_mkt_price, step=0.01, format="%.2f")
 
     st.sidebar.divider()
     
@@ -459,7 +459,7 @@ def main():
 
     st.sidebar.divider()
 
-    # --- SECCIÓN 2: LABORATORIO MACRO (DESPLEGADO) ---
+    # --- SECCIÓN 2: LABORATORIO MACRO ---
     st.sidebar.subheader("2. Laboratorio Macroeconómico")
     u_rate = st.sidebar.slider("Tasa de Desempleo (%)", 3.0, 18.0, 4.2)
     income_g = st.sidebar.slider("Crec. Ingreso Disponible (%)", -12.0, 12.0, 2.5) / 100
@@ -476,11 +476,12 @@ def main():
     macro_adj = (income_g * 1.5) + (blended_gdp * 0.8) - (inflation * 1.2)
     final_wacc = wacc_base + fed_rates 
 
-    # --- MOTOR DE VALORACIÓN ---
+    # --- MOTOR DE VALORACIÓN (VALUATION ORACLE) ---
     if final_wacc <= g_terminal:
         f_val, pv_f, pv_t, flows = float('nan'), 0.0, 0.0, []
         upside = 0.0
     else:
+        # Invocamos el Oracle con los datos del payload 'data'
         f_val, pv_f, pv_t, flows = ValuationOracle.run_macro_dcf(
             data['fcf_now_b'], g1_in, g2_in, final_wacc, g_terminal,
             shares=data['shares_m'], cash=data['cash_b'], debt=data['debt_b'], 
@@ -491,10 +492,13 @@ def main():
     st.sidebar.divider()
     st.sidebar.caption("🚀 Terminal Reactiva: Todos los cambios impactan en tiempo real.")
 
-    # 4. Cabecera con Lógica Beta Neutro
-    st.title(f"🏛️ {data['info'].get('longName')} Institutional Terminal")
+    # -------------------------------------------------------------------------
+    # 3. CABECERA INSTITUCIONAL
+    # -------------------------------------------------------------------------
+    st.title(f"🏛️ {data['info'].get('longName', 'Costco Wholesale')} Institutional Terminal")
     st.caption(f"Sync SEC 2026 | Build: v2026.04.06 | GDP Blended: {blended_gdp*100:.3f}% | WACC: {final_wacc*100:.2f}%")
 
+    # Layout de Métricas High-Impact
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("P/E TTM", f"{data['info'].get('trailingPE', 52.9):.1f}x", "Premium Valuation")
     m2.metric("Mkt Cap", f"${data['mkt_cap_b']:,.1f}B", "NASDAQ: COST")
@@ -506,7 +510,9 @@ def main():
 
     st.markdown("---")
 
-    # 5. ARQUITECTURA DE PESTAÑAS
+    # -------------------------------------------------------------------------
+    # 4. ARQUITECTURA DE PESTAÑAS (DOODECÁGONO DE ANÁLISIS)
+    # -------------------------------------------------------------------------
     tabs = st.tabs([
         "📋 Resumen", "🛡️ Scorecard & Radar", "🔬 Peer Analysis", "💰 Ganancias", "🌪️ Stress Test Pro", 
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "🔬 Comparativa APT", "📜 Metodología", "📈 Opciones Lab"
