@@ -159,10 +159,6 @@ st.markdown("""
 # 2. MOTOR DE INTELIGENCIA DE DATOS (SEC AUDIT ENGINE + BÚNKER FALLBACK)
 # =============================================================================
 
-# =============================================================================
-# 2. MOTOR DE INTELIGENCIA DE DATOS (SEC AUDIT ENGINE + BÚNKER FALLBACK)
-# =============================================================================
-
 class InstitutionalDataService:
     """Clase maestra para la adquisición y normalización de datos auditados COST & PEERS."""
     
@@ -364,6 +360,37 @@ class ValuationOracle:
         theta = (-(S * norm.pdf(d1) * sigma / (2 * np.sqrt(T))) - r * K * np.exp(-r * T) * norm.cdf(cp * d2)) / 365
         
         return {"price": price, "delta": delta, "gamma": gamma, "vega": vega, "theta": theta}
+
+# =============================================================================
+# 3. NÚCLEO DE VALORACIÓN CUANTITATIVA (DCF & MONTE CARLO ENGINE)
+# =============================================================================
+
+class ValuationEngine:
+    """Calculador de Valor Intrínseco con Simulación de Stress Test."""
+    
+    @staticmethod
+    def calculate_wacc(beta, risk_free=0.042, equity_risk_premium=0.05):
+        """Calcula el Coste de Capital (WACC) simplificado para retail."""
+        # CAPM: Ke = Rf + Beta * (Rm - Rf)
+        return risk_free + (beta * equity_risk_premium)
+
+    @staticmethod
+    def run_dcf(fcf_base, growth_rate, wacc, terminal_growth=0.02):
+        """Ejecuta un modelo DCF de 5 años + Valor Terminal."""
+        projections = []
+        current_fcf = fcf_base
+        
+        for i in range(5):
+            current_fcf *= (1 + growth_rate)
+            # Descontamos al presente: FCF / (1 + WACC)^t
+            projections.append(current_fcf / ((1 + wacc) ** (i + 1)))
+            
+        # Valor Terminal (Modelo Gordon Growth)
+        last_fcf = projections[-1] * ((1 + wacc) ** 5) # Volvemos al valor nominal del año 5
+        terminal_value = (last_fcf * (1 + terminal_growth)) / (wacc - terminal_growth)
+        terminal_value_pv = terminal_value / ((1 + wacc) ** 5)
+        
+        return sum(projections) + terminal_value_pv
 
 # =============================================================================
 # 4. INTERFAZ DE USUARIO Y CONTROL DE PANELES (MAIN)
