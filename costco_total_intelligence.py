@@ -215,47 +215,68 @@ class InstitutionalDataService:
         except Exception as e:
             st.warning(f"⚠️ Yahoo restringido para {ticker}. Accediendo al Búnker local...")
             
-            # FALLBACK: Carga desde el búnker de archivos que descargaste
+# --- LÓGICA DE FALLBACK (BÚNKER OFFLINE) ---
+        except Exception as e:
+            archivo_local = "market_history.csv" # Tu búnker de precios
+            stats_local = "peers_stats.csv"     # Tu búnker de fundamentales
+            
             if os.path.exists(archivo_local):
                 st.info(f"🏛️ Modo Offline Activado: Usando {archivo_local}")
                 
+                # 1. Extraer precio y rango de 52 semanas del CSV de precios
                 df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
-                ultimo_precio = float(df_bunker['Close'].iloc[-1])
+                # Si el CSV tiene multi-index (Ticker en columnas), buscamos COST
+                if ticker in df_bunker.columns:
+                    serie_ticker = df_bunker[ticker].dropna()
+                else:
+                    serie_ticker = df_bunker['Close'].dropna() if 'Close' in df_bunker.columns else df_bunker.iloc[:, 0]
                 
-                # Calculamos el min y max real de tu archivo CSV para la barra
-                min_52w = float(df_bunker['Low'].tail(252).min()) # 252 días = 1 año bursátil
-                max_52w = float(df_bunker['High'].tail(252).max())
+                ultimo_precio = float(serie_ticker.iloc[-1])
+                min_52w = float(serie_ticker.tail(252).min())
+                max_52w = float(serie_ticker.tail(252).max())
+                
+                # 2. Intentar rescatar fundamentales reales del CSV de estadísticas
+                resumen_bunker = {
+                    "Revenue ($B)": 280.5, "EBITDA ($B)": 12.2, "Net Income ($B)": 7.8,
+                    "ROE (%)": 29.5, "Debt/Equity": 42.0, "Current Ratio": 1.08, "Operating Margin (%)": 3.6
+                }
+                
+                if os.path.exists(stats_local):
+                    df_s = pd.read_csv(stats_local)
+                    row = df_s[df_s['Ticker'] == ticker]
+                    if not row.empty:
+                        # Si el búnker tiene los datos nuevos que agregamos hoy, los usamos
+                        resumen_bunker["Revenue ($B)"] = row.get('Mkt Cap ($B)', 280.0).values[0] # Ajustar según columna
+                        resumen_bunker["Operating Margin (%)"] = row.get('Net Margin (%)', 3.6).values[0]
 
+                # 3. Retornar el Diccionario de Datos Consolidado
                 return {
                     "info": {
                         "currentPrice": ultimo_precio, 
-                        "shortName": "Costco Wholesale", 
+                        "shortName": "Costco Wholesale (Bunker Mode)", 
                         "symbol": ticker,
                         "trailingEps": 16.5,
                         "fiftyTwoWeekLow": min_52w, 
                         "fiftyTwoWeekHigh": max_52w 
                     },
                     "price": ultimo_precio,
-                    "mkt_cap_b": 450.0,
-                    "fcf_now_b": 9.5,
-                    "fcf_hist_b": pd.Series([8.0, 8.5, 9.0, 9.5]),
-                    "beta": 0.98,
-                    "shares_m": 443.6,
-                    "cash_b": 22.0,
-                    "debt_b": 9.0,
+                    "mkt_cap_b": resumen_bunker["Revenue ($B)"] * 1.8, # Estimación rápida
+                    "fcf_now_b": 9.8,
+                    "fcf_hist_b": pd.Series([8.2, 8.8, 9.2, 9.8]),
+                    "beta": 0.85,
+                    "shares_m": 443.0,
+                    "cash_b": 18.0,
+                    "debt_b": 7.0,
                     "hist_years": ["2023", "2024", "2025"],
-                    "rev_vals": [220, 240, 250],
-                    "ebitda_vals": [15, 17, 18],
-                    "ni_vals": [6, 7, 8],
+                    "rev_vals": [242, 263, 280],
+                    "ebitda_vals": [10.5, 11.2, 12.2],
+                    "ni_vals": [6.5, 7.2, 7.8],
                     "eps_vals": 16.5,
-                    "acc_summary": {
-                        "Revenue ($B)": 250.0, "EBITDA ($B)": 18.0, "Net Income ($B)": 8.0,
-                        "ROE (%)": 28.0, "Debt/Equity": 45.0, "Current Ratio": 1.05, "Operating Margin (%)": 3.5
-                    },
-                    "analysts": {"key": "BUY", "score": 2.0, "target": 1060.0, "count": 37}
+                    "acc_summary": resumen_bunker,
+                    "analysts": {"key": "BUY", "score": 2.0, "target": 1050.0, "count": 35}
                 }
             else:
-                st.error(f"❌ Error crítico: No se encontraron datos para {ticker}")
+                st.error(f"❌ Error crítico: No se encontró el archivo {archivo_local}. Búnker vacío.")
                 return None
 
         # Procesamiento de Cuadro de 3 Años (Mantenemos tu lógica exacta si el try tiene éxito)
