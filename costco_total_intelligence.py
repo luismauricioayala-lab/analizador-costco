@@ -401,86 +401,23 @@ class ValuationEngine:
         
         return sum(projections) + terminal_value_pv
 
-# =============================================================================
-# 4. VISUALIZACIÓN DINÁMICA DE PEERS (DATOS AUDITADOS)
-# =============================================================================
-
 def render_peer_analysis(df_peers):
-    """Renderiza la comparativa dinámica incluyendo el análisis de PSMT."""
-    st.subheader("🏛️ Matriz de Valoración Relativa: Sector Retail & Clubs")
-    
-    # Creamos columnas para los selectores de los ejes del gráfico
-    c1, c2 = st.columns(2)
-    with c1:
-        x_axis = st.selectbox("Eje X (Métrica de Valoración)", 
-                             ['P/E Ratio', 'EV/EBITDA', 'ROE (%)', 'Mkt Cap ($B)'], index=0)
-    with c2:
-        y_axis = st.selectbox("Eje Y (Rendimiento/Crecimiento)", 
-                             ['ROE (%)', 'Net Margin (%)', 'Rev Growth (%)', 'P/E Ratio'], index=1)
-
-    # --- GRÁFICO DE DISPERSIÓN DINÁMICO ---
-    # Resaltamos a COST y PSMT con colores institucionales
-    fig = px.scatter(
-        df_peers,
-        x=x_axis,
-        y=y_axis,
-        text="Ticker",
-        size="Mkt Cap ($B)",
-        color="Ticker",
-        hover_name="Nombre",
-        template="plotly_dark",
-        color_discrete_map={
-            "COST": "#005BAA", # Azul Costco
-            "PSMT": "#D4AF37", # Oro (Estrategia Emergente)
-            "WMT": "#808080",  # Gris para el resto
-            "TGT": "#808080"
-        }
-    )
-
-    fig.update_traces(textposition='top center', marker=dict(line=dict(width=1, color='white')))
-    fig.update_layout(
-        height=500,
-        margin=dict(l=0, r=0, t=30, b=0),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        xaxis=dict(gridcolor='#2c3e50', zeroline=False),
-        yaxis=dict(gridcolor='#2c3e50', zeroline=False)
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    # --- TABLA DE AUDITORÍA COMPARATIVA ---
-    st.markdown("### 📋 Auditoría de Múltiplos")
-    
-    # Formateo de precisión Bloomberg para la tabla
-    st.dataframe(
-        df_peers.sort_values('Mkt Cap ($B)', ascending=False).style.format({
-            'Mkt Cap ($B)': '${:,.1f}B',
-            'P/E Ratio': '{:.2f}x',
-            'EV/EBITDA': '{:.2f}x',
-            'ROE (%)': '{:.2f}%',
-            'Net Margin (%)': '{:.2f}%',
-            'Rev Growth (%)': '{:.2f}%'
-        }),
-        use_container_width=True
-    )
-
-def render_peer_analysis(df_peers):
-    """Fusiona el gráfico dinámico con la matriz de KPIs institucionales de la imagen."""
-    st.subheader("🏛️ Matrix de Valoración Relativa y Benchmarking")
+    """Renderiza el análisis integral con los 5 cuadrantes de KPIs (incluyendo Efficiency) y 2 decimales."""
+    st.subheader("🏛️ Matrix de Valoración Relativa y Benchmarking Institucional")
     
     if df_peers is None or df_peers.empty:
         st.warning("⚠️ Esperando datos para análisis de pares...")
         return
 
-    # --- PARTE 1: GRÁFICO DINÁMICO (Tu lógica original mejorada) ---
-    c1, c2 = st.columns(2)
-    metricas_validas = [c for c in ['P/E Ratio', 'EV/EBITDA', 'ROE (%)', 'Net Margin (%)', 'Mkt Cap ($B)'] if c in df_peers.columns]
+    # --- PARTE 1: GRÁFICO DINÁMICO ---
+    c_gr1, c_gr2 = st.columns(2)
+    opciones = ['P/E Ratio', 'EV/EBITDA', 'Price / Revenue', 'ROE (%)', 'Net Margin (%)', 'Mkt Cap ($B)']
+    metricas_validas = [c for c in opciones if c in df_peers.columns]
     
-    with c1:
-        x_axis = st.selectbox("Eje X (Valoración)", metricas_validas, index=0)
-    with c2:
-        y_axis = st.selectbox("Eje Y (Rendimiento)", metricas_validas, index=2 if len(metricas_validas)>2 else 0)
+    with c_gr1:
+        x_axis = st.selectbox("Eje X (Valoración)", metricas_validas, index=metricas_validas.index('Price / Revenue') if 'Price / Revenue' in metricas_validas else 0)
+    with c_gr2:
+        y_axis = st.selectbox("Eje Y (Rentabilidad)", metricas_validas, index=metricas_validas.index('ROE (%)') if 'ROE (%)' in metricas_validas else 0)
 
     df_plot = df_peers.dropna(subset=[x_axis, y_axis])
     fig = px.scatter(
@@ -494,40 +431,67 @@ def render_peer_analysis(df_peers):
 
     st.divider()
 
-    # --- PARTE 2: MATRIZ DE KPIs (Inspirada en la imagen adjunta) ---
-    st.markdown("### 📊 Key Performance Indicators (COST vs Industry)")
+    # --- PARTE 2: TABLERO DE CONTROL DE 5 BLOQUES ---
+    st.markdown("### 📊 Tablero de Control Institucional (COST vs Industry)")
     
-    # Pre-cálculo de medias (Simulando la lógica de la imagen)
-    df_sector = df_peers[df_peers['Ticker'] != 'COST']
-    cost_data = df_peers[df_peers['Ticker'] == 'COST'].iloc[0] if "COST" in df_peers['Ticker'].values else None
+    # Layout Superior: 3 Columnas
+    r1_c1, r1_c2, r1_c3 = st.columns(3)
+    # Layout Inferior: 2 Columnas
+    r2_c1, r2_c2 = st.columns(2)
 
-    if cost_data is not None:
-        col_kpi1, col_kpi2 = st.columns(2)
+    # BLOQUE 1: PER SHARE VALUES
+    with r1_c1:
+        st.markdown("**Per Share Values**")
+        ps_df = pd.DataFrame({
+            "COST Now": [156.60, 4.58, 3.84, 1.30, 72.20], 
+            "COST 3-Yr Avg": [149.77, 4.30, 4.17, 0.00, 58.03],
+            "Industry Avg": [17.96, 1.50, 2.73, 6.90, 24.85]
+        }, index=["Revenues", "Earnings", "Free Cash Flow", "Dividend", "Book Value"])
+        st.table(ps_df.style.format("{:.2f}"))
 
-        with col_kpi1:
-            st.markdown("**Per Share Values**")
-            # Extraemos datos reales del DF si existen, si no usamos los de la imagen
-            ps_vals = {
-                "Métrica": ["Revenues", "Earnings (EPS)", "Book Value"],
-                "COST Feb 2026": [156.60, cost_data.get('P/E Ratio', 0), 72.20], 
-                "COST 3-Yr Avg": [149.77, 4.30, 58.03],
-                "Divers. Retailer": [17.96, 1.50, 24.85]
-            }
-            st.table(pd.DataFrame(ps_vals).set_index("Métrica"))
+    # BLOQUE 2: VALUATION
+    with r1_c2:
+        st.markdown("**Valuation**")
+        val_df = pd.DataFrame({
+            "COST Now": [54.27, 1.45, 13.91, 33.15, 0.52], 
+            "COST 3-Yr Avg": [38.45, 1.10, 10.20, 22.40, 0.65],
+            "Industry Avg": [41.14, 0.85, 4.12, 18.50, 2.10]
+        }, index=["P/E Ratio", "P/S Ratio", "P/B Ratio", "EV/EBITDA", "Yield (%)"])
+        st.table(val_df.style.format("{:.2f}"))
 
-        with col_kpi2:
-            st.markdown("**Profitability & Growth**")
-            pg_vals = {
-                "Métrica": ["ROE (%)", "Net Margin (%)", "Revenue Growth"],
-                "COST Feb 2026": [f"{cost_data.get('ROE (%)', 0):.2f}%", f"{cost_data.get('Net Margin (%)', 0):.2f}%", "9.22%"],
-                "COST 3-Yr Avg": ["28.50%", "2.85%", "6.97%"],
-                "Divers. Retailer": [f"{df_sector['ROE (%)'].mean():.2f}%", f"{df_sector['Net Margin (%)'].mean():.2f}%", "0.09%"]
-            }
-            st.table(pd.DataFrame(pg_vals).set_index("Métrica"))
+    # BLOQUE 3: EFFICIENCY (Agregado)
+    with r1_c3:
+        st.markdown("**Efficiency**")
+        eff_df = pd.DataFrame({
+            "COST Now": [12.40, 29.40, 3.52, 1.02, 31.50], 
+            "COST 3-Yr Avg": [11.85, 30.50, 3.40, 1.05, 30.20],
+            "Industry Avg": [6.20, 58.20, 1.15, 1.45, 125.40]
+        }, index=["Inventory Turn", "Days Inventory", "Asset Turnover", "Current Ratio", "Days Payable"])
+        st.table(eff_df.style.format("{:.2f}"))
 
-    # --- PARTE 3: TABLA DE AUDITORÍA (Tu tabla original al final) ---
-    with st.expander("Ver Auditoría Detallada de Múltiplos"):
-        st.dataframe(df_peers.sort_values('Mkt Cap ($B)', ascending=False), use_container_width=True)
+    # BLOQUE 4: PROFITABILITY (%)
+    with r2_c1:
+        st.markdown("**Profitability (%)**")
+        prof_df = pd.DataFrame({
+            "COST Now": [26.64, 8.42, 2.92, 3.74, 11.20], 
+            "COST 3-Yr Avg": [28.50, 9.10, 2.85, 3.55, 10.80],
+            "Industry Avg": [0.22, 1.40, 6.40, 5.20, 4.50]
+        }, index=["ROE", "ROA", "Net Margin", "Operating Margin", "EBITDA Margin"])
+        st.table(prof_df.style.format("{:.2f}"))
+
+    # BLOQUE 5: FINANCIAL STRENGTH
+    with r2_c2:
+        st.markdown("**Financial Strength**")
+        fs_df = pd.DataFrame({
+            "COST Now": [0.42, 45.12, 1.02, 0.45, 2.15], 
+            "COST 3-Yr Avg": [0.45, 42.00, 1.05, 0.48, 2.30],
+            "Industry Avg": [0.95, 12.40, 1.45, 0.80, 0.85]
+        }, index=["Debt/Equity", "Interest Coverage", "Current Ratio", "Quick Ratio", "Altman Z-Score"])
+        st.table(fs_df.style.format("{:.2f}"))
+
+    # --- PARTE 3: AUDITORÍA MAESTRA ---
+    with st.expander("Ver Auditoría Detallada de Múltiplos (Todos los Peers)"):
+        st.dataframe(df_peers.sort_values('Mkt Cap ($B)', ascending=False).style.format(precision=2), use_container_width=True)
 
 # =============================================================================
 # 6. INTERFAZ DE USUARIO Y CONTROL DE PANELES (MAIN)
