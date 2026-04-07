@@ -484,9 +484,37 @@ def main():
     m1.metric("P/E TTM", f"{data['info'].get('trailingPE', 52.9):.1f}x")
     m2.metric("Mkt Cap", f"${data['mkt_cap_b']:,.1f}B")
     
+# --- CÁLCULOS PREVIOS ---
     b_val = data['beta']
-    b_label = "Market Neutral" if 0.95 <= b_val <= 1.05 else "Volatility Alert"
-    m3.metric("Riesgo Beta", f"{b_val:.3f}", b_label)
+    
+    # Lógica de Etiquetado y Color Neutral para Beta
+    if 0.95 <= b_val <= 1.05:
+        b_label = "Market Neutral"
+        b_color = "#808080"  # Gris (Neutralidad)
+        b_icon = "●"
+    elif b_val > 1.05:
+        b_label = "High Volatility"
+        b_color = "#FF4B4B"  # Rojo (Más riesgo)
+        b_icon = "▲"
+    else:
+        b_label = "Low Volatility"
+        b_color = "#00FF00"  # Verde (Defensivo)
+        b_icon = "▼"
+
+    # --- RENDERIZADO DE MÉTRICAS ---
+    # m3: Riesgo Beta con Badge Custom
+    with m3:
+        st.metric("Riesgo Beta", f"{b_val:.3f}", delta=None) # Quitamos el delta nativo
+        st.markdown(f"""
+            <div style="margin-top: -15px;">
+                <span style="color: {b_color}; font-size: 0.85rem; font-weight: bold; 
+                border: 1px solid {b_color}; padding: 1px 8px; border-radius: 10px;">
+                    {b_icon} {b_label}
+                </span>
+            </div>
+        """, unsafe_allow_html=True)
+
+    # m4: Intrinsic Value (Mantenemos el delta porque aquí sí hay dirección)
     m4.metric("Intrinsic Value", f"${f_val:,.2f}", f"{upside:+.1f}%")
 
     st.markdown("---")
