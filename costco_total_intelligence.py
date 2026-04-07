@@ -773,6 +773,7 @@ def main():
             "Nasdaq 100 (Tech)": "QQQ",
             "Walmart (WMT)": "WMT",
             "Target (TGT)": "TGT",
+            "Pricesmart (PSMT)": "PSMT",
             "BJ's Wholesale (BJ)": "BJ",
             "Kroger (KR)": "KR",
             "Amazon (AMZN)": "AMZN",
@@ -792,7 +793,8 @@ def main():
             "Nasdaq 100 (Tech)", 
             "Walmart (WMT)", 
             "Target (TGT)", 
-            "Amazon (AMZN)", 
+            "Amazon (AMZN)",
+            "Pricesmart (PSMT)",    
             "BJ's Wholesale (BJ)", 
             "Kroger (KR)", 
             "Home Depot (HD)", 
@@ -818,7 +820,7 @@ def main():
             "COST": "Costco", "WMT": "Walmart", "TGT": "Target", 
             "BJ": "BJ's", "KR": "Kroger", "AMZN": "Amazon", 
             "HD": "Home Depot", "LOW": "Lowe's", "SFM": "Sprouts", 
-            "DLTR": "Dollar Tree", "DG": "Dollar General", 
+            "DLTR": "Dollar Tree", "DG": "Dollar General", "PSMT": "Pricesmart", 
             "SPY": "S&P 500", "QQQ": "Nasdaq 100"
         }
 
@@ -861,6 +863,7 @@ def main():
             "QQQ": "Nasdaq 100 (Tech)",
             "WMT": "Walmart (WMT)",
             "TGT": "Target (TGT)",
+            "PSMT": "Pricesmart (PSMT)",
             "BJ": "BJ's Wholesale (BJ)",
             "KR": "Kroger (KR)",
             "AMZN": "Amazon (AMZN)",
