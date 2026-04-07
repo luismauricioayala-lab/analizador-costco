@@ -393,7 +393,71 @@ class ValuationEngine:
         return sum(projections) + terminal_value_pv
 
 # =============================================================================
-# 4. INTERFAZ DE USUARIO Y CONTROL DE PANELES (MAIN)
+# 4. VISUALIZACIÓN DINÁMICA DE PEERS (DATOS AUDITADOS)
+# =============================================================================
+
+def render_peer_analysis(df_peers):
+    """Renderiza la comparativa dinámica incluyendo el análisis de PSMT."""
+    st.subheader("🏛️ Matriz de Valoración Relativa: Sector Retail & Clubs")
+    
+    # Creamos columnas para los selectores de los ejes del gráfico
+    c1, c2 = st.columns(2)
+    with c1:
+        x_axis = st.selectbox("Eje X (Métrica de Valoración)", 
+                             ['P/E Ratio', 'EV/EBITDA', 'ROE (%)', 'Mkt Cap ($B)'], index=0)
+    with c2:
+        y_axis = st.selectbox("Eje Y (Rendimiento/Crecimiento)", 
+                             ['ROE (%)', 'Net Margin (%)', 'Rev Growth (%)', 'P/E Ratio'], index=1)
+
+    # --- GRÁFICO DE DISPERSIÓN DINÁMICO ---
+    # Resaltamos a COST y PSMT con colores institucionales
+    fig = px.scatter(
+        df_peers,
+        x=x_axis,
+        y=y_axis,
+        text="Ticker",
+        size="Mkt Cap ($B)",
+        color="Ticker",
+        hover_name="Nombre",
+        template="plotly_dark",
+        color_discrete_map={
+            "COST": "#005BAA", # Azul Costco
+            "PSMT": "#D4AF37", # Oro (Estrategia Emergente)
+            "WMT": "#808080",  # Gris para el resto
+            "TGT": "#808080"
+        }
+    )
+
+    fig.update_traces(textposition='top center', marker=dict(line=dict(width=1, color='white')))
+    fig.update_layout(
+        height=500,
+        margin=dict(l=0, r=0, t=30, b=0),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(gridcolor='#2c3e50', zeroline=False),
+        yaxis=dict(gridcolor='#2c3e50', zeroline=False)
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # --- TABLA DE AUDITORÍA COMPARATIVA ---
+    st.markdown("### 📋 Auditoría de Múltiplos")
+    
+    # Formateo de precisión Bloomberg para la tabla
+    st.dataframe(
+        df_peers.sort_values('Mkt Cap ($B)', ascending=False).style.format({
+            'Mkt Cap ($B)': '${:,.1f}B',
+            'P/E Ratio': '{:.2f}x',
+            'EV/EBITDA': '{:.2f}x',
+            'ROE (%)': '{:.2f}%',
+            'Net Margin (%)': '{:.2f}%',
+            'Rev Growth (%)': '{:.2f}%'
+        }),
+        use_container_width=True
+    )
+
+# =============================================================================
+# 5. INTERFAZ DE USUARIO Y CONTROL DE PANELES (MAIN)
 # =============================================================================
 
 def main():
@@ -891,37 +955,53 @@ def main():
             else:
                 st.info("📉 Nota: Modo offline activo. Cargue 'market_history.csv' para ver comparativas.")
 
-        # --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO ---
+# --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO (CON ESCUDO DE OCCAM) ---
         if perf_df is not None and not perf_df.empty:
-            # Normalización Base 100
-            perf_norm = (perf_df / perf_df.iloc[0]) * 100
             
-            # Limpiamos columnas: solo dejamos las que están en nuestro mapeo y existen en el DF
-            columnas_finales = [c for c in perf_norm.columns if c in nombres_pro]
-            perf_norm = perf_norm[columnas_finales]
+            # 1. EL TRADUCTOR: Resolvemos la crisis de identidad de los índices
+            # Esto convierte ^GSPC en SPY y ^IXIC en QQQ antes de cualquier cálculo
+            traductor = {"^GSPC": "SPY", "^IXIC": "QQQ"}
+            perf_df = perf_df.rename(columns=traductor)
             
-            # Renombramos columnas para la leyenda profesional
-            perf_norm.columns = [nombres_pro.get(col, col) for col in perf_norm.columns]
+            # 2. EL FILTRO DE SEGURIDAD: Solo pedimos lo que realmente existe en el CSV/Descarga
+            # Esto evita el KeyError si el usuario seleccionó un ticker que no está en el búnker
+            tickers_existentes = [t for t in full_ticker_list if t in perf_df.columns]
             
-            fig_perf = px.line(perf_norm, template="plotly_dark")
-            
-            # Destacamos a COST con una línea más gruesa
-            if "Costco (COST)" in perf_norm.columns:
-                fig_perf.update_traces(selector=dict(name="Costco (COST)"), line=dict(width=4, color="#005BAA"))
-            
-            fig_perf.update_layout(
-                height=550, 
-                hovermode="x unified", 
-                yaxis_title="Rendimiento (Base 100)",
-                legend=dict(
-                    orientation="h", 
-                    yanchor="bottom", 
-                    y=-0.5, 
-                    xanchor="center", 
-                    x=0.5
+            if tickers_existentes:
+                # 3. CÁLCULO SEGURO: Normalización Base 100 usando solo los existentes
+                perf_norm = (perf_df[tickers_existentes] / perf_df[tickers_existentes].iloc[0]) * 100
+                
+                # Limpiamos columnas para el mapeo de nombres largos
+                columnas_finales = [c for c in perf_norm.columns if c in nombres_pro]
+                perf_norm = perf_norm[columnas_finales]
+                
+                # Renombramos para la leyenda profesional
+                perf_norm.columns = [nombres_pro.get(col, col) for col in perf_norm.columns]
+                
+                fig_perf = px.line(perf_norm, template="plotly_dark")
+                
+                # Destacamos a COST con una línea más gruesa
+                # Usamos el nombre largo que pusimos en nombres_pro
+                nombre_costco = nombres_pro.get("COST", "Costco (COST)")
+                if nombre_costco in perf_norm.columns:
+                    fig_perf.update_traces(selector=dict(name=nombre_costco), 
+                                         line=dict(width=4, color="#005BAA"))
+                
+                fig_perf.update_layout(
+                    height=550, 
+                    hovermode="x unified", 
+                    yaxis_title="Rendimiento (Base 100)",
+                    legend=dict(
+                        orientation="h", 
+                        yanchor="bottom", 
+                        y=-0.5, 
+                        xanchor="center", 
+                        x=0.5
+                    )
                 )
-            )
-            st.plotly_chart(fig_perf, use_container_width=True)
+                st.plotly_chart(fig_perf, use_container_width=True)
+            else:
+                st.warning("⚠️ No se encontraron datos para los tickers seleccionados en la fuente de alimentación.")
             
         # --- VISUALIZACIÓN 2: DISPERSIÓN DE VALORACIÓN ---
         c_p1, c_p2 = st.columns(2)
