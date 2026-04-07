@@ -39,6 +39,163 @@ st.set_page_config(
     }
 )
 
+# Inyección de CSS de Grado Bancario: Soporte Total Temas Light/Dark
+st.markdown("""
+    <style>
+    :root {
+        --accent-blue: #005BAA;
+        --accent-gold: #D4AF37;
+        --danger-red: #f85149;
+        --success-green: #3fb950;
+        --bg-card: var(--secondary-background-color);
+        --text-color: var(--text-color);
+        --border-color: var(--border-color);
+    }
+    
+    /* Tiles de métricas con profundidad */
+    div[data-testid="stMetric"] {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border-color);
+        padding: 30px !important;
+        border-radius: 20px !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        transition: all 0.4s ease;
+    }
+    div[data-testid="stMetric"]:hover { transform: translateY(-8px); border-color: var(--accent-blue); }
+
+    /* Pestañas (Tabs) de Grado Industrial con indicador activo grueso */
+    .stTabs [data-baseweb="tab-list"] { gap: 15px; border-bottom: 2px solid var(--border-color); }
+    .stTabs [data-baseweb="tab"] {
+        height: 75px; 
+        background-color: var(--bg-card);
+        border-radius: 15px 15px 0 0; 
+        padding: 0 45px; 
+        font-weight: 800;
+        font-size: 16px;
+        color: var(--text-color);
+        border: 1px solid var(--border-color);
+    }
+    .stTabs [aria-selected="true"] { 
+        border-bottom: 6px solid var(--accent-blue) !important;
+        background-color: rgba(0, 91, 170, 0.15) !important;
+        color: var(--accent-blue) !important;
+    }
+
+    /* Caja de Cisne Negro (Black Swan Matrix) */
+    .swan-box {
+        border: 4px dashed var(--danger-red);
+        padding: 45px; border-radius: 30px;
+        background: rgba(248, 81, 73, 0.08); margin: 30px 0;
+    }
+    
+    /* Diagnóstico IA / Estrellas */
+    .conclusion-item {
+        display: flex; align-items: center; padding: 22px 35px;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--bg-card); border-radius: 18px; margin-bottom: 18px;
+        transition: all 0.3s;
+    }
+    .conclusion-item:hover { transform: translateX(10px); background: rgba(128,128,128,0.05); }
+    .icon-box { margin-right: 30px; font-size: 2.2rem; min-width: 60px; text-align: center; }
+    
+    /* Hero de Recomendación Bloomberg */
+    .recommendation-hero {
+        background: linear-gradient(135deg, #005BAA 0%, #002d58 100%);
+        color: white !important; padding: 65px; border-radius: 35px; text-align: center;
+        box-shadow: 0 30px 70px rgba(0,0,0,0.6);
+    }
+
+/* === TARJETAS DE ESCENARIO REFINADAS (SOBER IMPACT) === */
+    .scenario-card-detailed {
+        padding: 30px;
+        border-radius: 12px;
+        text-align: center;
+        margin-bottom: 20px;
+        border: 1px solid var(--border-color);
+        background-color: var(--bg-card); /* Fondo neutro */
+        transition: all 0.2s ease;
+    }
+    .scenario-card-detailed:hover { border-color: var(--accent-blue); }
+
+    /* Indicadores sutiles en la parte superior */
+    .bear-pro { border-top: 4px solid #f85149; background: rgba(248, 81, 73, 0.03); }
+    .base-pro { border-top: 4px solid #005BAA; background: rgba(0, 91, 170, 0.03); }
+    .bull-pro { border-top: 4px solid #3fb950; background: rgba(63, 185, 80, 0.03); }
+
+    .price-hero-sober { 
+        font-size: 48px; 
+        font-weight: 800; 
+        margin: 10px 0; 
+        letter-spacing: -1px;
+    }
+    .scenario-label-sober { 
+        font-size: 12px; 
+        font-weight: 700; 
+        text-transform: uppercase; 
+        color: var(--text-color); 
+        opacity: 0.7;
+        letter-spacing: 1.2px; 
+    }
+    .driver-list-sober { 
+        font-size: 13px; 
+        color: var(--text-color); 
+        opacity: 0.8;
+        margin-top: 15px; 
+        line-height: 1.6; 
+        text-align: left; 
+        border-top: 1px solid var(--border-color);
+        padding-top: 15px;
+    }
+
+/* Widget de Recomendación v4 - Datos de Alta Precisión */
+    .row-v3 {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 0.85rem;
+        height: 26px;
+    }
+    .lbl-v3 {
+        width: 110px; 
+        color: #bdc3c7;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .bar-bg-v3 {
+        flex-grow: 1;
+        background-color: #2c3e50;
+        height: 8px;
+        margin: 0 12px;
+        border-radius: 4px;
+        position: relative;
+    }
+    .bar-fill-v3 { height: 100%; border-radius: 4px; }
+    .pct-v3 {
+        width: 85px; /* Espacio para "XX (XX.X%)" */
+        text-align: right;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #ecf0f1;
+    }
+    
+    /* Tablas de Auditoría */
+    .stTable { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Texo más pequeño y estilizado st.set_page_config(
+    page_title="COST Institutional Terminal",
+    page_icon="🏛️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': None,
+        'Report a bug': None,
+        'About': "Terminal Institucional Costco v2026.04"
+    }
+)
+
 # Inyección de CSS Unificada: Bloomberg Terminal + Institutional Banking Grade
 st.markdown("""
     <style>
@@ -153,7 +310,7 @@ st.markdown("""
     /* Compactar tablas Master */
     .stDataFrame td, .stDataFrame th { padding: 1px 4px !important; }
     </style>
-    """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True) Fin de estilo modificado #
 
 # =============================================================================
 # 2. MOTOR DE INTELIGENCIA DE DATOS (SEC AUDIT ENGINE + BÚNKER FALLBACK)
