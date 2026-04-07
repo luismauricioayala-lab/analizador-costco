@@ -1,8 +1,10 @@
 [theme]
-# Solo dejamos el color de acento. Al NO definir el resto, 
-# Streamlit habilita el switch de Light/Dark para el usuario.
-primaryColor = "#005BAA"
-font = "sans serif"
+# --- ESTILO BLOOMBERG TERMINAL ---
+primaryColor = "#FF9900" 
+backgroundColor = "#000000"
+secondaryBackgroundColor = "#161616"
+textColor = "#FF9900"
+font = "monospace"
 
 [server]
 headless = true
@@ -14,6 +16,5 @@ maxUploadSize = 200
 gatherUsageStats = true
 
 [client]
-# 'developer' es vital para que el menú de hamburguesa no sea 'minimal'
 toolbarMode = "developer"
 showSidebarNavigation = true
