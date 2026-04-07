@@ -528,13 +528,54 @@ def render_peer_analysis(df_peers):
 # =============================================================================
 
 def main():
-    # --- 1. INTERCEPTOR MAESTRO (TU PARCHE BLOOMBERG) ---
+   # --- 1. MAPA DE COLORES INSTITUCIONAL COMPLETO ---
+    MAPA_COLORES_INST = {
+        # Core & Direct Peers
+        "COST": "#005BAA", # Azul Costco
+        "PSMT": "#D4AF37", # Oro PriceSmart
+        "WMT": "#FFC220",  # Amarillo Walmart
+        "TGT": "#E80018",  # Rojo Target
+        "BJ": "#003087",   # Azul BJ's
+        
+        # Retail & Grocers
+        "KR": "#004890",   # Azul Kroger
+        "AMZN": "#FF9900", # Naranja Amazon
+        "HD": "#F96302",   # Naranja Home Depot
+        "LOW": "#004990",  # Azul Lowe's
+        "SFM": "#006738",  # Verde Sprouts
+        "DLTR": "#008648", # Verde Dollar Tree
+        "DG": "#FFD200",   # Amarillo Dollar General
+        
+        # Benchmarks de Mercado
+        "SPY": "#808080",  # Gris S&P 500 (Neutral)
+        "QQQ": "#00BFFF",  # Celeste Nasdaq (Tech)
+        "S&P 500": "#808080",
+        "Nasdaq 100": "#00BFFF"
+    }    
+    
+    # --- 2. INTERCEPTOR MAESTRO (TU PARCHE BLOOMBERG) ---
     def patched_plotly_chart(fig, use_container_width=True, **kwargs):
         try:
-            fig.update_layout(template="plotly_dark", hoverformat="$,.2f")
-            fig.update_yaxes(tickformat="$,.0f")
+            if hasattr(fig, 'data'):
+                for trace in fig.data:
+                    # Buscamos el ticker en el nombre de la serie
+                    # Esto cubre casos como "COST", "Walmart (WMT)" o "SPY"
+                    for ticker, color in MAPA_COLORES_INST.items():
+                        if ticker in trace.name:
+                            trace.marker.color = color
+                            if hasattr(trace, 'line'):
+                                trace.line.color = color
+
+            fig.update_layout(
+                template="plotly_dark", 
+                hoverformat="$,.2f",
+                paper_bgcolor='rgba(0,0,0,0)', 
+                plot_bgcolor='rgba(0,0,0,0)',
+                legend=dict(font=dict(size=10))
+            )
+            # Formatos de ejes inteligentes
+            fig.update_yaxes(tickformat="$,.2f")
             fig.update_xaxes(tickformat=",.0f")
-            fig.update_traces(texttemplate="$%{z:,.0f}", selector=dict(type='heatmap'))
         except Exception:
             pass
         return st.write(fig)
