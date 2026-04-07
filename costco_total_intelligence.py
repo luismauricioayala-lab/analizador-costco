@@ -1954,24 +1954,33 @@ def main():
             
             z_mtx = [[float(ValuationOracle.run_macro_dcf(fcf_premium_lab, g1, g2_in, w, g_terminal, macro_adj=macro_adj)[0]) for g1 in g_rng] for w in w_rng]
 
+# --- CÁLCULO DE LÍMITES DINÁMICOS BASADOS EN EL CUADRO ---
+            # Convertimos la matriz en una lista plana para extraer los valores reales calculados
+            flat_z = [val for row in z_mtx for val in row]
+            z_min_real = min(flat_z)
+            z_max_real = max(flat_z)
+
             fig_giant = go.Figure(data=go.Heatmap(
                 z=z_mtx,
                 x=[f"{x*100:.1f}%" for x in g_rng],
                 y=[f"{x*100:.1f}%" for x in w_rng],
                 colorscale='RdYlGn', 
-                # --- MEJORA 1: CALIBRACIÓN DINÁMICA DE LA BARRA ---
-                zmid=p_ref, 
-                zmin=p_ref * 0.6, # Define el límite inferior del rojo
-                zmax=p_ref * 1.4, # Define el límite superior del verde
-                # --------------------------------------------------
+                
+                # --- VÍNCULO TOTAL: BARRA ANCLADA AL PRECIO Y AL CUADRO ---
+                zmid=p_ref,          # El centro de la escala siempre es el precio de la acción
+                zmin=z_min_real,     # El límite inferior se ajusta al valor mínimo del cuadro
+                zmax=z_max_real,     # El límite superior se ajusta al valor máximo del cuadro
+                # ---------------------------------------------------------
+                
                 text=[[f"${v:,.0f}" for v in row] for row in z_mtx],
                 texttemplate="%{text}", 
                 showscale=True,
-                # --- MEJORA 2: FORMATO DE MILES EN LA BARRA (#,###) ---
                 colorbar=dict(
                     title="Valuación ($)",
-                    tickformat=",.0f",
-                    thickness=20
+                    tickformat=",.0f", # Formato de miles #,###
+                    thickness=25,
+                    dtick=100,         # Saltos de 100 para claridad profesional
+                    outlinewidth=0
                 )
             ))
 
