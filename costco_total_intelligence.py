@@ -956,7 +956,7 @@ def main():
                 st.info("📉 Nota: Modo offline activo. Cargue 'market_history.csv' para ver comparativas.")
 
         # --- RENDERIZADO DEL GRÁFICO DE RENDIMIENTO ---
-        if perf_df is not None and not perf_df.empty:
+            if perf_df is not None and not perf_df.empty:
             
         # 1. EL TRADUCTOR: Renombramos índices antes de filtrar
         perf_df = perf_df.rename(columns={"^GSPC": "SPY", "^IXIC": "QQQ"})
