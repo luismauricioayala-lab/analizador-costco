@@ -525,7 +525,7 @@ def main():
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "🔬 Comparativa APT", "📜 Metodología", "📈 Opciones Lab"
     ])
     
-     MOTOR DE CÁLCULOS GLOBALES (Kit de Emergencia)
+    # MOTOR DE CÁLCULOS GLOBALES (Kit de Emergencia)
     # Estos valores se usan si el usuario no ha ido al Laboratorio todavía
     rf_g = 0.085  # Crecimiento Ventas 8.5%
     mf_e = 0.053  # Margen EBITDA 5.3%
