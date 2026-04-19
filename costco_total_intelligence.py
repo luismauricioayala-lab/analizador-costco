@@ -748,14 +748,30 @@ def main():
         else:
             # --- CÁLCULO DE ESCENARIOS CON DESGLOSE DE DRIVERS ---
             
-            # A. ESCENARIO BAJISTA (BEAR)
-            bear_wacc = final_wacc + 0.005
-            bear_g1 = g1_in * 0.90
-            bear_gt = g_terminal - 0.005
-            bear_macro = macro_adj - 0.02
-            # Aquí raramente habrá error porque el WACC sube y el G baja
+            # A. ESCENARIO BAJISTA (DEEP STRESS BEAR)
+            # Incrementamos el castigo: 
+            # En pánico, la prima de riesgo (Equity Risk Premium) se dispara.
+
+            # Subimos el spread de WACC de 0.5% a 1.25% o 1.5%
+            bear_wacc = final_wacc + 0.015  
+
+            # El crecimiento a corto plazo suele sufrir más por compresión de márgenes
+            bear_g1 = g1_in * 0.75  # Castigo del 25% en lugar del 10%
+
+            # El crecimiento terminal (GT) debe ser conservador (Piso de inflación Fed)
+            bear_gt = min(g_terminal, 0.02) - 0.005 
+
+            # Impacto Macro: Duplicamos la sensibilidad negativa
+            bear_macro = macro_adj - 0.04
+
+            # Ejecución del Oráculo con mayor margen de seguridad
             v_bear, _, _, _ = ValuationOracle.run_macro_dcf(
-                fcf_premium, bear_g1, g2_in * 0.90, bear_wacc, bear_gt, macro_adj=bear_macro
+            fcf_premium, 
+            bear_g1, 
+            g2_in * 0.75, 
+            bear_wacc, 
+            bear_gt, 
+            macro_adj=bear_macro
             )
             
             # B. ESCENARIO BASE (INTRINSIC)
