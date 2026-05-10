@@ -690,7 +690,7 @@ def main():
 
     # --- 6. ARQUITECTURA DE PESTAÑAS ---
     tabs = st.tabs([
-        "📋 Resumen", "🛡️ Scorecard & Radar", "🔬 Peer Analysis", "💰 Ganancias", "🌪️ Stress Test Pro", 
+        "📋 Resumen", "🛡️ Scorecard & Radar", "Riesgos", "🔬 Peer Analysis", "💰 Ganancias", "🌪️ Stress Test Pro", 
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "🔬 Comparativa APT", "📜 Metodología", "📈 Opciones Lab"
     ])
   
@@ -955,10 +955,66 @@ def main():
         except Exception as e:
             st.error(f"Error en la simulación: {e}")
 
-# -------------------------------------------------------------------------
-    # TAB 3: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
+
+    # -------------------------------------------------------------------------
+    # TAB 3: RISK & STRESS TEST (NUEVA)
     # -------------------------------------------------------------------------
     with tabs[2]:
+        st.subheader("🛡️ Risk Calibration Engine")
+        
+        # Creamos dos columnas: una para controles y otra para resultados
+        col_ctrl, col_res = st.columns([1, 1.2])
+
+        with col_ctrl:
+            st.markdown("### 🕹️ Simulador de Escenarios")
+            
+            # 1. Riesgo de Múltiplos (P/E)
+            pe_actual = data['info'].get('trailingPE', 51)
+            pe_target = st.slider("Ajuste de P/E (Múltiplo)", 20, 65, int(pe_actual), 
+                                 help="Bajar esto simula que el mercado deja de pagar un premium por la acción.")
+            
+            # 2. Riesgo de Tasas (WACC)
+            wacc_extra = st.slider("Shock de Tasas Fed (+%)", 0.0, 5.0, 0.0, 0.25,
+                                  help="Simula un aumento en el costo de capital.")
+            
+            # 3. Riesgo de Negocio
+            op_risk = st.select_slider("Severidad de Riesgos Operativos", 
+                                      options=["Bajo", "Moderado", "Severo", "Capitulación"])
+
+        with col_res:
+            # Lógica matemática simple de impacto
+            pe_impact = pe_target / pe_actual
+            wacc_impact = 1 - (wacc_extra * 0.07) # Por cada 1% de tasa, el valor cae ~7%
+            
+            risk_map = {"Bajo": 1.0, "Moderado": 0.92, "Severo": 0.80, "Capitulación": 0.60}
+            biz_impact = risk_map[op_risk]
+            
+            # Cálculo del nuevo Fair Value Estresado
+            fv_stressed = p_ref * pe_impact * wacc_impact * biz_impact
+            var_pct = (fv_stressed / p_ref) - 1
+
+            # Visualización principal
+            st.write("### Impacto en Valorización")
+            c1, c2 = st.columns(2)
+            c1.metric("Fair Value Estresado", f"${fv_stressed:,.2f}", f"{var_pct:.1%}", delta_color="inverse")
+            
+            # Cálculo de probabilidad de buscar el suelo ($569)
+            prob = min(abs(var_pct) * 1.2 * 100, 100) if var_pct < 0 else 0
+            c2.metric("Riesgo de Capitulación", f"{prob:.1f}%", help="Probabilidad de caer al target técnico de $569")
+
+            # Early Warning System (Alertas automáticas)
+            st.markdown("---")
+            if fv_stressed < 600:
+                st.error("🚨 CRÍTICO: El escenario actual perfora soportes históricos.")
+            elif fv_stressed < p_ref * 0.85:
+                st.warning("⚠️ ALERTA: Corrección significativa en proceso.")
+            else:
+                st.success("✅ RESILIENTE: El modelo soporta los riesgos actuales.")
+
+# -------------------------------------------------------------------------
+    # TAB 4: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
+    # -------------------------------------------------------------------------
+    with tabs[3]:
         st.subheader("🔬 Peer Analysis & Market Benchmarking (Real-Time)")
         
         # 1. Mapeo de nombres legibles a Tickers de Yahoo Finance
@@ -1379,9 +1435,9 @@ def main():
                 st.error(f"Error en matriz: {e}")
         
 # -------------------------------------------------------------------------
-    # TAB 4: SENTIMIENTO Y PROYECCIONES (FULL ESTRUCTURA + AUDITORÍA)
+    # TAB 5: SENTIMIENTO Y PROYECCIONES (FULL ESTRUCTURA + AUDITORÍA)
     # -------------------------------------------------------------------------
-    with tabs[3]:
+    with tabs[4]:
         st.subheader("Análisis de Sentimiento y Proyecciones de Wall Street")
         
         # Inyección de nota de frescura de datos al inicio
@@ -1561,9 +1617,9 @@ def main():
             st.plotly_chart(fig_eps, use_container_width=True)
                 
 # -------------------------------------------------------------------------
-    # TAB 5: STRESS TEST PRO (VERSIÓN FINAL SIN ERRORES)
+    # TAB 6: STRESS TEST PRO (VERSIÓN FINAL SIN ERRORES)
     # -------------------------------------------------------------------------
-    with tabs[4]:
+    with tabs[5]:
         st.subheader("🌪️ Simulador de Cisnes Negros & Shocks de Mercado")
         st.markdown("""<div style="background-color:rgba(248, 81, 73, 0.1); padding:15px; border-radius:10px; border-left: 5px solid #f85149; margin-bottom:20px;">
             <b>Protocolo de Stress Test:</b> Estos escenarios simulan eventos de baja probabilidad pero alto impacto (Fat Tails). 
@@ -1650,9 +1706,9 @@ def main():
             d3.metric("FCF Adjustment", f"{total_macro_stress*100:.1f}%", "Impacto Neto")
 
 # -------------------------------------------------------------------------
-    # TAB 6: FORWARD LOOKING (VARIABLES AJUSTABLES) - VERSIÓN FCF
+    # TAB 7: FORWARD LOOKING (VARIABLES AJUSTABLES) - VERSIÓN FCF
     # -------------------------------------------------------------------------
-    with tabs[5]:
+    with tabs[6]:
         st.subheader("Laboratorio de Resultados Proyectados (Forward Looking)")
         f1, f2, f3, f4 = st.columns(4)
         
@@ -1723,9 +1779,9 @@ def main():
         st.plotly_chart(fig_fwd, use_container_width=True)
         
 # -------------------------------------------------------------------------
-    # TAB 7: FINANZAS & RATIOS PRO (BLOOMBERG TERMINAL INTEGRATED - ANTI-CRASH)
+    # TAB 8: FINANZAS & RATIOS PRO (BLOOMBERG TERMINAL INTEGRATED - ANTI-CRASH)
     # -------------------------------------------------------------------------
-    with tabs[6]:
+    with tabs[7]:
         st.subheader("🏛️ Terminal de Inteligencia Financiera: Costco Wholesale")
         st.info("Fusión de Estados Financieros de Gestión y Ratios de Eficiencia Operativa (2022-2025).")
         
@@ -1959,9 +2015,9 @@ def main():
             st.plotly_chart(fig_marg, use_container_width=True)
             
 # -------------------------------------------------------------------------
-    # TAB 8: DCF LAB PRO (MATRIZ CALIBRADA Y EJES FORMATEADOS)
+    # TAB 9: DCF LAB PRO (MATRIZ CALIBRADA Y EJES FORMATEADOS)
     # -------------------------------------------------------------------------
-    with tabs[7]:
+    with tabs[8]:
         st.subheader("💎 Laboratorio de Valoración: Sensibilidad de Capital vs. Proyección de Caja")
         
         fcf_premium_lab = data['fcf_now_b'] * 1.15  
@@ -2051,9 +2107,9 @@ def main():
             st.plotly_chart(fig_f, use_container_width=True)
 
     # -------------------------------------------------------------------------
-    # TAB 9: MONTE CARLO - RECALIBRACIÓN INSTITUCIONAL
+    # TAB 10: MONTE CARLO - RECALIBRACIÓN INSTITUCIONAL
     # -------------------------------------------------------------------------
-    with tabs[8]:
+    with tabs[9]:
         st.subheader("🎲 Simulación Estocástica de Valoración (1,000 Escenarios)")
         
         # --- GESTIÓN DE SEMILLA DINÁMICA ---
@@ -2178,9 +2234,9 @@ def main():
             st.error("No se pudieron generar escenarios válidos. Revisa los parámetros de WACC y Crecimiento.")
         
 # -------------------------------------------------------------------------
-    # TAB 10: VALORACIÓN MULTI-MODELO (CONSENSO DCF vs APT)
+    # TAB 11: VALORACIÓN MULTI-MODELO (CONSENSO DCF vs APT)
     # -------------------------------------------------------------------------
-    with tabs[9]:
+    with tabs[10]:
         st.subheader("🔬 Benchmark de Valoración: DCF vs Arbitrage Pricing Theory (APT)")
         
         # Recuperación segura de EPS
@@ -2268,9 +2324,9 @@ def main():
             """, unsafe_allow_html=True)
 
     # -------------------------------------------------------------------------
-    # TAB 11: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
+    # TAB 12: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
     # -------------------------------------------------------------------------
-    with tabs[10]:
+    with tabs[11]:
         st.subheader("📑 Documentación Técnica y Fuentes de Verificación")
         
         m_col1, m_col2 = st.columns([1.5, 1], gap="large")
@@ -2361,9 +2417,9 @@ def main():
         st.caption(f"Terminal Costco Intelligence | Versión 3.4.1 | {datetime.date.today().year}")
         
     # -------------------------------------------------------------------------
-    # TAB 12: OPCIONES LAB (FULL GREEKS)
+    # TAB 13: OPCIONES LAB (FULL GREEKS)
     # -------------------------------------------------------------------------
-    with tabs[11]:
+    with tabs[12]:
         st.subheader("Laboratorio de Griegas y Pricing (Black-Scholes)")
         ok1, ok2, ok3 = st.columns(3)
         strike_p = ok1.number_input("Strike Price ($)", value=float(round(p_ref*1.05, 0)))
