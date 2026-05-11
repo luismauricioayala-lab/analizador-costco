@@ -1100,10 +1100,12 @@ def main():
         # 8. GLOSARIO DE CISNES NEGROS
         with st.expander("📖 Glosario: ¿Qué es un Cisne Negro en Costco?"):
             st.write("""
-            1. **Disrupción de Membresías:** Cambios legales que eliminen la cuota de socio (80% de la utilidad operativa).
-            2. **Fallo en Cadena de Suministro:** Bloqueo en el Pacífico que vacíe los estantes (Costco vive de la rotación).
-            3. **Contaminación de Marca:** Crisis sanitaria en productos *Kirkland Signature* que destruya la confianza.
-            4. **Compresión de Múltiplos:** Que la acción pase de 'Crecimiento' a 'Retail aburrido' (caída de ~70% de precio).
+            Un **Cisne Negro** es un evento altamente improbable, de impacto masivo y que solo parece predecible en retrospectiva.
+            **Ejemplos críticos analizados para Costco:**
+            1. **Disrupción de Membresías:** Cambios legales que prohíban el modelo de club de precios o obliguen a eliminar la cuota de socio, la cual representa cerca del 80% de la utilidad operativa de la empresa.
+            2. **Fallo en Cadena de Suministro:** Un bloqueo prolongado en el Pacífico que vacíe los estantes. Costco vive de la rotación extrema; si no hay productos frescos y exclusivos, el socio deja de ir.
+            3. **Contaminación de Marca:** Un problema de salud masivo o defecto grave ligado a los productos *Kirkland Signature* que destruya la confianza de los socios en la marca propia más valiosa del mundo.
+            4. **Compresión de Múltiplos:** Que el mercado deje de valorar a Costco como 'tecnología/crecimiento' y pase a valorarla como retail tradicional. Esto causaría una caída del precio del 70% sin que las ventas bajen ni un dólar.
             """)
 # -------------------------------------------------------------------------
     # TAB 4: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
