@@ -960,46 +960,63 @@ def main():
     # TAB 3: RISK MATRIX (NUEVA)
     # -------------------------------------------------------------------------
     with tabs[2]:
-        st.markdown("## 🔳 Risk Calibration Matrix") # Usando markdown para control total
-        st.caption("Simulador de escenarios de estrés y sensibilidad de valoración")
-              
-        # --- BLOQUE 1: INPUT GRID (MATRIZ DE CONTROLES) ---
+        st.markdown("## 🔳 Risk Calibration & Black Swan Simulator")
+        st.caption("Simulador de escenarios de estrés y sensibilidad de valoración avanzada")
+        
+        # --- NUEVO: BOTÓN DE PÁNICO (BLACK SWAN) ---
+        panic_mode = st.toggle("🚨 ACTIVAR PANIC BUTTON: SCENARIO BLACK SWAN", value=False, 
+                               help="Bloquea las variables en un escenario de capitulación total del mercado.")
+
         st.markdown("### 🕹️ Variables de Escenario")
         c1, c2, c3 = st.columns(3)
         
-        with c1:
-            st.info("**Riesgo de Mercado (Valuation)**")
-            pe_target = st.slider("Target P/E Multiplier", 15, 60, 35, help="Ajusta el múltiplo de salida esperado.")
-            margin_shock = st.select_slider("Presión en Margen Op.", options=["Ninguno", "Leve (-1%)", "Medio (-3%)", "Severo (-5%)"])
+        # Lógica de Inputs: Si el botón de pánico está activo, forzamos valores críticos
+        if panic_mode:
+            with c1:
+                st.info("**Riesgo de Mercado (Valuation)**")
+                pe_target = st.slider("Target P/E Multiplier", 10, 60, 15, disabled=True)
+                margin_shock = st.select_slider("Presión en Margen Op.", options=["Severo (-5%)"], disabled=True)
+            with c2:
+                st.warning("**Riesgo Macroeconómico**")
+                wacc_shock = st.number_input("Shock de Tasa Fed (+%)", 0.0, 10.0, 5.0, disabled=True)
+                st.markdown("⚠️ *Tasa en modo estrés máximo*")
+            with c3:
+                st.error("**Riesgo Operativo / Cisne Negro**")
+                op_risk_level = st.select_slider("Severidad Operativa", options=["Crítica"], disabled=True)
+                capitulation_mode = st.toggle("Escenario de Capitulación", value=True, disabled=True)
+        else:
+            # Tu código original sin cambios para el modo normal
+            with c1:
+                st.info("**Riesgo de Mercado (Valuation)**")
+                pe_target = st.slider("Target P/E Multiplier", 15, 60, 35, help="Ajusta el múltiplo de salida esperado.")
+                margin_shock = st.select_slider("Presión en Margen Op.", options=["Ninguno", "Leve (-1%)", "Medio (-3%)", "Severo (-5%)"])
 
-        with c2:
-            st.warning("**Riesgo Macroeconómico**")
-            wacc_shock = st.number_input("Shock de Tasa Fed (+%)", 0.0, 5.0, 0.0, 0.25)
-            inflation_impact = st.toggle("Incluir Espiral Inflacionaria", value=False)
+            with c2:
+                st.warning("**Riesgo Macroeconómico**")
+                wacc_shock = st.number_input("Shock de Tasa Fed (+%)", 0.0, 5.0, 0.0, 0.25)
+                inflation_impact = st.toggle("Incluir Espiral Inflacionaria", value=False)
 
-        with c3:
-            st.error("**Riesgo Operativo / Cisne Negro**")
-            op_risk_level = st.select_slider("Severidad Operativa", options=["Baja", "Media", "Alta", "Crítica"])
-            capitulation_mode = st.toggle("Escenario de Capitulación", value=False)
+            with c3:
+                st.error("**Riesgo Operativo / Cisne Negro**")
+                op_risk_level = st.select_slider("Severidad Operativa", options=["Baja", "Media", "Alta", "Crítica"])
+                capitulation_mode = st.toggle("Escenario de Capitulación", value=False)
 
         st.divider()
 
         # --- LÓGICA DE CÁLCULO (SENSIBILIDAD) ---
-        # Definimos rangos para la matriz (P/E vs WACC)
+        # Mantenemos tu lógica original de rangos
         pe_range = [pe_target * 0.8, pe_target * 0.9, pe_target, pe_target * 1.1, pe_target * 1.2]
         wacc_range = [wacc_shock - 0.5, wacc_shock, wacc_shock + 0.5, wacc_shock + 1.0, wacc_shock + 2.0]
         
-        # Función rápida de impacto para la matriz
         def calc_stress_price(p, w_adj):
-            # p_ref viene de tus datos de Costco cargados
+            # p_ref debe estar definido previamente como el precio actual
             base = p_ref * (p / data['info'].get('trailingPE', 50))
-            impacto_tasa = 1 - (max(0, w_adj) * 0.06) # -6% por cada 1% de tasa
+            impacto_tasa = 1 - (max(0, w_adj) * 0.06) 
             return base * impacto_tasa
 
         # --- BLOQUE 2: LA MATRIZ DE SENSIBILIDAD (HEATMAP) ---
         st.markdown("### 📊 Matriz de Sensibilidad: Fair Value vs Macro")
         
-        # Generar datos para el cuadro matricial
         matrix_data = []
         for w in wacc_range:
             row = [calc_stress_price(pe, w) for pe in pe_range]
@@ -1011,22 +1028,33 @@ def main():
             columns=[f"{int(pe)}x P/E" for pe in pe_range]
         )
 
-        # Aplicar estilo de Heatmap
         st.dataframe(
             df_matrix.style.background_gradient(cmap='RdYlGn', axis=None).format("${:,.2f}"),
             use_container_width=True
         )
 
-        # --- BLOQUE 3: ALERTAS DE CRITICIDAD ---
+        # --- BLOQUE 3: ALERTAS Y DEFINICIONES ---
         st.markdown("---")
         fv_stressed = calc_stress_price(pe_target, wacc_shock)
         
         if fv_stressed < p_ref * 0.7:
             st.error(f"🚨 ALERTA ROJA: El Fair Value estresado (${fv_stressed:,.2f}) implica una caída de más del 30%.")
         elif fv_stressed < p_ref:
-            st.warning(f"⚠️ RIESGO MODERADO: Valorización ajustada por debajo del precio actual.")
+            st.warning(f"⚠️ RIESGO MODERADO: Valorización ajustada (${fv_stressed:,.2f}) por debajo del precio actual.")
         else:
             st.success(f"✅ ZONA SEGURA: El modelo soporta el escenario actual.")
+
+        # --- NUEVO: DEFINICIONES DE CISNE NEGRO ---
+        with st.expander("📖 Glosario: ¿Qué es un Cisne Negro en Costco?"):
+            st.write("""
+            Un **Cisne Negro** es un evento altamente improbable, de impacto masivo y que solo parece predecible en retrospectiva.
+            
+            **Ejemplos críticos para Costco:**
+            1. **Disrupción de Membresías:** Cambios legales que prohíban el modelo de club de precios, eliminando el 80% de la utilidad operativa.
+            2. **Fallo en Cadena de Suministro:** Bloqueo prolongado en el Pacífico que vacíe los estantes de una empresa que vive de la rotación extrema.
+            3. **Contaminación de Marca:** Un problema de salud masivo ligado a *Kirkland Signature* que destruya la confianza de los socios.
+            4. **Compresión de Múltiplos:** Que el mercado deje de valorar a Costco como 'tecnología/crecimiento' y pase a valorarla como retail tradicional.
+            """)
 
 
 # -------------------------------------------------------------------------
