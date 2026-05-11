@@ -691,7 +691,7 @@ def main():
     # --- 6. ARQUITECTURA DE PESTAÑAS ---
     tabs = st.tabs([
         "📋 Resumen", "🛡️ Scorecard & Radar", "🔳 Matriz de Riesgos", "🔬 Peer Analysis", "💰 Ganancias", "🌪️ Stress Test Pro", 
-        "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "🔬 Comparativa APT", "📜 Metodología", "📈 Opciones Lab"
+        "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "🎯 Estrategia", "🔬 Comparativa APT", "📜 Metodología", "📈 Opciones Lab"
     ])
   
     # A partir de aquí ya puedes seguir con tus 'with tabs[0]:', etc.
@@ -2331,11 +2331,93 @@ def main():
             st.table(df_stress)
         else:
             st.error("No se pudieron generar escenarios válidos. Revisa los parámetros de WACC y Crecimiento.")
+
+
+    # -------------------------------------------------------------------------
+    # TAB 11 : ESTRATEGIA (KELLY CRITERION & CAPITAL ALLOCATION)
+    # -------------------------------------------------------------------------
+    with tabs[10]: # Ajusta el índice según tu lista de tabs
+        st.markdown("## 🎯 Estrategia de Inversión y Gestión de Capital")
+        st.caption("Cálculo del tamaño de posición óptimo utilizando el Criterio de Kelly")
+
+        # 1. PARÁMETROS BASE (Extracción segura)
+        db_strat = st.session_state.get('data_bunker', {})
+        current_price = db_strat.get('info', {}).get('currentPrice', 0.0)
+        
+        # Recuperamos el Fair Value del DCF y la Probabilidad del Monte Carlo
+        # Si no existen (porque el usuario no entró a esas pestañas), usamos defaults
+        fv_target = st.session_state.get('fair_value_dcf', current_price * 1.15)
+        win_prob = st.session_state.get('monte_carlo_prob', 0.60) 
+
+        if current_price == 0:
+            st.warning("⚠️ No se detectó el precio actual. Por favor, asegúrate de que el Búnker de Datos esté cargado.")
+        else:
+            # 2. CÁLCULOS MATEMÁTICOS
+            upside = (fv_target / current_price) - 1
+            # Definimos un "Escenario de Salida" (Downside) basado en una caída estándar o de pánico
+            downside_risk = 0.25 # 25% de riesgo de pérdida (Stop Loss mental)
+            
+            # Ratio Recompensa/Riesgo (b en la fórmula de Kelly)
+            ratio_r = upside / downside_risk if downside_risk > 0 else 0
+
+            # 3. INTERFAZ VISUAL
+            c_exec1, c_exec2 = st.columns([1, 1.5])
+
+            with c_exec1:
+                st.subheader("📊 Variables de Decisión")
+                st.metric("Precio Actual", f"${current_price:,.2f}")
+                st.metric("Valor Intrínseco (DCF)", f"${fv_target:,.2f}", f"{upside*100:.1f}% Potencial")
+                
+                st.write("---")
+                # Permitimos al usuario ajustar la probabilidad si el Monte Carlo no es suficiente
+                adj_prob = st.slider("Confianza en la Tesis (%)", 10, 90, int(win_prob*100), 
+                                    help="Probabilidad estimada de que la acción alcance su Fair Value.") / 100
+
+            with c_exec2:
+                st.subheader("⚖️ Asignación de Capital")
+                
+                if ratio_r > 0:
+                    # Fórmula de Kelly: K% = W - [(1 - W) / R]
+                    kelly_full = adj_prob - ((1 - adj_prob) / ratio_r)
+                    
+                    # Selector de Fracción de Kelly (Prudencia)
+                    fraction = st.select_slider(
+                        "Fracción de Kelly (Agresividad)",
+                        options=[0.1, 0.2, 0.25, 0.5, 1.0],
+                        value=0.25,
+                        help="Quarter-Kelly (0.25) es la configuración estándar para inversores institucionales."
+                    )
+                    
+                    sug_pos = max(0, kelly_full * fraction)
+                    
+                    # Display del Resultado
+                    st.markdown(f"<h1 style='text-align: center; color: #4CAF50;'>{sug_pos*100:.2f}%</h1>", unsafe_allow_value=True)
+                    st.markdown("<p style='text-align: center;'><b>Tamaño sugerido de la posición</b></p>", unsafe_allow_value=True)
+                    st.progress(min(sug_pos, 1.0))
+                    
+                    st.success(f"**Veredicto:** El modelo sugiere asignar un **{sug_pos*100:.2f}%** de tu capital total a esta posición bajo una estrategia de **{fraction} Kelly**.")
+                else:
+                    st.error("🚨 El Ratio Riesgo/Recompensa es negativo. El modelo sugiere NO INVERTIR en este nivel de precio.")
+
+            # 4. EXPLICACIÓN ESTRATÉGICA
+            st.divider()
+            with st.expander("🎓 ¿Por qué usar el Criterio de Kelly?"):
+                st.write("""
+                El Criterio de Kelly es una fórmula matemática utilizada para determinar el tamaño óptimo de una serie de apuestas (o inversiones) para maximizar el crecimiento del capital a largo plazo.
+                
+                **Componentes clave:**
+                * **La Ventaja (Edge):** La diferencia entre el precio actual y el valor intrínseco.
+                * **Probabilidad de Éxito:** Qué tan seguro estás de tu análisis (respaldado por el Monte Carlo).
+                * **Fractional Kelly:** Debido a que el mercado financiero no es un casino y tiene 'incertidumbre' en lugar de 'riesgo puro', se recomienda usar solo una fracción (como 25%) del Kelly teórico para evitar la volatilidad excesiva.
+                """)
+
+            # 5. RESUMEN PARA EL PRIMO
+            st.warning(f"**Nota de Gestión:** Si tu cartera es de $10,000, la compra recomendada es de aproximadamente **${(10000 * sug_pos):,.2f}**.")
         
 # -------------------------------------------------------------------------
-    # TAB 11: VALORACIÓN MULTI-MODELO (CONSENSO DCF vs APT)
+    # TAB 12: VALORACIÓN MULTI-MODELO (CONSENSO DCF vs APT)
     # -------------------------------------------------------------------------
-    with tabs[10]:
+    with tabs[11]:
         st.subheader("🔬 Benchmark de Valoración: DCF vs Arbitrage Pricing Theory (APT)")
         
         # Recuperación segura de EPS
@@ -2423,9 +2505,9 @@ def main():
             """, unsafe_allow_html=True)
 
     # -------------------------------------------------------------------------
-    # TAB 12: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
+    # TAB 13: METODOLOGÍA & FUENTES OFICIALES (10-K / SEC)
     # -------------------------------------------------------------------------
-    with tabs[11]:
+    with tabs[12]:
         st.subheader("📑 Documentación Técnica y Fuentes de Verificación")
         
         m_col1, m_col2 = st.columns([1.5, 1], gap="large")
@@ -2488,7 +2570,20 @@ def main():
                 Calculamos el rendimiento excedente que Costco genera sobre el mercado ponderado por su riesgo sistemático ($\beta$).
             """)
             st.latex(r"\text{Alpha} (\alpha) = R_{COST} - [R_f + \beta \times (R_m - R_f)]")
+
+            # --- CRITERIO KELLY  ---
+            st.markdown("""
+                **8. Gestión de Capital y Dimensionamiento (Kelly Criterion):**
+                Para optimizar el crecimiento del capital y minimizar el riesgo de ruina, el modelo calcula la fracción óptima de la cartera ($f^*$) a invertir basándose en la ventaja estadística (*edge*) y el ratio de pagos (*odds*).
+            """)
+            st.latex(r"f^* = W - \frac{1 - W}{R}")
+            st.caption("Donde $W$ es la Probabilidad de Éxito (de Monte Carlo) y $R$ es el Ratio Ganancia/Pérdida (Upside/Downside).")
             
+            # --- AQUÍ CONTINÚA TU CÓDIGO ORIGINAL (st.info) ---
+            st.info("""
+                💡 **Nota de Convergencia:** El modelo Gordon solo es estable si $WACC > g$. 
+                La terminal bloquea automáticamente cálculos donde el crecimiento terminal supera el costo de capital para evitar valores infinitos.
+            """)
             st.info("""
                 💡 **Nota de Convergencia:** El modelo Gordon solo es estable si $WACC > g$. 
                 La terminal bloquea automáticamente cálculos donde el crecimiento terminal supera el costo de capital para evitar valores infinitos.
@@ -2516,9 +2611,9 @@ def main():
         st.caption(f"Terminal Costco Intelligence | Versión 3.4.1 | {datetime.date.today().year}")
         
     # -------------------------------------------------------------------------
-    # TAB 13: OPCIONES LAB (FULL GREEKS)
+    # TAB 14: OPCIONES LAB (FULL GREEKS)
     # -------------------------------------------------------------------------
-    with tabs[12]:
+    with tabs[13]:
         st.subheader("Laboratorio de Griegas y Pricing (Black-Scholes)")
         ok1, ok2, ok3 = st.columns(3)
         strike_p = ok1.number_input("Strike Price ($)", value=float(round(p_ref*1.05, 0)))
