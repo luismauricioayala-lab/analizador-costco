@@ -982,6 +982,8 @@ def main():
     # TAB 3: RISK MATRIX (RESTAURACIÓN TOTAL Y ORDEN FINAL CORREGIDO)
     # -------------------------------------------------------------------------
     with tabs[2]:
+        pe_target = 35  # Valor por defecto inicial
+        wacc_shock = 0.0 # Valor por defecto inicial
         st.markdown("## 🔳 Risk Calibration & Black Swan Simulator")
         st.caption("Simulador de escenarios de estrés y sensibilidad de valoración avanzada")
         
