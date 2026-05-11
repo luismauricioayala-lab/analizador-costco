@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>COST Terminal Intelligence - 20 Slide Deck</title>
+    <style>
+        :root {
+            --bg: #0a0e14; --card: #15191e; --primary: #005fb8; 
+            --accent: #f59e0b; --bullish: #22c55e; --bearish: #ef4444;
+            --text: #e5e7eb; --border: #2d343d;
+        }
+        body { font-family: 'Inter', sans-serif; background: #000; color: var(--text); margin: 0; overflow: hidden; }
+        .deck-container { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; }
+        .slide { 
+            width: 1100px; height: 700px; background: var(--bg); border: 1px solid var(--border); 
+            padding: 40px; display: none; flex-direction: column; position: relative;
+            box-shadow: 0 0 100px rgba(0,0,0,0.9);
+        }
+        .slide.active { display: flex; }
+        .slide-header { border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .box { background: var(--card); border: 1px solid var(--border); padding: 15px; border-radius: 4px; }
+        .highlight { font-size: 2.5em; font-weight: 900; color: var(--bullish); }
+        .controls { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; }
+        button { background: var(--card); border: 1px solid var(--border); color: white; padding: 8px 16px; cursor: pointer; font-size: 0.8em; }
+        button:hover { background: var(--primary); }
+        .page-num { position: absolute; bottom: 20px; right: 40px; color: var(--accent); font-size: 0.9em; font-weight: bold; }
+        ul { font-size: 0.9em; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
+        td, th { padding: 8px; border-bottom: 1px solid var(--border); text-align: left; }
+    </style>
+</head>
+<body>
+
+<div class="deck-container">
+    <div class="slide active">
+        <div style="margin: auto; text-align: center;">
+            <h1 style="font-size: 4em; margin: 0;">COSTCO ($COST)</h1>
+            <h2 style="color: var(--primary); letter-spacing: 3px;">EQUITY RESEARCH & VALUATION DECK</h2>
+            <p style="font-size: 1.2em; margin-top: 30px; color: var(--accent);">PROYECTO TERMINAL: FASE 1 GOLD MASTER</p>
+        </div>
+        <div class="page-num">01 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>RESUMEN</span><h2>Tesis Institucional</h2></div></div>
+        <div class="grid-2">
+            <div class="box"><h3>Recomendación</h3><p class="highlight">STRONG BUY</p><p>Basado en la predictibilidad del flujo de caja y un foso competitivo inexpugnable[cite: 1559, 1564].</p></div>
+            <div class="box"><h3>Métricas Clave</h3><ul><li>Precio Actual: $1,000 [cite: 1550]</li><li>Target (12M): $1,067 [cite: 1552]</li><li>Upside: +6.8% [cite: 1567]</li></ul></div>
+        </div>
+        <div class="page-num">02 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>PERFIL</span><h2>Escala y Presencia Global</h2></div></div>
+        <div class="grid-2">
+            <div class="box"><h3>Infraestructura</h3><ul><li>924 Warehouses totales [cite: 905]</li><li>634 en EE.UU. y Puerto Rico [cite: 907]</li><li>114 en Canadá [cite: 907]</li><li>Expansión activa en China y Japón [cite: 907, 1570]</li></ul></div>
+            <div class="box"><h3>Modelo de Negocio</h3><p>Venta por volumen a miembros con cuota anual[cite: 905]. Los beneficios provienen mayoritariamente de membresías, no de márgenes de producto[cite: 906, 1026].</p></div>
+        </div>
+        <div class="page-num">03 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>ESTRATEGIA</span><h2>Ingresos Recurrentes</h2></div></div>
+        <div class="grid-2">
+            <div class="box"><span class="highlight">92.1%</span><p>Tasa de renovación en EE.UU. y Canadá[cite: 236, 463].</p></div>
+            <div class="box"><h3>Suscripciones</h3><p>Membresías generan ~$4B de ingresos de alta rentabilidad[cite: 1560]. Miembros Ejecutivos representan el 49.2% del total pero el 75.8% de las ventas[cite: 227].</p></div>
+        </div>
+        <div class="page-num">04 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>BUNKER</span><h2>Desglose de Ventas FY25</h2></div></div>
+        <table>
+            <tr><th>Categoría</th><th>Ventas %</th><th>Importancia</th></tr>
+            <tr><td>Sundries (Candy, Alcohol, Tabaco) [cite: 908]</td><td>41%</td><td>Flujo de caja defensivo [cite: 1267]</td></tr>
+            <tr><td>Nonfood (Electrónica, Joyería) [cite: 909]</td><td>26%</td><td>Margen de beneficio superior [cite: 1268]</td></tr>
+            <tr><td>Fresh Foods [cite: 469]</td><td>14%</td><td>Principal generador de tráfico [cite: 1267]</td></tr>
+        </table>
+        <div class="page-num">05 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>RATIOS</span><h2>Rotación y Logística</h2></div></div>
+        <div class="grid-2">
+            <div class="box"><h3>Inventory Turnover</h3><p class="highlight">13.1x</p><p>Costco rota su inventario 2.6x más rápido que la media del sector retail[cite: 1187, 1188].</p></div>
+            <div class="box"><h3>SKU Management</h3><p>Manejo de <4,000 SKUs vs. 30,000 en supermercados tradicionales[cite: 460]. Maximiza el poder de compra[cite: 1236, 1593].</p></div>
+        </div>
+        <div class="page-num">06 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>MÁRGENES</span><h2>El Poder de la Marca Propia</h2></div></div>
+        <div class="grid-2">
+            <div class="box"><h3>Ventas de Kirkland</h3><p class="highlight">$90B</p><p>Representa ~30% de las ventas totales de la compañía[cite: 1022, 1598].</p></div>
+            <div class="box"><h3>Ventaja de Margen</h3><p>Productos con 15-20% más valor que marcas nacionales, reteniendo mayor margen operativo para Costco[cite: 1021, 1130].</p></div>
+        </div>
+        <div class="page-num">07 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>HISTÓRICO</span><h2>Evolución 2022-2025</h2></div></div>
+        <table>
+            <tr><th>Año Fiscal</th><th>Ingresos ($B) [cite: 421]</th><th>Net Income ($B) [cite: 552]</th><th>EPS ($) [cite: 552]</th></tr>
+            <tr><td>FY 2022</td><td>226.9 [cite: 1626]</td><td>5.8 [cite: 1626]</td><td>13.14 [cite: 131, 1338]</td></tr>
+            <tr><td>FY 2023</td><td>242.3 [cite: 1627]</td><td>6.3 [cite: 1627]</td><td>14.16 [cite: 139, 1338]</td></tr>
+            <tr><td>FY 2024</td><td>254.4 [cite: 1628]</td><td>7.4 [cite: 1628]</td><td>16.56 [cite: 138, 1338]</td></tr>
+            <tr><td>FY 2025</td><td>275.2 [cite: 1629]</td><td>8.1 [cite: 1629]</td><td>18.21 [cite: 138, 1338]</td></tr>
+        </table>
+        <div class="page-num">08 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>ORACLE</span><h2>Modelo DCF Estocástico</h2></div></div>
+        <div class="grid-2">
+            <div class="box"><h3>Inputs Base</h3><ul><li>WACC: 8.0% [cite: 1673, 1681]</li><li>Crecimiento Perpetuo (g): 2.5% [cite: 1673, 1681]</li><li>Beta Mercado: 0.978 [cite: 1673]</li></ul></div>
+            <div class="box"><h3>Resultado</h3><p class="highlight" style="color:var(--accent)">$1,067.59</p><p>Fair Value calculado mediante descuento de flujos de caja libre (FCF)[cite: 1683, 1717].</p></div>
+        </div>
+        <div class="page-num">09 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>RIESGO</span><h2>Simulación Estocástica</h2></div></div>
+        <div class="grid-2">
+            <div class="box"><span class="highlight">72.5%</span><p>Probabilidad de Upside (Escenarios >$1,000)[cite: 1699, 1775].</p></div>
+            <div class="box"><h3>Distribución</h3><ul><li>Percentil 25 (Downside): $845 [cite: 1705]</li><li>Percentil 75 (Upside): $1,260 [cite: 1706]</li></ul></div>
+        </div>
+        <div class="page-num">10 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>RATIOS</span><h2>Rentabilidad Auditada</h2></div></div>
+        <table>
+            <tr><th>Métrica [cite: 1667]</th><th>2023 (Audit)</th><th>2024 (Audit)</th><th>2025 (Proyect)</th></tr>
+            <tr><td>ROE [cite: 1667]</td><td>26.5%</td><td>27.8% [cite: 1778]</td><td>28.4% [cite: 1667]</td></tr>
+            <tr><td>Net Debt / EBITDA [cite: 1667]</td><td>0.5x</td><td>0.4x</td><td>0.4x [cite: 1668]</td></tr>
+            <tr><td>FCF ($B) [cite: 1667]</td><td>6.8</td><td>9.4</td><td>9.5 [cite: 1769]</td></tr>
+        </table>
+        <div class="page-num">11 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>MACRO</span><h2>Arbitrage Pricing Theory (APT)</h2></div></div>
+        <div class="grid-2">
+            <div class="box"><h3>Factores Macro</h3><ul><li>Beta Mercado: 0.82</li><li>Sensibilidad Inflación: -0.15</li><li>Sensibilidad PIB: 0.45</li></ul></div>
+            <div class="box"><h3>Fair Value APT</h3><p class="highlight" style="color:var(--primary)">$946.41</p><p>Ancla de valor considerando riesgos sistémicos y macroeconómicos.</p></div>
+        </div>
+        <div class="page-num">12 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>MATRIZ</span><h2>Sensibilidad WACC vs Crecimiento</h2></div></div>
+        <p>Impacto del coste de capital en el Valor Intrínseco[cite: 1686, 1687]:</p>
+        <table>
+            <tr><th>WACC \ g</th><th>2.0% [cite: 1688]</th><th>2.5% [cite: 1688]</th><th>3.0% [cite: 1688]</th></tr>
+            <tr><td>7.5% [cite: 1688]</td><td>$1,120</td><td>$1,185</td><td>$1,260</td></tr>
+            <tr><td>8.0% [cite: 1688]</td><td>$1,010</td><td>$1,067</td><td>$1,135</td></tr>
+            <tr><td>8.5% [cite: 1688]</td><td>$920</td><td>$965</td><td>$1,025</td></tr>
+        </table>
+        <div class="page-num">13 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>STRESS</span><h2 style="color:var(--bearish)">Bear Case: Deep Stress</h2></div></div>
+        <div class="grid-2">
+            <div class="box" style="border-color:var(--bearish)"><p class="highlight" style="color:var(--bearish)">$569.00</p><p>Capitulación de sentimiento: Múltiplo P/E comprimido a niveles históricos mínimos[cite: 1725, 1749].</p></div>
+            <div class="box"><h3>Drivers de Caída</h3><ul><li>Inflación erosiona ingreso disponible [cite: 1752]</li><li>Desaceleración de renovación de membresía [cite: 1752]</li><li>Tasa de interés Fed persistente [cite: 1729]</li></ul></div>
+        </div>
+        <div class="page-num">14 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>PEERS</span><h2>Comparativa de Mercado</h2></div></div>
+        <table>
+            <tr><th>Ticker</th><th>P/E TTM [cite: 56, 604]</th><th>Net Margin [cite: 56, 947]</th><th>Market Cap ($B) [cite: 49, 378]</th></tr>
+            <tr><td>COST</td><td>50.7 [cite: 1338]</td><td>3.0% [cite: 1338]</td><td>432.5 [cite: 1338]</td></tr>
+            <tr><td>PSMT</td><td>32.0 [cite: 604]</td><td>3.5% [cite: 1100]</td><td>4.8 [cite: 604]</td></tr>
+            <tr><td>WMT</td><td>49.0 [cite: 604]</td><td>3.1% [cite: 1100]</td><td>1,031.0 [cite: 604]</td></tr>
+        </table>
+        <div class="page-num">15 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>NLP</span><h2>Momentum de Sentimiento</h2></div></div>
+        <div class="grid-2">
+            <div class="box"><h3>Noticias Recientes</h3><p>Fuerte penetración de socios ejecutivos y posible dividendo especial en 1-2 años[cite: 228, 416, 662].</p></div>
+            <div class="box"><h3>Alerta Técnica</h3><p>Deterioro moderado en el sentimiento momentum. El precio de mercado ignora advertencias cuantitativas de Schwab[cite: 6, 7].</p></div>
+        </div>
+        <div class="page-num">16 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>AUDIT</span><h2>Evaluación Schwab</h2></div></div>
+        <div class="grid-2">
+            <div class="box"><h1 style="color:var(--bearish); margin:0">D</h1><p>Rating: <b>Underperform</b>[cite: 7, 41]. Percentil 77 de valoración[cite: 10, 285].</p></div>
+            <div class="box"><h3>Factores</h3><ul><li>Sentiment: Neutral [cite: 57]</li><li>Valuation: Negative [cite: 57]</li><li>Quality: Negative [cite: 57]</li></ul></div>
+        </div>
+        <div class="page-num">17 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>ANALYSTS</span><h2>Consenso Institucional</h2></div></div>
+        <div class="grid-2">
+            <div class="box"><h3>Argus Research [cite: 902]</h3><p>Rating: <b>BUY</b>[cite: 911]. Target: <b>$1,200</b>[cite: 984]. Resalta la resiliencia operativa y la caja de $18B[cite: 923, 988].</p></div>
+            <div class="box"><h3>CFRA Research [cite: 362]</h3><p>Rating: <b>BUY</b>[cite: 365]. Target: <b>$1,135</b>[cite: 370]. Enfocado en expansión de márgenes vía retail media[cite: 413, 637].</p></div>
+        </div>
+        <div class="page-num">18 / 20</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header"><div><span>RESTRICCIONES</span><h2>Limitaciones del Caso</h2></div></div>
+        <ul>
+            <li><b>Múltiplo Elevado:</b> Un P/E de 51.8x requiere ejecución perfecta[cite: 1749].</li>
+            <li><b>Macro:</b> Desempleo >8% erosiona el ticket promedio[cite: 1752].</li>
+            <li><b>FX:</b> 27% de ingresos expuestos a moneda fuera de EE.UU[cite: 1755].</li>
+        </ul>
+        <div class="page-num">19 / 20</div>
+    </div>
+
+    <div class="slide" style="background: linear-gradient(135deg, var(--bg) 0%, var(--primary) 200%);">
+        <div style="margin: auto; text-align: center;">
+            <h1 style="font-size: 3em;">VERDICTO: COMPRA SELECTIVA</h1>
+            <h2 style="color: var(--accent);">TARGET PRECIO CONSOLIDADO: $1,067.59 [cite: 1773]</h2>
+            <p>Acumulación estratégica en correcciones hacia los $946 (Ancla APT).</p>
+        </div>
+        <div class="page-num">20 / 20</div>
+    </div>
+
+    <div class="controls">
+        <button onclick="prevSlide()">ANTERIOR (Flecha Izq)</button>
+        <button onclick="nextSlide()">SIGUIENTE (Flecha Der)</button>
+    </div>
+</div>
+
+<script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+
+    function showSlide(index) {
+        slides.forEach(s => s.classList.remove('active'));
+        slides[index].classList.add('active');
+    }
+
+    function nextSlide() {
+        currentSlide = (currentSlide + 1) % slides.length;
+        showSlide(currentSlide);
+    }
+
+    function prevSlide() {
+        currentSlide = (currentSlide - 1 + slides.length) % slides.length;
+        showSlide(currentSlide);
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === "ArrowRight") nextSlide();
+        if (e.key === "ArrowLeft") prevSlide();
+    });
+</script>
+
+</body>
+</html>

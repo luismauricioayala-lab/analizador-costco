@@ -44,15 +44,22 @@ def construir_bunker_completo():
     df_stats.to_csv("peers_stats.csv", index=False)
     print("✅ peers_stats.csv actualizado.")
 
-    # --- PARTE B: HISTORIALES INDIVIDUALES (PARA EL MODO OFFLINE DEL MOTOR) ---
+# --- PARTE B: HISTORIALES INDIVIDUALES (PARA EL MODO OFFLINE DEL MOTOR) ---
     print(f"\n📂 Generando archivos .csv individuales para el motor de auditoría...")
+    
+    # Creamos la carpeta 'data' si no existe (una sola vez)
+    if not os.path.exists('data'):
+        os.makedirs('data')
+
     for t in tickers_peers:
         try:
-            # Descargamos 2 años para tener suficiente historial para Beta y 52w Range
-            df_ind = yf.download(t, period="2y", interval="1d", progress=False)
+            # Descargamos 5 años para tener suficiente historial para Beta y 52w Range
+            df_ind = yf.download(t, period="5y", interval="1d", progress=False)
             if not df_ind.empty:
-                df_ind.to_csv(f"{t}.csv")
-                print(f"   ∟ {t}.csv [OK]")
+                # IMPORTANTE: Guardamos dentro de /data y con el nombre que espera el motor
+                file_path = os.path.join('data', f"{t}_hist.csv")
+                df_ind.to_csv(file_path)
+                print(f"   ∟ {file_path} [OK]")
         except Exception as e:
             print(f"   ∟ ❌ Error en {t}: {e}")
 

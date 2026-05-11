@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        :root {
+            --bg: #0a0e14;
+            --card: #15191e;
+            --primary: #005fb8; 
+            --accent: #f59e0b;  
+            --bullish: #22c55e;
+            --bearish: #ef4444;
+            --text: #e5e7eb;
+            --border: #2d343d;
+            --tab-active: #1e2329;
+        }
+
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding: 20px; line-height: 1.4; }
+        .presentation-deck { max-width: 1100px; margin: auto; }
+        
+        /* Simulación de Tabs del Evaluador */
+        .tabs-nav { display: flex; background: #05070a; border: 1px solid var(--border); border-bottom: none; }
+        .tab { padding: 10px 20px; font-size: 0.75em; color: var(--text-muted); border-right: 1px solid var(--border); text-transform: uppercase; cursor: default; }
+        .tab.active { background: var(--tab-active); color: var(--accent); border-top: 2px solid var(--accent); }
+
+        .slide { background: var(--bg); border: 1px solid var(--border); padding: 40px; min-height: 600px; margin-bottom: 40px; position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        
+        .slide-header { border-bottom: 1px solid var(--border); padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
+        .slide-number { position: absolute; bottom: 20px; right: 40px; font-size: 0.8em; color: var(--border); }
+        
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        .data-table th { text-align: left; padding: 8px; border-bottom: 2px solid var(--border); color: var(--accent); font-size: 0.75em; }
+        .data-table td { padding: 10px 8px; border-bottom: 1px solid #1e2329; }
+
+        .metric-highlight { font-size: 2.5em; font-weight: bold; color: var(--bullish); }
+        .warning-box { border: 1px solid var(--bearish); padding: 15px; background: rgba(239, 68, 68, 0.05); border-radius: 4px; }
+        
+        h2 { margin: 0; font-size: 1.8em; letter-spacing: -1px; }
+        h3 { color: var(--primary); text-transform: uppercase; font-size: 0.9em; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="presentation-deck">
+
+    <div class="tabs-nav">
+        <div class="tab">Dashboard</div>
+        <div class="tab">DCF Oracle</div>
+        <div class="tab active">Equity Report Final</div>
+        <div class="tab">Sensitivity Matrix</div>
+        <div class="tab">News Sentiment (v2)</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header">
+            <div>
+                <span style="color:var(--accent)">TAB: MODEL CONVERGENCE</span>
+                <h2>Sustento del Valor Intrínseco</h2>
+            </div>
+            <div style="text-align:right">
+                <span class="metric-highlight">$946.41</span><br>
+                <small>Fair Value (APT Anchor)</small>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <h3>Arquitectura del Precio Objetivo</h3>
+                <p>Nuestra terminal no depende de un solo modelo. El "End Price" es el resultado de la intersección entre la capacidad de generar caja y el riesgo sistémico (Arbitrage Pricing Theory).</p>
+                <table class="data-table">
+                    <tr><th>Metodología</th><th>Target</th><th>Estatus</th></tr>
+                    <tr><td>DCF Oracle (Base)</td><td>$1,083.33</td><td>Optimista</td></tr>
+                    <tr><td><strong>APT Macro Model</strong></td><td><strong>$946.41</strong></td><td><strong>Ancla Real</strong></td></tr>
+                    <tr><td>Argus / CFRA Avg.</td><td>$1,125.00</td><td>Premium</td></tr>
+                </table>
+            </div>
+            <div class="warning-box">
+                <h3 style="color:var(--bearish)">Ajuste por Sentimiento Negativo</h3>
+                <p style="font-size:0.9em">Integrando el reporte de <strong>Schwab (Rating D)</strong>, hemos aplicado un multiplicador de castigo al múltiplo de salida. Esto invalida el optimismo del consenso de analistas si el P/E no se mantiene arriba de 45x.</p>
+            </div>
+        </div>
+        <div class="slide-number">01 / 04</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header">
+            <div>
+                <span style="color:var(--accent)">TAB: SENSITIVITY & STRESS TEST</span>
+                <h2>Calibración del "Bear Floor"</h2>
+            </div>
+            <div style="text-align:right">
+                <span class="metric-highlight" style="color:var(--bearish)">$569.00</span><br>
+                <small>Absolute Capitulation Floor</small>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Variable de Estrés</th><th>Ajuste Aplicado</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>WACC (Costo Capital)</td><td>8.00% (Shock de Tasas)</td></tr>
+                        <tr><td>Crecimiento 1-5Y</td><td>7.5% (Desaceleración Consumo)</td></tr>
+                        <tr><td>Crecimiento Terminal</td><td>2.0% (Piso Inflacionario)</td></tr>
+                        <tr><td>Multiplicador Macro</td><td>-2.2% (Recesión)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div>
+                <h3>Análisis de Riesgo de Cola (Tail Risk)</h3>
+                <p>El valor de <strong>$569</strong> representa una capitulación total de múltiplos. Es el escenario donde el mercado deja de premiar el crecimiento de Costco y la valora como un minorista de bajo margen.</p>
+                <div style="background:var(--card); padding:15px; border-left: 4px solid var(--accent)">
+                    <small>Soporte Técnico:</small><br>
+                    <strong>$786.72 (Mínimo 52 semanas)</strong><br>
+                    Nuestro modelo sugiere que en un pánico real, este soporte sería perforado buscando el valor contable ajustado.
+                </div>
+            </div>
+        </div>
+        <div class="slide-number">02 / 04</div>
+    </div>
+
+    <div class="slide">
+        <div class="slide-header">
+            <div>
+                <span style="color:var(--accent)">TAB: FUNDAMENTAL BUNKER</span>
+                <h2>Moat y Eficiencia Operativa</h2>
+            </div>
+            <div style="text-align:right">
+                <span style="font-size:1.5em; font-weight:bold; color:var(--bullish)">92.1%</span><br>
+                <small>Retención de Membresías</small>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <h3>Fortalezas del Modelo (Auditado FY2025)</h3>
+                <ul style="font-size: 0.95em">
+                    <li><strong>Cash Flow:</strong> $9.5B en FCF, permitiendo dividendos especiales y expansión sin deuda neta significativa.</li>
+                    <li><strong>Kirkland Signature:</strong> ~30% de las ventas, ofreciendo márgenes superiores a las marcas nacionales.</li>
+                    <li><strong>Escalabilidad:</strong> 924 almacenes globales con un pipeline de 25+ aperturas anuales.</li>
+                </ul>
+            </div>
+            <div>
+                <h3>Ratios Institucionales</h3>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px">
+                    <div class="card" style="text-align:center; padding:10px">
+                        <small>ROE</small><br><strong>28.4%</strong>
+                    </div>
+                    <div class="card" style="text-align:center; padding:10px">
+                        <small>ROIC</small><br><strong>20.1%</strong>
+                    </div>
+                    <div class="card" style="text-align:center; padding:10px">
+                        <small>Inventory Turnover</small><br><strong>13.1x</strong>
+                    </div>
+                    <div class="card" style="text-align:center; padding:10px">
+                        <small>Net Debt/EBITDA</small><br><strong>0.4x</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="slide-number">03 / 04</div>
+    </div>
+
+    <div class="slide" style="background: linear-gradient(180deg, var(--bg) 0%, #05070a 100%);">
+        <div class="slide-header">
+            <div>
+                <span style="color:var(--accent)">SUMMARY: INVESTMENT COMMITTEE DECISION</span>
+                <h2>Veredicto Final del Evaluador</h2>
+            </div>
+        </div>
+
+        <div style="text-align:center; margin-top:50px">
+            <h3 style="font-size:1.5em; margin-bottom:5px">ESTRATEGIA DE POSICIONAMIENTO</h3>
+            <div style="font-size:3em; font-weight:900; color:var(--primary); letter-spacing:5px">COMPRA SELECTIVA</div>
+            
+            <div class="grid-2" style="margin-top:40px; text-align:left">
+                <div class="card">
+                    <h3>Acción Inmediata</h3>
+                    <p>No perseguir el precio arriba de <strong>$1,000</strong>. El riesgo de compresión de múltiplo detectado por <strong>Schwab</strong> y nuestro escenario bajo de <strong>$569</strong> exigen paciencia operativa.</p>
+                </div>
+                <div class="card">
+                    <h3>Precio de Entrada Ideal</h3>
+                    <p>Cualquier corrección hacia el ancla APT de <strong>$946.41</strong> representa una oportunidad de acumulación institucional con un margen de seguridad del 15%.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-top:50px; text-align:center; font-size:0.8em; color:var(--text-muted)">
+            Síncresis de Modelos: ORACLE DCF | APT MACRO | SENTIMENT ADJUSTER v2.0<br>
+            <strong>PROYECTO TERMINAL - FASE 1 GOLD MASTER</strong>
+        </div>
+        <div class="slide-number">04 / 04</div>
+    </div>
+
+</div>
+
+</body>
+</html>
