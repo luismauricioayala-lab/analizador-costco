@@ -1081,13 +1081,29 @@ def main():
         else:
             st.success(f"✅ ZONA SEGURA: El modelo soporta el escenario actual.")
 
-        # 6. INTEGRACIÓN DE HOJA DIDÁCTICA (Excel/CSV)
-        with st.expander("📂 Ver Referencia de Hoja Didáctica (Excel/Sheets)"):
+            # --- 6. ALOJAMIENTO Y DESCARGA DEL ARCHIVO ORIGINAL ---
+        with st.expander("📂 Descargar Plantilla Original de Excel"):
+            st.info("Utiliza este botón para obtener el modelo base de Excel utilizado en esta formación.")
+            
             try:
-                df_ref = pd.read_csv("Simulador_Riesgos_Costco_BlackSwan.xlsx - Matriz de Sensibilidad.csv")
-                st.dataframe(df_ref)
-            except:
-                st.info("Sube el archivo 'Simulador_Riesgos_Costco_BlackSwan.csv' para visualizarlo aquí.")
+                # Nombre exacto del archivo que reside en tu servidor/carpeta
+                file_path = "Simulador_Riesgos_Costco_BlackSwan.xlsx - Matriz de Sensibilidad.csv"
+                
+                with open(file_path, "rb") as file:
+                    btn_descarga_excel = st.download_button(
+                        label="Excel: Descargar Simulador Black Swan (.csv)",
+                        data=file,
+                        file_name="Simulador_Costco_Didactico.csv",
+                        mime="text/csv",
+                        help="Haz clic para descargar la hoja de cálculo original."
+                    )
+                
+                # Previsualización rápida para que el usuario sepa qué está bajando
+                df_preview = pd.read_csv(file_path)
+                st.dataframe(df_preview.head(5))
+                
+            except FileNotFoundError:
+                st.error("Error: El archivo base no se encuentra en el servidor. Verifica que esté en la carpeta raíz.")
 
         # 7. GLOSARIO DE CISNES NEGROS (RESTAURADO)
         with st.expander("📖 Glosario: ¿Qué es un Cisne Negro en Costco?"):
