@@ -979,13 +979,13 @@ def main():
             st.error(f"Error en la simulación: {e}")
 
 # -------------------------------------------------------------------------
-    # TAB 3: RISK MATRIX (RESTAURACIÓN TOTAL Y CORRECCIÓN)
+    # TAB 3: RISK MATRIX (VERSIÓN FINAL PROFESIONAL)
     # -------------------------------------------------------------------------
     with tabs[2]:
         st.markdown("## 🔳 Risk Calibration & Black Swan Simulator")
         st.caption("Simulador de escenarios de estrés y sensibilidad de valoración avanzada")
         
-        # 1. EXTRACCIÓN DE DATOS (Solución al NameError)
+        # 1. EXTRACCIÓN DE DATOS (Seguridad contra NameError)
         db_risk = st.session_state.data_bunker
         p_ref_val = db_risk['info'].get('currentPrice', 780.0)
         pe_ref_val = db_risk['info'].get('trailingPE', 50.0)
@@ -1043,7 +1043,6 @@ def main():
         for w in wacc_range:
             fila = []
             for pe in pe_range:
-                # Fórmula: (Precio / PE Actual) * PE Objetivo * Impacto Tasa
                 val = (p_ref_val / pe_ref_val) * pe * (1 - (max(0, w) * 0.06))
                 fila.append(val)
             matrix_data.append(fila)
@@ -1060,17 +1059,35 @@ def main():
             use_container_width=True
         )
 
-        # 4. BOTONES DE EXPORTACIÓN
-        csv_data = df_matrix.to_csv(index=True).encode('utf-8')
+        # 4. BOTONES DE EXPORTACIÓN (Con formato Excel real)
+        import io
+
+        # Creamos un buffer en memoria para el archivo Excel
+        buffer = io.BytesIO()
+
+        # Usamos XlsxWriter como motor para mantener formatos
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            df_matrix.to_excel(writer, sheet_name='Matriz de Riesgo')
+            
+            # Accedemos al libro y la hoja para dar formato
+            workbook  = writer.book
+            worksheet = writer.sheets['Matriz de Riesgo']
+
+            # Definimos un formato para moneda
+            money_fmt = workbook.add_format({'num_format': '$#,##0.00'})
+            
+            # Aplicamos el formato a las columnas de la matriz
+            worksheet.set_column('B:F', 15, money_fmt)
+
         st.download_button(
-            label="📥 Descargar Matriz para Excel (.csv)",
-            data=csv_data,
-            file_name="matriz_estres_costco.csv",
-            mime="text/csv",
-            key="btn_download"
+            label="📥 Descargar Matriz Profesional (Excel .xlsx)",
+            data=buffer.getvalue(),
+            file_name="Analisis_Riesgo_Costco.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="btn_download_xlsx"
         )
 
-        # 5. ALERTAS DE CRITICIDAD (RESTAURADO)
+        # 5. ALERTAS DE CRITICIDAD
         st.markdown("---")
         fv_final = (p_ref_val / pe_ref_val) * pe_target * (1 - (wacc_shock * 0.06))
         
@@ -1081,40 +1098,43 @@ def main():
         else:
             st.success(f"✅ ZONA SEGURA: El modelo soporta el escenario actual.")
 
-            # --- 6. ALOJAMIENTO Y DESCARGA DEL ARCHIVO ORIGINAL ---
-        with st.expander("📂 Descargar Plantilla Original de Excel"):
-            st.info("Utiliza este botón para obtener el modelo base de Excel utilizado en esta formación.")
-            
-            try:
-                # Nombre exacto del archivo que reside en tu servidor/carpeta
-                file_path = "Simulador_Riesgos_Costco_BlackSwan.xlsx - Matriz de Sensibilidad.csv"
-                
-                with open(file_path, "rb") as file:
-                    btn_descarga_excel = st.download_button(
-                        label="Excel: Descargar Simulador Black Swan (.csv)",
-                        data=file,
-                        file_name="Simulador_Costco_Didactico.csv",
-                        mime="text/csv",
-                        help="Haz clic para descargar la hoja de cálculo original."
-                    )
-                
-                # Previsualización rápida para que el usuario sepa qué está bajando
-                df_preview = pd.read_csv(file_path)
-                st.dataframe(df_preview.head(5))
-                
-            except FileNotFoundError:
-                st.error("Error: El archivo base no se encuentra en el servidor. Verifica que esté en la carpeta raíz.")
+        # 6. RECURSOS ADICIONALES (Excel y Google Sheets)
+        st.markdown("### 📂 Recursos del Modelo")
+        c_res1, c_res2 = st.columns(2)
+        
+        with c_res1:
+            with st.expander("📥 Descargar Plantilla Offline"):
+                st.info("Modelo base de Excel (alojado en GitHub).")
+                try:
+                    file_path = "Simulador_Riesgos_Costco_BlackSwan.xlsx - Matriz de Sensibilidad.csv"
+                    with open(file_path, "rb") as file:
+                        st.download_button(
+                            label="Descargar Excel Original",
+                            data=file,
+                            file_name="Simulador_Costco_Didactico.csv",
+                            mime="text/csv",
+                            key="btn_descarga_original"
+                        )
+                except FileNotFoundError:
+                    st.error("Archivo original no encontrado en la raíz de GitHub.")
 
-        # 7. GLOSARIO DE CISNES NEGROS (RESTAURADO)
+        with c_res2:
+            with st.expander("☁️ Acceder a Google Sheets"):
+                st.info("Versión en la nube con Google Finance (Tiempo Real).")
+                url_sheets = "https://docs.google.com/spreadsheets/d/1Xfqx3-yZxS1YbPkZlLzH37D-Fb7xuUNeIYLk19Vxo7c/edit?usp=sharing"
+                st.link_button("Ir a Google Sheets", url_sheets, type="primary")
+
+        # 7. GLOSARIO DE CISNES NEGROS
+        st.markdown("---")
         with st.expander("📖 Glosario: ¿Qué es un Cisne Negro en Costco?"):
             st.write("""
             Un **Cisne Negro** es un evento altamente improbable, de impacto masivo y que solo parece predecible en retrospectiva.
             
             **Ejemplos críticos para Costco:**
-            1. **Disrupción de Membresías:** Cambios legales que prohíban el modelo de club de precios, eliminando el 80% de la utilidad operativa.
-            2. **Fallo en Cadena de Suministro:** Bloqueo prolongado en el Pacífico que vacíe los estantes de una empresa que vive de la rotación extrema.
-            3. **Contaminación de Marca:** Un problema de salud masivo ligado a *Kirkland Signature* que destruya la confianza de los socios.
-            4. **Compresión de Múltiplos:** Que el mercado deje de valorar a Costco como 'tecnología/crecimiento' y pase a valorarla como retail tradicional.
+            1. **Disrupción de Membresías:** Cambios legales que prohíban el modelo de club de precios.
+            2. **Fallo en Cadena de Suministro:** Bloqueo prolongado en el Pacífico.
+            3. **Contaminación de Marca:** Problema masivo ligado a *Kirkland Signature*.
+            4. **Compresión de Múltiplos:** Reclasificación a retail tradicional (de 50x a 15x P/E).
             """)
 # -------------------------------------------------------------------------
     # TAB 4: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
