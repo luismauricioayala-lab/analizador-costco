@@ -996,9 +996,8 @@ def main():
 
         st.markdown("### 🕹️ Variables de Escenario")
         c1, c2, c3 = st.columns(3)
-
+        
         if panic_mode:
-            # FORZAMOS VALORES LÓGICOS PARA LA MATRIZ
             pe_target = 15
             wacc_shock = 5.0
             margin_shock = "Severo (-5%)"
@@ -1017,7 +1016,20 @@ def main():
                 st.error("**Riesgo Operativo / Cisne Negro**")
                 st.select_slider("Severidad Operativa", options=["Crítica"], disabled=True, key="op_p")
                 st.toggle("Escenario de Capitulación", value=True, disabled=True, key="ca_p")
-        
+        else:
+            with c1:
+                st.info("**Riesgo de Mercado (Valuation)**")
+                pe_target = st.slider("Target P/E Multiplier", 15, 60, 35, help="Ajusta el múltiplo de salida esperado.", key="pe_n")
+                margin_shock = st.select_slider("Presión en Margen Op.", options=["Ninguno", "Leve (-1%)", "Medio (-3%)", "Severo (-5%)"], key="ma_n")
+            with c2:
+                st.warning("**Riesgo Macroeconómico**")
+                wacc_shock = st.number_input("Shock de Tasa Fed (+%)", 0.0, 5.0, 0.0, 0.25, key="ta_n")
+                inflation_impact = st.toggle("Incluir Espiral Inflacionaria", value=False, key="inf_n")
+            with c3:
+                st.error("**Riesgo Operativo / Cisne Negro**")
+                op_risk_level = st.select_slider("Severidad Operativa", options=["Baja", "Media", "Alta", "Crítica"], key="op_n")
+                capitulation_mode = st.toggle("Escenario de Capitulación", value=False, key="ca_n")
+
         st.session_state['pe_target'] = pe_target
         st.divider()
 
