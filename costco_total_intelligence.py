@@ -1103,28 +1103,47 @@ def main():
         c_res1, c_res2 = st.columns(2)
         
         with c_res1:
-            with st.expander("📥 Descargar Plantilla Offline"):
-                st.info("Modelo base de Excel (alojado en GitHub).")
+            with st.expander("📥 Descargar Plantilla Offline (.xlsx)"):
+                st.info("Modelo base con formatos y fórmulas (GitHub).")
                 try:
-                    file_path = "Simulador_Riesgos_Costco_BlackSwan.xlsx - Matriz de Sensibilidad.csv"
-                    with open(file_path, "rb") as file:
+                    # REVISIÓN: Asegúrate de que este nombre sea EXACTO al de tu GitHub
+                    file_path_xlsx = "Simulador_Riesgos_Costco_BlackSwan.xlsx"
+                    
+                    with open(file_path_xlsx, "rb") as file:
                         st.download_button(
-                            label="Descargar Excel Original",
+                            label="Descargar Excel Profesional",
                             data=file,
-                            file_name="Simulador_Costco_Didactico.csv",
-                            mime="text/csv",
-                            key="btn_descarga_original"
+                            file_name="Simulador_Costco_Analisis.xlsx", # Nombre que verá el usuario al bajarlo
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key="btn_descarga_xlsx_oficial"
                         )
                 except FileNotFoundError:
-                    st.error("Archivo original no encontrado en la raíz de GitHub.")
+                    st.error(f"Error: No se encontró '{file_path_xlsx}' en el repositorio.")
 
         with c_res2:
             with st.expander("☁️ Acceder a Google Sheets"):
-                st.info("Versión en la nube con Google Finance (Tiempo Real).")
+                st.info("Versión interactiva en la nube.")
                 url_sheets = "https://docs.google.com/spreadsheets/d/1Xfqx3-yZxS1YbPkZlLzH37D-Fb7xuUNeIYLk19Vxo7c/edit?usp=sharing"
                 st.link_button("Ir a Google Sheets", url_sheets, type="primary")
 
-        # 7. GLOSARIO DE CISNES NEGROS
+        # 7. GLOSARIO DE ESCENARIOS Y CISNES NEGROS
+        # --- NUEVA SECCIÓN: EXPLICACIÓN DE VARIABLES ---
+        with st.expander("🎓 Manual de Vuelo: ¿Qué significan estas variables?"):
+            col_v1, col_v2 = st.columns(2)
+            with col_v1:
+                st.markdown("#### **Múltiplo P/E**")
+                st.write("Mide el **optimismo**. Costco es caro porque el mercado cree que es invencible. Bajarlo a 15x es quitarle ese 'aura' y valorarla como una tienda común.")
+                
+                st.markdown("#### **Shock de Tasa**")
+                st.write("Mide el **costo del dinero**. Si las tasas suben al 5%, el valor actual de las ganancias futuras de Costco cae drásticamente.")
+            
+            with col_v2:
+                st.markdown("#### **Margen Operativo**")
+                st.write("Mide la **eficiencia**. Un shock aquí representa problemas con proveedores o que la membresía dejó de ser rentable.")
+                
+                st.markdown("#### **Capitulación**")
+                st.write("Es el **botón del pánico**. Simula el peor día posible en la bolsa donde todos venden por miedo, sin importar los fundamentales.")
+        
         st.markdown("---")
         with st.expander("📖 Glosario: ¿Qué es un Cisne Negro en Costco?"):
             st.write("""
