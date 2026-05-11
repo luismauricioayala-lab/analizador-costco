@@ -978,13 +978,18 @@ def main():
         except Exception as e:
             st.error(f"Error en la simulación: {e}")
 
-    # -------------------------------------------------------------------------
-    # TAB 3: RISK MATRIX (NUEVA)
+# -------------------------------------------------------------------------
+    # TAB 3: RISK MATRIX (NUEVA Y CORREGIDA)
     # -------------------------------------------------------------------------
     with tabs[2]:
         st.markdown("## 🔳 Risk Calibration & Black Swan Simulator")
         st.caption("Simulador de escenarios de estrés y sensibilidad de valoración avanzada")
         
+        # --- DEFINICIÓN DE REFERENCIAS (Solución al Error) ---
+        db = st.session_state.data_bunker
+        p_ref = db['info'].get('currentPrice', 780.0)
+        pe_actual_bunker = db['info'].get('trailingPE', 50.0)
+
         # --- NUEVO: BOTÓN DE PÁNICO (BLACK SWAN) ---
         panic_mode = st.toggle("🚨 ACTIVAR PANIC BUTTON: SCENARIO BLACK SWAN", value=False, 
                                help="Bloquea las variables en un escenario de capitulación total del mercado.")
@@ -992,11 +997,10 @@ def main():
         st.markdown("### 🕹️ Variables de Escenario")
         c1, c2, c3 = st.columns(3)
         
-        # Lógica de Inputs: Si el botón de pánico está activo, forzamos valores críticos
         if panic_mode:
             with c1:
                 st.info("**Riesgo de Mercado (Valuation)**")
-                pe_target = st.slider("Target P/E Multiplier", 10, 60, 15, disabled=True)
+                pe_target = st.slider("Target P/E Multiplier", 10, 60, 15, disabled=True, key="pe_panic")
                 margin_shock = st.select_slider("Presión en Margen Op.", options=["Severo (-5%)"], disabled=True)
             with c2:
                 st.warning("**Riesgo Macroeconómico**")
@@ -1007,10 +1011,9 @@ def main():
                 op_risk_level = st.select_slider("Severidad Operativa", options=["Crítica"], disabled=True)
                 capitulation_mode = st.toggle("Escenario de Capitulación", value=True, disabled=True)
         else:
-            # Tu código original sin cambios para el modo normal
             with c1:
                 st.info("**Riesgo de Mercado (Valuation)**")
-                pe_target = st.slider("Target P/E Multiplier", 15, 60, 35, help="Ajusta el múltiplo de salida esperado.")
+                pe_target = st.slider("Target P/E Multiplier", 15, 60, 35, help="Ajusta el múltiplo de salida esperado.", key="pe_normal")
                 margin_shock = st.select_slider("Presión en Margen Op.", options=["Ninguno", "Leve (-1%)", "Medio (-3%)", "Severo (-5%)"])
 
             with c2:
@@ -1023,16 +1026,19 @@ def main():
                 op_risk_level = st.select_slider("Severidad Operativa", options=["Baja", "Media", "Alta", "Crítica"])
                 capitulation_mode = st.toggle("Escenario de Capitulación", value=False)
 
+        # GUARDAR EN SESSION STATE PARA QUE EL SCORECARD SE ENTERE
+        st.session_state['pe_target'] = pe_target
+        st.session_state['panic_mode'] = panic_mode
+
         st.divider()
 
         # --- LÓGICA DE CÁLCULO (SENSIBILIDAD) ---
-        # Mantenemos tu lógica original de rangos
         pe_range = [pe_target * 0.8, pe_target * 0.9, pe_target, pe_target * 1.1, pe_target * 1.2]
         wacc_range = [wacc_shock - 0.5, wacc_shock, wacc_shock + 0.5, wacc_shock + 1.0, wacc_shock + 2.0]
         
         def calc_stress_price(p, w_adj):
-            # p_ref debe estar definido previamente como el precio actual
-            base = p_ref * (p / data['info'].get('trailingPE', 50))
+            # Usamos el P/E del búnker para la proporción
+            base = p_ref * (p / pe_actual_bunker)
             impacto_tasa = 1 - (max(0, w_adj) * 0.06) 
             return base * impacto_tasa
 
@@ -1065,6 +1071,17 @@ def main():
             st.warning(f"⚠️ RIESGO MODERADO: Valorización ajustada (${fv_stressed:,.2f}) por debajo del precio actual.")
         else:
             st.success(f"✅ ZONA SEGURA: El modelo soporta el escenario actual.")
+
+        # --- SECCIÓN EXTRA: INTEGRACIÓN DE HOJA DIDÁCTICA (Excel/CSV) ---
+        st.markdown("---")
+        with st.expander("📂 Ver Hoja de Trabajo Didáctica (Excel/Sheets)"):
+            st.info("Esta tabla refleja el modelo simplificado compartido para fines pedagógicos.")
+            try:
+                # Intentamos cargar el CSV que subiste
+                df_excel = pd.read_csv("Simulador_Riesgos_Costco_BlackSwan.xlsx - Matriz de Sensibilidad.csv")
+                st.table(df_excel.head(15)) # Mostramos las primeras filas para referencia
+            except:
+                st.write("Sube el archivo 'Simulador_Riesgos_Costco_BlackSwan.csv' a la carpeta del proyecto para visualizarlo aquí.")
 
         # --- NUEVO: DEFINICIONES DE CISNE NEGRO ---
         with st.expander("📖 Glosario: ¿Qué es un Cisne Negro en Costco?"):
