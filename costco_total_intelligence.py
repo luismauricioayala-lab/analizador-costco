@@ -979,25 +979,27 @@ def main():
             st.error(f"Error en la simulación: {e}")
 
 # -------------------------------------------------------------------------
-    # TAB 3: RISK MATRIX (VERSIÓN FINAL PROFESIONAL)
+    # TAB 3: RISK MATRIX (RESTAURACIÓN TOTAL Y FUNCIONALIDAD GESTIONADA)
     # -------------------------------------------------------------------------
     with tabs[2]:
         st.markdown("## 🔳 Risk Calibration & Black Swan Simulator")
         st.caption("Simulador de escenarios de estrés y sensibilidad de valoración avanzada")
         
-        # 1. EXTRACCIÓN DE DATOS (Seguridad contra NameError)
+        # 1. EXTRACCIÓN DE DATOS (Solución definitiva al NameError)
         db_risk = st.session_state.data_bunker
         p_ref_val = db_risk['info'].get('currentPrice', 780.0)
         pe_ref_val = db_risk['info'].get('trailingPE', 50.0)
 
-        # 2. LOGICA DE PÁNICO
+        # 2. LOGICA DE PÁNICO (Panic Button)
         panic_mode = st.toggle("🚨 ACTIVAR PANIC BUTTON: SCENARIO BLACK SWAN", value=False,
                                help="Bloquea las variables en un escenario de capitulación total del mercado.")
 
         st.markdown("### 🕹️ Variables de Escenario")
         c1, c2, c3 = st.columns(3)
         
+        # Lógica de Inputs: Si el botón de pánico está activo, forzamos valores críticos
         if panic_mode:
+            # Forzamos los valores para el cálculo de la matriz
             pe_target = 15
             wacc_shock = 5.0
             margin_shock = "Severo (-5%)"
@@ -1035,7 +1037,7 @@ def main():
 
         st.divider()
 
-        # 3. MATRIZ DE CÁLCULO
+        # 3. MATRIZ DE CÁLCULO (Lógica de Sensibilidad Dinámica)
         pe_range = [pe_target * 0.8, pe_target * 0.9, pe_target, pe_target * 1.1, pe_target * 1.2]
         wacc_range = [wacc_shock, wacc_shock + 0.5, wacc_shock + 1.0, wacc_shock + 2.0, wacc_shock + 5.0]
         
@@ -1043,6 +1045,7 @@ def main():
         for w in wacc_range:
             fila = []
             for pe in pe_range:
+                # Fórmula: (Precio / PE Actual) * PE Objetivo * Impacto Tasa
                 val = (p_ref_val / pe_ref_val) * pe * (1 - (max(0, w) * 0.06))
                 fila.append(val)
             matrix_data.append(fila)
@@ -1059,24 +1062,14 @@ def main():
             use_container_width=True
         )
 
-        # 4. BOTONES DE EXPORTACIÓN (Con formato Excel real)
+        # 4. BOTONES DE EXPORTACIÓN (Matriz dinámica con formato Excel real)
         import io
-
-        # Creamos un buffer en memoria para el archivo Excel
         buffer = io.BytesIO()
-
-        # Usamos XlsxWriter como motor para mantener formatos
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
             df_matrix.to_excel(writer, sheet_name='Matriz de Riesgo')
-            
-            # Accedemos al libro y la hoja para dar formato
             workbook  = writer.book
             worksheet = writer.sheets['Matriz de Riesgo']
-
-            # Definimos un formato para moneda
             money_fmt = workbook.add_format({'num_format': '$#,##0.00'})
-            
-            # Aplicamos el formato a las columnas de la matriz
             worksheet.set_column('B:F', 15, money_fmt)
 
         st.download_button(
@@ -1084,76 +1077,90 @@ def main():
             data=buffer.getvalue(),
             file_name="Analisis_Riesgo_Costco.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="btn_download_xlsx"
+            key="btn_xlsx_dynamic"
         )
 
-        # 5. ALERTAS DE CRITICIDAD
+        # 5. ALERTAS DE CRITICIDAD Y DIAGNÓSTICO
         st.markdown("---")
         fv_final = (p_ref_val / pe_ref_val) * pe_target * (1 - (wacc_shock * 0.06))
         
         if fv_final < p_ref_val * 0.7:
-            st.error(f"🚨 ALERTA ROJA: El Fair Value estresado (${fv_final:,.2f}) implica una caída de más del 30%.")
+            st.error(f"🚨 ALERTA ROJA: El Fair Value estresado (${fv_final:,.2f}) implica una caída de más del 30% respecto al valor actual.")
         elif fv_final < p_ref_val:
-            st.warning(f"⚠️ RIESGO MODERADO: Valorización ajustada (${fv_final:,.2f}) por debajo del precio actual.")
+            st.warning(f"⚠️ RIESGO MODERADO: Valorización ajustada (${fv_final:,.2f}) por debajo del precio actual de mercado.")
         else:
-            st.success(f"✅ ZONA SEGURA: El modelo soporta el escenario actual.")
+            st.success(f"✅ ZONA SEGURA: El modelo soporta el escenario actual. Valor objetivo: ${fv_final:,.2f}")
 
-        # 6. RECURSOS ADICIONALES (Excel y Google Sheets)
-        st.markdown("### 📂 Recursos del Modelo")
-        c_res1, c_res2 = st.columns(2)
+        # 6. RECURSOS ADICIONALES (Alojamiento y Descargas)
+        st.markdown("### 📂 Centro de Recursos y Descargas")
+        col_res1, col_res2 = st.columns(2)
         
-        with c_res1:
-            with st.expander("📥 Descargar Plantilla Offline (.xlsx)"):
-                st.info("Modelo base con formatos y fórmulas (GitHub).")
+        with col_res1:
+            with st.expander("📥 Descargar Plantilla Original (.xlsx)"):
+                st.info("Modelo base con formatos, colores y fórmulas originales alojado en GitHub.")
                 try:
-                    # REVISIÓN: Asegúrate de que este nombre sea EXACTO al de tu GitHub
                     file_path_xlsx = "Simulador_Riesgos_Costco_BlackSwan.xlsx"
-                    
                     with open(file_path_xlsx, "rb") as file:
                         st.download_button(
                             label="Descargar Excel Profesional",
                             data=file,
-                            file_name="Simulador_Costco_Analisis.xlsx", # Nombre que verá el usuario al bajarlo
+                            file_name="Simulador_Costco_Analisis.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            key="btn_descarga_xlsx_oficial"
+                            key="btn_xlsx_original_full"
                         )
                 except FileNotFoundError:
-                    st.error(f"Error: No se encontró '{file_path_xlsx}' en el repositorio.")
+                    st.error("Error: El archivo original no se encuentra en la raíz del repositorio.")
 
-        with c_res2:
+        with col_res2:
             with st.expander("☁️ Acceder a Google Sheets"):
-                st.info("Versión interactiva en la nube.")
+                st.info("Versión interactiva en la nube sincronizada vía Google Finance.")
                 url_sheets = "https://docs.google.com/spreadsheets/d/1Xfqx3-yZxS1YbPkZlLzH37D-Fb7xuUNeIYLk19Vxo7c/edit?usp=sharing"
                 st.link_button("Ir a Google Sheets", url_sheets, type="primary")
 
-        # 7. GLOSARIO DE ESCENARIOS Y CISNES NEGROS
-        # --- NUEVA SECCIÓN: EXPLICACIÓN DE VARIABLES ---
+        # 7. MANUAL DE VUELO (EXPLICACIÓN DETALLADA DE VARIABLES)
+        st.markdown("---")
         with st.expander("🎓 Manual de Vuelo: ¿Qué significan estas variables?"):
             col_v1, col_v2 = st.columns(2)
             with col_v1:
-                st.markdown("#### **Múltiplo P/E**")
-                st.write("Mide el **optimismo**. Costco es caro porque el mercado cree que es invencible. Bajarlo a 15x es quitarle ese 'aura' y valorarla como una tienda común.")
+                st.markdown("#### **Múltiplo P/E (Sentimiento)**")
+                st.write("""
+                Representa cuántos años de beneficios estás dispuesto a pagar por la empresa. 
+                Costco suele cotizar a múltiplos muy altos (~50x) porque el mercado la ve como una joya. 
+                Si bajas este valor a **15x**, estás simulando que el mercado deja de verla como algo especial y la valora como un retail común.
+                """)
                 
-                st.markdown("#### **Shock de Tasa**")
-                st.write("Mide el **costo del dinero**. Si las tasas suben al 5%, el valor actual de las ganancias futuras de Costco cae drásticamente.")
+                st.markdown("#### **Shock de Tasa Fed (Macro)**")
+                st.write("""
+                Mide el **costo del dinero**. Cuando las tasas de interés suben, el valor presente de las ganancias futuras de cualquier empresa cae. 
+                En este simulador, cada 1% de subida en la tasa aplica un castigo directo del 6% sobre el valor objetivo.
+                """)
             
             with col_v2:
-                st.markdown("#### **Margen Operativo**")
-                st.write("Mide la **eficiencia**. Un shock aquí representa problemas con proveedores o que la membresía dejó de ser rentable.")
+                st.markdown("#### **Margen Operativo (Negocio)**")
+                st.write("""
+                Mide la **eficiencia**. Costco vive de márgenes muy pequeños. Shocks negativos aquí representan problemas con proveedores, inflación galopante de costos o que la gente deje de pagar su membresía anual.
+                """)
                 
-                st.markdown("#### **Capitulación**")
-                st.write("Es el **botón del pánico**. Simula el peor día posible en la bolsa donde todos venden por miedo, sin importar los fundamentales.")
-        
+                st.markdown("#### **Capitulación (Psicología)**")
+                st.write("""
+                Es el **botón del pánico**. Simula el escenario donde los inversores venden por miedo irracional (Cisne Negro), ignorando los fundamentos de la empresa y buscando solo liquidez.
+                """)
+
+        # 8. GLOSARIO DE CISNES NEGROS (EXTENDIDO)
         st.markdown("---")
         with st.expander("📖 Glosario: ¿Qué es un Cisne Negro en Costco?"):
             st.write("""
             Un **Cisne Negro** es un evento altamente improbable, de impacto masivo y que solo parece predecible en retrospectiva.
             
-            **Ejemplos críticos para Costco:**
-            1. **Disrupción de Membresías:** Cambios legales que prohíban el modelo de club de precios.
-            2. **Fallo en Cadena de Suministro:** Bloqueo prolongado en el Pacífico.
-            3. **Contaminación de Marca:** Problema masivo ligado a *Kirkland Signature*.
-            4. **Compresión de Múltiplos:** Reclasificación a retail tradicional (de 50x a 15x P/E).
+            **Ejemplos críticos analizados para Costco:**
+            
+            1. **Disrupción de Membresías:** Cambios legales que prohíban el modelo de club de precios o obliguen a eliminar la cuota de socio, la cual representa cerca del 80% de la utilidad operativa de la empresa.
+            
+            2. **Fallo en Cadena de Suministro:** Un bloqueo prolongado en el Pacífico que vacíe los estantes. Costco vive de la rotación extrema; si no hay productos frescos y exclusivos, el socio deja de ir.
+            
+            3. **Contaminación de Marca:** Un problema de salud masivo o defecto grave ligado a los productos *Kirkland Signature* que destruya la confianza de los socios en la marca propia más valiosa del mundo.
+            
+            4. **Compresión de Múltiplos:** Que el mercado deje de valorar a Costco como 'tecnología/crecimiento' y pase a valorarla como retail tradicional. Esto causaría una caída del precio del 70% sin que las ventas bajen ni un dólar.
             """)
 # -------------------------------------------------------------------------
     # TAB 4: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
