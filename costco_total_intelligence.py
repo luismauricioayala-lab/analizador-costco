@@ -1091,7 +1091,7 @@ def main():
                 with open("Simulador_Riesgos_Costco_BlackSwan.xlsx", "rb") as f:
                     st.download_button("📥 Descargar Plantilla Original (.xlsx)", f, "Simulador_Costco_Original.xlsx", 
                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                st.caption("Modelo base alojado en GitHub con fórmulas.")
+                st.info("Modelo base con formatos, colores y fórmulas originales alojado en GitHub.")                
             except: st.error("Archivo original no encontrado en GitHub.")
         with cr2:
             st.link_button("☁️ Ir a Google Sheets (Tiempo Real)", "https://docs.google.com/spreadsheets/d/1Xfqx3-yZxS1YbPkZlLzH37D-Fb7xuUNeIYLk19Vxo7c/edit?usp=sharing", type="primary")
