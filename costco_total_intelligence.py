@@ -690,7 +690,7 @@ def main():
 
     # --- 6. ARQUITECTURA DE PESTAÑAS ---
     tabs = st.tabs([
-        "📋 Resumen", "🛡️ Scorecard & Radar", "Riesgos", "🔬 Peer Analysis", "💰 Ganancias", "🌪️ Stress Test Pro", 
+        "📋 Resumen", "🛡️ Scorecard & Radar", "🔳 Matriz de Riesgos", "🔬 Peer Analysis", "💰 Ganancias", "🌪️ Stress Test Pro", 
         "📈 Forward Looking", "📊 Finanzas Pro", "💎 DCF Lab Pro", "🎲 Monte Carlo", "🔬 Comparativa APT", "📜 Metodología", "📈 Opciones Lab"
     ])
   
@@ -957,59 +957,77 @@ def main():
 
 
     # -------------------------------------------------------------------------
-    # TAB 3: RISK & STRESS TEST (NUEVA)
+    # TAB 3: RISK MATRIX (NUEVA)
     # -------------------------------------------------------------------------
     with tabs[2]:
-        st.subheader("🛡️ Risk Calibration Engine")
+        st.markdown("## 🔳 Risk Calibration Matrix") # Usando markdown para control total
+        st.caption("Simulador de escenarios de estrés y sensibilidad de valoración")
+              
+        # --- BLOQUE 1: INPUT GRID (MATRIZ DE CONTROLES) ---
+        st.markdown("### 🕹️ Variables de Escenario")
+        c1, c2, c3 = st.columns(3)
         
-        # Creamos dos columnas: una para controles y otra para resultados
-        col_ctrl, col_res = st.columns([1, 1.2])
+        with c1:
+            st.info("**Riesgo de Mercado (Valuation)**")
+            pe_target = st.slider("Target P/E Multiplier", 15, 60, 35, help="Ajusta el múltiplo de salida esperado.")
+            margin_shock = st.select_slider("Presión en Margen Op.", options=["Ninguno", "Leve (-1%)", "Medio (-3%)", "Severo (-5%)"])
 
-        with col_ctrl:
-            st.markdown("### 🕹️ Simulador de Escenarios")
-            
-            # 1. Riesgo de Múltiplos (P/E)
-            pe_actual = data['info'].get('trailingPE', 51)
-            pe_target = st.slider("Ajuste de P/E (Múltiplo)", 20, 65, int(pe_actual), 
-                                 help="Bajar esto simula que el mercado deja de pagar un premium por la acción.")
-            
-            # 2. Riesgo de Tasas (WACC)
-            wacc_extra = st.slider("Shock de Tasas Fed (+%)", 0.0, 5.0, 0.0, 0.25,
-                                  help="Simula un aumento en el costo de capital.")
-            
-            # 3. Riesgo de Negocio
-            op_risk = st.select_slider("Severidad de Riesgos Operativos", 
-                                      options=["Bajo", "Moderado", "Severo", "Capitulación"])
+        with c2:
+            st.warning("**Riesgo Macroeconómico**")
+            wacc_shock = st.number_input("Shock de Tasa Fed (+%)", 0.0, 5.0, 0.0, 0.25)
+            inflation_impact = st.toggle("Incluir Espiral Inflacionaria", value=False)
 
-        with col_res:
-            # Lógica matemática simple de impacto
-            pe_impact = pe_target / pe_actual
-            wacc_impact = 1 - (wacc_extra * 0.07) # Por cada 1% de tasa, el valor cae ~7%
-            
-            risk_map = {"Bajo": 1.0, "Moderado": 0.92, "Severo": 0.80, "Capitulación": 0.60}
-            biz_impact = risk_map[op_risk]
-            
-            # Cálculo del nuevo Fair Value Estresado
-            fv_stressed = p_ref * pe_impact * wacc_impact * biz_impact
-            var_pct = (fv_stressed / p_ref) - 1
+        with c3:
+            st.error("**Riesgo Operativo / Cisne Negro**")
+            op_risk_level = st.select_slider("Severidad Operativa", options=["Baja", "Media", "Alta", "Crítica"])
+            capitulation_mode = st.toggle("Escenario de Capitulación", value=False)
 
-            # Visualización principal
-            st.write("### Impacto en Valorización")
-            c1, c2 = st.columns(2)
-            c1.metric("Fair Value Estresado", f"${fv_stressed:,.2f}", f"{var_pct:.1%}", delta_color="inverse")
-            
-            # Cálculo de probabilidad de buscar el suelo ($569)
-            prob = min(abs(var_pct) * 1.2 * 100, 100) if var_pct < 0 else 0
-            c2.metric("Riesgo de Capitulación", f"{prob:.1f}%", help="Probabilidad de caer al target técnico de $569")
+        st.divider()
 
-            # Early Warning System (Alertas automáticas)
-            st.markdown("---")
-            if fv_stressed < 600:
-                st.error("🚨 CRÍTICO: El escenario actual perfora soportes históricos.")
-            elif fv_stressed < p_ref * 0.85:
-                st.warning("⚠️ ALERTA: Corrección significativa en proceso.")
-            else:
-                st.success("✅ RESILIENTE: El modelo soporta los riesgos actuales.")
+        # --- LÓGICA DE CÁLCULO (SENSIBILIDAD) ---
+        # Definimos rangos para la matriz (P/E vs WACC)
+        pe_range = [pe_target * 0.8, pe_target * 0.9, pe_target, pe_target * 1.1, pe_target * 1.2]
+        wacc_range = [wacc_shock - 0.5, wacc_shock, wacc_shock + 0.5, wacc_shock + 1.0, wacc_shock + 2.0]
+        
+        # Función rápida de impacto para la matriz
+        def calc_stress_price(p, w_adj):
+            # p_ref viene de tus datos de Costco cargados
+            base = p_ref * (p / data['info'].get('trailingPE', 50))
+            impacto_tasa = 1 - (max(0, w_adj) * 0.06) # -6% por cada 1% de tasa
+            return base * impacto_tasa
+
+        # --- BLOQUE 2: LA MATRIZ DE SENSIBILIDAD (HEATMAP) ---
+        st.markdown("### 📊 Matriz de Sensibilidad: Fair Value vs Macro")
+        
+        # Generar datos para el cuadro matricial
+        matrix_data = []
+        for w in wacc_range:
+            row = [calc_stress_price(pe, w) for pe in pe_range]
+            matrix_data.append(row)
+            
+        df_matrix = pd.DataFrame(
+            matrix_data, 
+            index=[f"+{w}% Tasa" for w in wacc_range],
+            columns=[f"{int(pe)}x P/E" for pe in pe_range]
+        )
+
+        # Aplicar estilo de Heatmap
+        st.dataframe(
+            df_matrix.style.background_gradient(cmap='RdYlGn', axis=None).format("${:,.2f}"),
+            use_container_width=True
+        )
+
+        # --- BLOQUE 3: ALERTAS DE CRITICIDAD ---
+        st.markdown("---")
+        fv_stressed = calc_stress_price(pe_target, wacc_shock)
+        
+        if fv_stressed < p_ref * 0.7:
+            st.error(f"🚨 ALERTA ROJA: El Fair Value estresado (${fv_stressed:,.2f}) implica una caída de más del 30%.")
+        elif fv_stressed < p_ref:
+            st.warning(f"⚠️ RIESGO MODERADO: Valorización ajustada por debajo del precio actual.")
+        else:
+            st.success(f"✅ ZONA SEGURA: El modelo soporta el escenario actual.")
+
 
 # -------------------------------------------------------------------------
     # TAB 4: PEER ANALYSIS & MARKET BENCHMARKING (TOTALMENTE INTERACTIVO)
