@@ -1008,17 +1008,17 @@ def main():
             capitulation_mode = True
             
             with c1:
-                st.info("**Riesgo de Mercado (Valuation)**")
-                st.slider("Target P/E Multiplier", 10, 60, 15, disabled=True, key="pe_p")
-                st.select_slider("Presión en Margen Op.", options=["Severo (-5%)"], disabled=True, key="ma_p")
+                st.info("**Riesgo de Mercado (Valuation)**")                
+                st.slider("Target P/E Multiplier", 10, 60, 15, disabled=True, key="pe_panic_fixed")
+                st.select_slider("Presión en Margen Op.", options=["Severo (-5%)"], disabled=True, key="ma_panic_fixed")
             with c2:
                 st.warning("**Riesgo Macroeconómico**")
-                st.number_input("Shock de Tasa Fed (+%)", 0.0, 10.0, 5.0, disabled=True, key="ta_p")
+                st.number_input("Shock de Tasa Fed (+%)", min_value=0.0, max_value=10.0, value=5.0, disabled=True, key="ta_panic_fixed")
                 st.markdown("⚠️ *Tasa en modo estrés máximo*")
             with c3:
                 st.error("**Riesgo Operativo / Cisne Negro**")
-                st.select_slider("Severidad Operativa", options=["Crítica"], disabled=True, key="op_p")
-                st.toggle("Escenario de Capitulación", value=True, disabled=True, key="ca_p")
+                st.select_slider("Severidad Operativa", options=["Crítica"], value="Crítica", disabled=True, key="op_panic_fixed")
+                st.toggle("Escenario de Capitulación", value=True, disabled=True, key="ca_panic_fixed")
         else:
             with c1:
                 st.info("**Riesgo de Mercado (Valuation)**")
