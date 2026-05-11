@@ -997,7 +997,8 @@ def main():
         st.markdown("### 🕹️ Variables de Escenario")
         c1, c2, c3 = st.columns(3)
         
-        if panic_mode:
+            if panic_mode:
+            # FORZAMOS VALORES LÓGICOS PARA LA MATRIZ
             pe_target = 15
             wacc_shock = 5.0
             margin_shock = "Severo (-5%)"
