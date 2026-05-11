@@ -996,7 +996,7 @@ def main():
 
         st.markdown("### 🕹️ Variables de Escenario")
         c1, c2, c3 = st.columns(3)
-        
+                          
             if panic_mode:
             # FORZAMOS VALORES LÓGICOS PARA LA MATRIZ
             pe_target = 15
