@@ -2340,44 +2340,77 @@ def main():
 # -------------------------------------------------------------------------
     # TAB 11 : ESTRATEGIA (KELLY CRITERION & CAPITAL ALLOCATION)
     # -------------------------------------------------------------------------
-    with tabs[10]: 
+    with tabs[10]: # Ajusta al índice correcto en tu lista
         st.markdown("## 🎯 Estrategia de Inversión y Gestión de Capital")
-        
-        # --- INICIALIZACIÓN DE SEGURIDAD ---
-        sug_pos = 0.0  # <--- Esto evita el UnboundLocalError
-        
+        st.caption("Determinación del tamaño de posición basado en ventaja estadística (Kelly Criterion)")
+
+        # --- 1. INICIALIZACIÓN Y RECUPERACIÓN DE DATOS ---
+        sug_pos = 0.0
         db_strat = st.session_state.get('data_bunker', {})
         current_price = db_strat.get('info', {}).get('currentPrice', 0.0)
         
+        # Recuperamos datos reales de Monte Carlo / DCF
+        # Si no existen, usamos valores de referencia (Precio + 15%)
         fv_target = st.session_state.get('fair_value_dcf', current_price * 1.15)
         win_prob = st.session_state.get('monte_carlo_prob', 0.60) 
 
         if current_price == 0:
-            st.warning("⚠️ No se detectó el precio actual. Por favor, asegúrate de que el Búnker de Datos esté cargado.")
+            st.warning("⚠️ No se detectó el precio actual. Carga el Búnker de Datos primero.")
         else:
+            # --- 2. LÓGICA MATEMÁTICA ---
             upside = (fv_target / current_price) - 1
-            downside_risk = 0.25 
+            downside_risk = 0.25 # Riesgo asumido del 25% para el cálculo
             ratio_r = upside / downside_risk if downside_risk > 0 else 0
 
-            # ... (Aquí va tu código de las columnas c_exec1 y c_exec2) ...
-            
-            # Dentro de c_exec2, donde calculas Kelly:
-            if ratio_r > 0:
-                kelly_full = win_prob - ((1 - win_prob) / ratio_r)
-                fraction = st.select_slider("Fracción de Kelly", options=[0.1, 0.2, 0.25, 0.5, 1.0], value=0.25)
-                sug_pos = max(0, kelly_full * fraction) # Aquí se actualiza si hay ventaja
-                
-                # Renderizado del HTML (con el parámetro corregido)
-                st.markdown(f"<h1 style='text-align: center; color: #4CAF50;'>{sug_pos*100:.2f}%</h1>", unsafe_allow_html=True)
-                st.markdown("<p style='text-align: center;'><b>Tamaño sugerido de la posición</b></p>", unsafe_allow_html=True)
-            else:
-                st.error("🚨 Ratio Riesgo/Recompensa Negativo. Sugerencia: No Invertir.")
-                sug_pos = 0.0 # Reforzamos el cero si no hay negocio
+            # --- 3. DISEÑO DE INTERFAZ ---
+            c_strat1, c_strat2 = st.columns([1, 1.5])
 
+            with c_strat1:
+                st.markdown("### 📊 Inputs de Decisión")
+                st.metric("Precio Mercado", f"${current_price:,.2f}")
+                st.metric("Fair Value (Modelado)", f"${fv_target:,.2f}", f"{upside*100:+.1f}%")
+                st.write("---")
+                # Permitir ajuste manual de probabilidad si no se ha corrido Monte Carlo
+                win_prob_adj = st.slider("Probabilidad Estimada (Win %)", 10, 95, int(win_prob*100)) / 100
+
+            with c_strat2:
+                st.markdown("### ⚖️ Asignación Sugerida")
+                
+                # Solo operamos si hay ventaja (Upside > 0)
+                if ratio_r > 0:
+                    kelly_full = win_prob_adj - ((1 - win_prob_adj) / ratio_r)
+                    
+                    fraction = st.select_slider(
+                        "Agresividad (Fractional Kelly)",
+                        options=[0.1, 0.2, 0.25, 0.5, 1.0],
+                        value=0.25,
+                        help="0.25 (Quarter-Kelly) es el estándar de prudencia."
+                    )
+                    
+                    sug_pos = max(0, kelly_full * fraction)
+                    
+                    # Formateo visual del porcentaje
+                    color_pos = "#4CAF50" if sug_pos > 0 else "#f85149"
+                    st.markdown(f"<h1 style='text-align: center; color: {color_pos};'>{sug_pos*100:.2f}%</h1>", unsafe_allow_html=True)
+                    st.markdown("<p style='text-align: center;'><b>Exposición Sugerida sobre Cartera Total</b></p>", unsafe_allow_html=True)
+                    st.progress(min(sug_pos, 1.0))
+                else:
+                    st.error("🚨 Ratio Riesgo/Recompensa Negativo. El precio actual supera el valor intrínseco estimado.")
+                    st.info("Sugerencia: Esperar a una corrección o ajustar las premisas de crecimiento en el DCF/Monte Carlo.")
+                    sug_pos = 0.0
+
+        # --- 4. CIERRE Y RESUMEN EJECUTIVO ---
         st.divider()
-        # La Nota de Gestión ahora siempre encontrará sug_pos (ya sea el calculado o el 0.0 inicial)
-        st.warning(f"**Nota de Gestión:** Si tu cartera es de $10,000, la compra recomendada es de aproximadamente **${(10000 * sug_pos):,.2f}**.")
+        monto_sug = 10000 * sug_pos # Asumiendo cartera de 10k
         
+        st.success(f"**Nota de Gestión:** Si tu cartera es de **$10,000**, la compra recomendada es de aproximadamente **${monto_sug:,.2f}**.")
+        
+        with st.expander("📝 Manual de Estrategia"):
+            st.write("""
+            Este modelo utiliza el **Criterio de Kelly** para balancear el riesgo de ruina con el crecimiento del capital. 
+            Si el resultado es 0%, significa que el margen de seguridad es insuficiente para justificar la entrada en este precio.
+            """)
+            
 # -------------------------------------------------------------------------
     # TAB 12: VALORACIÓN MULTI-MODELO (CONSENSO DCF vs APT)
     # -------------------------------------------------------------------------
