@@ -2583,17 +2583,7 @@ def main():
                 💡 **Nota de Convergencia:** El modelo Gordon solo es estable si $WACC > g$. 
                 La terminal bloquea automáticamente cálculos donde el crecimiento terminal supera el costo de capital para evitar valores infinitos.
             """)
-            
-            # --- AQUÍ CONTINÚA TU CÓDIGO ORIGINAL (st.info) ---
-            st.info("""
-                💡 **Nota de Convergencia:** El modelo Gordon solo es estable si $WACC > g$. 
-                La terminal bloquea automáticamente cálculos donde el crecimiento terminal supera el costo de capital para evitar valores infinitos.
-            """)
-            st.info("""
-                💡 **Nota de Convergencia:** El modelo Gordon solo es estable si $WACC > g$. 
-                La terminal bloquea automáticamente cálculos donde el crecimiento terminal supera el costo de capital para evitar valores infinitos.
-            """)       
-
+   
         with m_col2:
             with st.container(border=True):
                 st.write("**📥 Repositorio Interno**")
