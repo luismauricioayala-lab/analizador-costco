@@ -2392,7 +2392,7 @@ def main():
                     
                     # Display del Resultado
                     st.markdown(f"<h1 style='text-align: center; color: #4CAF50;'>{sug_pos*100:.2f}%</h1>", unsafe_allow_html=True)
-                    st.markdown("<p style='text-align: center;'><b>Tamaño sugerido de la posición</b></p>", unsafe_allow_value=True)
+                    st.markdown("<p style='text-align: center;'><b>Tamaño sugerido de la posición</b></p>", unsafe_allow_html=True)
                     st.progress(min(sug_pos, 1.0))
                     
                     st.success(f"**Veredicto:** El modelo sugiere asignar un **{sug_pos*100:.2f}%** de tu capital total a esta posición bajo una estrategia de **{fraction} Kelly**.")
