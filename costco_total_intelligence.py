@@ -2391,7 +2391,7 @@ def main():
                     sug_pos = max(0, kelly_full * fraction)
                     
                     # Display del Resultado
-                    st.markdown(f"<h1 style='text-align: center; color: #4CAF50;'>{sug_pos*100:.2f}%</h1>", unsafe_allow_value=True)
+                    st.markdown(f"<h1 style='text-align: center; color: #4CAF50;'>{sug_pos*100:.2f}%</h1>", unsafe_allow_html=True)
                     st.markdown("<p style='text-align: center;'><b>Tamaño sugerido de la posición</b></p>", unsafe_allow_value=True)
                     st.progress(min(sug_pos, 1.0))
                     
@@ -2578,6 +2578,11 @@ def main():
             """)
             st.latex(r"f^* = W - \frac{1 - W}{R}")
             st.caption("Donde $W$ es la Probabilidad de Éxito (de Monte Carlo) y $R$ es el Ratio Ganancia/Pérdida (Upside/Downside).")
+
+            st.info("""
+                💡 **Nota de Convergencia:** El modelo Gordon solo es estable si $WACC > g$. 
+                La terminal bloquea automáticamente cálculos donde el crecimiento terminal supera el costo de capital para evitar valores infinitos.
+            """)
             
             # --- AQUÍ CONTINÚA TU CÓDIGO ORIGINAL (st.info) ---
             st.info("""
