@@ -2281,7 +2281,11 @@ def main():
                 )
             
             exitos = (sim_series > umbral_mc).sum()
-            prob_exito = (exitos / len(sim_series)) * 100
+            prob_exito_decimal = exitos / len(sim_series) # Calculamos en decimal para Kelly
+            prob_exito = prob_exito_decimal * 100
+
+            st.session_state['fair_value_dcf'] = float(media_sim)
+            st.session_state['monte_carlo_prob'] = float(prob_exito_decimal)
             
             with c_mc2:
                 st.metric(
