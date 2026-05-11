@@ -1010,7 +1010,7 @@ def main():
             with c1:
                 st.info("**Riesgo de Mercado (Valuation)**")                
                 st.slider("Target P/E Multiplier", 10, 60, 15, disabled=True, key="pe_p_fix")
-                st.text_input("Presión en Margen Op.", value="Severo (-5%)", disabled=True, key="ma_p_fix"))
+                st.text_input("Presión en Margen Op.", value="Severo (-5%)", disabled=True, key="ma_p_fix")
             with c2:
                 st.warning("**Riesgo Macroeconómico**")
                 st.number_input("Shock de Tasa Fed (+%)", min_value=0.0, max_value=10.0, value=5.0, disabled=True, key="ta_p_fix")
