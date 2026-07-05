@@ -269,7 +269,7 @@ class InstitutionalDataService:
                 }, index=['Operating Cash Flow', 'Capital Expenditure'])
 
                 return {
-                    "is_bunker": True
+                    "is_bunker": True,
                     "info": {
                         "currentPrice": ultimo_precio, 
                         "shortName": "PriceSmart Inc." if ticker == 'PSMT' else "Costco Wholesale Corp", 
