@@ -269,13 +269,14 @@ class InstitutionalDataService:
                 }, index=['Operating Cash Flow', 'Capital Expenditure'])
 
                 return {
+                    "is_bunker": True
                     "info": {
                         "currentPrice": ultimo_precio, 
                         "shortName": "PriceSmart Inc." if ticker == 'PSMT' else "Costco Wholesale Corp", 
                         "symbol": ticker,
                         "trailingEps": 16.52,
-                        "fiftyTwoWeekLow": f_low,
-                        "fiftyTwoWeekHigh": f_high,
+                        "fiftyTwoWeekLow": float('nan'),
+                        "fiftyTwoWeekHigh": float('nan'),
                         "marketCap": 420.5e9,
                         "trailingPE": 54.20
                     },
@@ -324,7 +325,8 @@ class InstitutionalDataService:
                 df_final = df_final[df_final['Ticker'].isin(search_universe)]
                 if not df_final.empty:
                     return df_final
-            except: pass
+            except Exception as e: 
+                st.sidebar.warning(f"⚠️ Error al procesar '{archivo_offline}': {e}")
 
         # 2. Segundo Intento: Yahoo Finance Online
         try:
@@ -348,7 +350,8 @@ class InstitutionalDataService:
                     })
             if peer_results:
                 return pd.DataFrame(peer_results)
-        except: pass
+        except Exception as e: 
+            st.sidebar.warning(f"📡 Error en descarga online de competidores: {e}")
 
         return None
 
@@ -415,8 +418,10 @@ class ValuationEngine:
     
     @staticmethod
     def calculate_wacc(beta, risk_free=0.042, equity_risk_premium=0.05):
-        """Calcula el Coste de Capital (WACC) simplificado para retail."""
-        # CAPM: Ke = Rf + Beta * (Rm - Rf)
+        """
+        MÉTODO NOTA: Mantiene el nombre por compatibilidad de la UI, pero 
+        representa el Costo del Capital Propio (Ke) vía CAPM pura para Costco.
+        """
         return risk_free + (beta * equity_risk_premium)
 
     @staticmethod
@@ -602,6 +607,10 @@ def main():
 
     # Asignamos a la variable local 'data' para compatibilidad con tu código anterior
     data = st.session_state.data_bunker
+
+    # --- INYECTAR ESTE BLOQUE VISUAL ---
+    if data.get("is_bunker", False):
+        st.error("🚨 **DATOS ESTÁTICOS CONGELADOS (AGOSTO-2025):** Terminal operando en modo Búnker. Los múltiplos actuales y los rangos de 52 semanas no representan el mercado en tiempo real.")
 
     # --- 3. INICIALIZACIÓN DE PARÁMETROS (SESSION STATE) ---
     if 'rf_g' not in st.session_state: st.session_state.rf_g = 0.085
