@@ -45,39 +45,35 @@ def construir_bunker_completo():
     print("✅ peers_stats.csv actualizado.")
 
 # --- PARTE B: HISTORIALES INDIVIDUALES (PARA EL MODO OFFLINE DEL MOTOR) ---
-    print(f"\n📂 Generando archivos .csv individuales para el motor de auditoría...")
+    print(f"\n📂 Generando archivos .csv individuales en la raíz para el motor de auditoría...")
     
-    # Creamos la carpeta 'data' si no existe (una sola vez)
-    if not os.path.exists('data'):
-        os.makedirs('data')
-
     for t in tickers_peers:
         try:
-            # Descargamos 5 años para tener suficiente historial para Beta y 52w Range
+            # Descargamos el historial para tener suficiente información real
             df_ind = yf.download(t, period="5y", interval="1d", progress=False)
             if not df_ind.empty:
-                # IMPORTANTE: Guardamos dentro de /data y con el nombre que espera el motor
-                file_path = os.path.join('data', f"{t}_hist.csv")
+                # CORRECCIÓN DE UBICACIÓN: Se guardan en la raíz del proyecto, tal como lo busca el motor principal
+                file_path = f"{t}.csv"
                 df_ind.to_csv(file_path)
-                print(f"   ∟ {file_path} [OK]")
+                print(f"   ∟ {file_path} [OK - Sincronizado con Motor]")
         except Exception as e:
-            print(f"   ∟ ❌ Error en {t}: {e}")
+            print(f"   ∟ ❌ Error al generar fallback para {t}: {e}")
 
     # --- PARTE C: HISTORIAL CONSOLIDADO (PARA MATRIZ DE CORRELACIÓN) ---
     try:
         print(f"\n📡 Descargando historial consolidado para {len(todos_los_activos)} activos...")
         data = yf.download(todos_los_activos, period="1y", interval="1d", progress=False)
         
-        # Manejo de MultiIndex para extraer solo el Cierre
+        # Manejo de MultiIndex para extraer solo el Cierre de forma limpia
         if isinstance(data.columns, pd.MultiIndex):
             df_history = data['Close']
         else:
             df_history = data
             
         df_history.to_csv("market_history.csv")
-        print("✅ market_history.csv actualizado.")
+        print("✅ market_history.csv actualizado en la raíz.")
     except Exception as e:
-        print(f"❌ Error al crear historial de mercado: {e}")
+        print(f"❌ Error al crear historial consolidado de mercado: {e}")
 
 if __name__ == "__main__":
     construir_bunker_completo()
