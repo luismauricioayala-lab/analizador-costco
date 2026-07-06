@@ -627,7 +627,7 @@ def main():
 
     st.sidebar.divider()
     st.sidebar.subheader("1. Valuación (DCF)")
-    wacc_base = st.sidebar.slider("Tasa WACC Base (%)", 4.0, 16.0, 6.5) / 100
+    ke_base = st.sidebar.slider("Cost of Equity Base (Ke %)", 4.0, 16.0, 6.5) / 100
     g1_in = st.sidebar.slider("Crecimiento 1-5Y (%)", -10.0, 50.0, 12.0) / 100
     g2_in = st.sidebar.slider("Crecimiento 6-10Y (%)", 0.0, 20.0, 8.0) / 100
     g_terminal = st.sidebar.slider("Crecimiento Perpetuo (%)", 1.0, 5.0, 3.5) / 100
@@ -643,7 +643,8 @@ def main():
     # Cálculos Instantáneos
     blended_gdp = (2.3 * 0.73 + 2.1 * 0.14 + 3.0 * 0.13) / 100 # Simplificado para estabilidad
     macro_adj = (income_g * 1.5) + (blended_gdp * 0.8) - (inflation * 1.2)
-    final_wacc = wacc_base + fed_rates 
+    final_ke = ke_base + fed_rates
+    final_wacc = final_ke
 
     # Motor de Valoración
     if final_wacc <= g_terminal:
@@ -658,7 +659,7 @@ def main():
 
     # --- 5. CABECERA INSTITUCIONAL ---
     st.title(f"🏛️ {data['info'].get('longName', 'Costco')} Institutional Terminal")
-    st.caption(f"Sync SEC 2026 | GDP Blended: {blended_gdp*100:.3f}% | WACC: {final_wacc*100:.2f}%")
+    st.caption(f"Sync SEC 2026 | GDP Blended: {blended_gdp*100:.3f}% | Cost of Equity (Ke): {final_ke*100:.2f}%")
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("P/E TTM", f"{data['info'].get('trailingPE', 52.9):.1f}x")
@@ -1052,7 +1053,26 @@ def main():
         pe_range = [pe_target * 0.8, pe_target * 0.9, pe_target, pe_target * 1.1, pe_target * 1.2]
         wacc_range = [wacc_shock, wacc_shock + 0.5, wacc_shock + 1.0, wacc_shock + 2.0, wacc_shock + 5.0]
         
-        matrix_data = [[(p_ref_val / pe_ref_val) * pe * (1 - (max(0, w) * 0.06)) for pe in pe_range] for w in wacc_range]
+        matrix_data = []
+        for w in wacc_range:
+            row_values = []
+            # Traducimos el shock de tasa de la Fed a un impacto en el Ke/WACC de descuento actual
+            wacc_escenario = final_wacc + (w / 100)
+            for pe in pe_range:
+                # Ejecutamos el modelo de flujos reales para obtener el valor intrínseco preciso
+                val_calculado, _, _, _ = ValuationOracle.run_macro_dcf(
+                    fcf=data['fcf_now_b'] * 1.15, 
+                    g1=g1_in, 
+                    g2=g2_in, 
+                    wacc=wacc_escenario, 
+                    tg=g_terminal, 
+                    macro_adj=macro_adj
+                )
+                # Multiplicamos por la variación proporcional del múltiplo P/E de salida seleccionado
+                val_final_celda = val_calculado * (pe / pe_target)
+                row_values.append(val_final_celda)
+            matrix_data.append(row_values)
+
         df_matrix = pd.DataFrame(matrix_data, 
                                  index=[f"+{w}% Tasa" for w in wacc_range],
                                  columns=[f"{int(pe)}x P/E" for pe in pe_range])
@@ -2247,11 +2267,14 @@ def main():
         
         # Ejecución del motor estocástico
         for i in range(n_sims):
-            # 1. Simulamos g1 (Crecimiento Etapa 1) centrado en 11.5%
-            g_sim = np.random.normal(0.115, 0.015) 
-            # 2. Simulamos WACC centrado en 7.0% (Perfil AAA)
+            # 1. Simulamos el costo del dinero (WACC/Ke) debido a la volatilidad macro
             w_sim = np.random.normal(0.070, 0.003) 
-            # 3. Crecimiento Terminal fijo para estabilidad en 3%
+            # 2. ANCLAJE METODOLÓGICO: El crecimiento ya no es totalmente libre.
+            # En entornos de tasas simuladas más altas (ajuste monetario), el crecimiento tiende a contraerse.
+            # Establecemos una relación inversa sensata:
+            g_base_sim = 0.115 - 0.5 * (w_sim - 0.070)
+            g_sim = np.random.normal(g_base_sim, 0.010) # Agregamos una desviación menor控制
+            
             gt_sim = 0.03
             
             try:
