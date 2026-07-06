@@ -1129,7 +1129,7 @@ def main():
                 st.info("Modelo base con formatos, colores y fórmulas originales alojado en GitHub.")                
             except: st.error("Archivo original no encontrado en GitHub.")
         with cr2:
-            st.link_button("☁️ Ir a Google Sheets (Tiempo Real)", "https://docs.google.com/spreadsheets/d/1Xfqx3-yZxS1YbPkZlLzH37D-Fb7xuUNeIYLk19Vxo7c/edit?usp=sharing", type="primary")
+            st.link_button("☁️ Ir a Google Sheets (Tiempo Real)", "https://docs.google.com/spreadsheets/d/1a7eBcbirmUXZdxx1bwAlhgzBDvkn8eRxCWynhrz-w5o/edit?usp=sharing", type="primary")
             st.caption("Versión interactiva en la nube.")
 
         # 8. GLOSARIO DE CISNES NEGROS
