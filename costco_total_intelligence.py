@@ -226,14 +226,17 @@ class InstitutionalDataService:
             }
 
         except Exception as e:
+            st.sidebar.warning(f"⚠️ Conexión Online falló: {e}. Activando Búnker Local.")
             # --- INTENTO 2: BÚNKER DE DATOS AUDITADOS (FALLBACK 2022-2025) ---
             if os.path.exists(archivo_local):
                 df_bunker = pd.read_csv(archivo_local, index_col=0, parse_dates=True)
                 ultimo_precio = float(df_bunker['Close'].iloc[-1])
 
-                # --- CALCULO DE RANGO 52W DINÁMICO (ANCLADO A HOY) ---
-                f_low = ultimo_precio * 0.78
-                f_high = ultimo_precio * 1.05
+                # --- EXTRAER DINÁMICAMENTE EL RANGO 52 SEMANAS REAL DE LOS DATOS ---
+                # Tomamos las últimas 252 filas (1 año de mercado) si hay datos suficientes
+                df_1y = df_bunker.tail(252) if len(df_bunker) >= 252 else df_bunker
+                real_low_52w = float(df_1y['Close'].min())
+                real_high_52w = float(df_1y['Close'].max())
                 
                 # 1. Definición de fechas (Audit 2022-2025)
                 años = pd.to_datetime(['2025-08-31', '2024-08-31', '2023-08-31', '2022-08-31'])
@@ -275,8 +278,8 @@ class InstitutionalDataService:
                         "shortName": "PriceSmart Inc." if ticker == 'PSMT' else "Costco Wholesale Corp", 
                         "symbol": ticker,
                         "trailingEps": 16.52,
-                        "fiftyTwoWeekLow": float('nan'),
-                        "fiftyTwoWeekHigh": float('nan'),
+                        "fiftyTwoWeekLow": real_low_52w,
+                        "fiftyTwoWeekHigh": real_high_52w,
                         "marketCap": 420.5e9,
                         "trailingPE": 54.20
                     },
